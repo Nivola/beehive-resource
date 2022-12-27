@@ -1,0 +1,666 @@
+heat_template_version: 2017-02-24
+
+description: >
+  Install a PostgreSQL database on a vm.
+
+
+parameters:
+  #---------------------------------------------------------------------
+  #                Postgres Parameters
+  #---------------------------------------------------------------------  
+
+
+  name:
+    type: string
+    description: Name of the db instance. It is used to set server name
+    default: "pginstance"
+
+  dns_zone:
+    type: string
+    description: Dns zone used to set server domain
+    default: "site01.nivolapiemonte.it"
+
+  key_name:
+    type: string
+    description: Name of a KeyPair to enable SSH access to the instance
+    default: "opstkcsi"
+
+  instance_type:
+    type: string
+    description: >
+        Instance type for Postgres server
+        -- maximum resources with"m1.big"
+    default: "m1.medium"
+
+  volume1_size:
+    type: string
+    description: >
+        Cinder volume size
+    default: "20"
+
+  volumedata_size:
+    type: string
+    description: >
+        Cinder volume size
+    default: "30"
+
+  server_network:
+    type: string
+    description: Network used by the db server
+    default: "NVLP1-Prov-BE"
+
+  server_network_subnet:
+    type: string
+    description: Network subnet used by the db server
+    default: "NVLP1-Prov-BE-subnet"
+
+  proxy_server:
+    type: string
+    description: Proxy Server
+    default: "http://10.138.149.7:3128"
+
+  ip_repository:
+    type: string
+    description: PostgreSQL repository
+    default: "10.138.144.15"
+
+  security_groups:
+    type: comma_delimited_list
+    description: Security group to be assigned
+    default: "postgres"
+
+  image_id:
+    type: string
+    description: >
+      Name or ID of the image to use for the db server.
+    default: "centos7_lvm"
+
+  postgresql_version:
+    type: string
+    description: PostgreSQL version
+    default: "9.6"
+
+  postgis_extension:
+    type: string
+    description: Use PostGis extention
+    default: "true"
+
+  db_name:
+    type: string
+    description: Database name, default dbtest
+    default: "dbtest"
+    constraints:
+      - length: { min: 0, max: 64 }
+        description: db_name must be between 1 and 64 characters
+      - allowed_pattern: '[a-z][a-z0-9]*'
+        description: >
+          db_name must begin with a letter and contain only alphanumeric
+          characters lowercase
+
+  db_schema_name:
+    type: string
+    description: Schema name, default schematest
+    default: "schematest"
+    constraints:
+      - length: { min: 0, max: 64 }
+        description: db_name must be between 1 and 64 characters
+      - allowed_pattern: '[a-z][a-z0-9]*'
+        description: >
+          db_name must begin with a letter and contain only alphanumeric
+          characters lowercase          
+
+  db_superuser_name:
+    type: string
+    description: The database admin account username, default dbtest
+    default: "dbtest"
+    hidden: true
+    constraints:
+      - length: { min: 0, max: 16 }
+        description: db_superuser_name must be between 1 and 16 characters
+      - allowed_pattern: '[a-z][a-z0-9]*'
+        description: >
+          db_superuser_name must begin with a letter and contain only alphanumeric
+          characters lowercase
+          
+  db_superuser_password:
+    type: string
+    description: The database admin account password, default no db_superuser_password
+    default: "dbtest"
+    hidden: true
+    constraints:
+      - length: { min: 0, max: 41 }
+        description: db_superuser_password must be between 1 and 41 characters
+      - allowed_pattern: '[a-z0-9]*'
+        description: db_superuser_password must contain only alphanumeric characters lowercase
+
+  db_appuser_name:
+    type: string
+    description: The database user account used by apps, default usertest
+    default: "usertest"
+    hidden: true
+    constraints:
+      - length: { min: 0, max: 16 }
+        description: db_superuser_name must be between 1 and 16 characters
+      - allowed_pattern: '[a-z][a-z0-9]*'
+        description: >
+          db_superuser_name must begin with a letter and contain only alphanumeric
+          characters lowercase
+          
+  db_appuser_password:
+    type: string
+    description: The database user account password used by apps, default usertest
+    default: "usertest"
+    hidden: true
+    constraints:
+      - length: { min: 0, max: 41 }
+        description: db_superuser_password must be between 1 and 41 characters
+      - allowed_pattern: '[a-z0-9]*'
+        description: db_superuser_password must contain only alphanumeric characters lowercase
+
+  db_root_password:
+    type: string
+    description: Root password for postgres user
+    default: password01
+    hidden: true
+    constraints:
+      - length: { min: 0, max: 41 }
+        description: db_root_password must be between 1 and 41 characters
+      - allowed_pattern: '[a-z0-9]*'
+        description: db_root_password must contain only alphanumeric characters lowercase
+
+
+resources:
+  #---------------------------------------------------------------------
+  #                Postgres Server
+  #---------------------------------------------------------------------  
+  postgres_volume1:
+    type: OS::Cinder::Volume
+    properties:
+      image: { get_param: image_id }
+      size: { get_param: volume1_size } 
+
+
+  postgres_volumedata:
+    type: OS::Cinder::Volume
+    properties:
+      size: { get_param: volumedata_size }
+
+  postgres_instance:
+    type: OS::Nova::Server
+    properties:
+      name:
+        str_replace:
+          template: host%.dom%
+          params:
+            "host%": { get_param: name }
+            "dom%": { get_param: dns_zone }
+      image: { get_param: image_id }
+      flavor: { get_param: instance_type }
+      key_name: { get_param: key_name }
+      networks: [{subnet: {get_param: server_network_subnet}}]
+      #networks: [{network: {get_param: server_network}}]
+      block_device_mapping: [{ device_name: "vda", volume_id : { get_resource : postgres_volume1 }, delete_on_termination : "false" }]
+      security_groups: { get_param: security_groups }
+      user_data_format: SOFTWARE_CONFIG
+      config_drive: true
+
+
+  volume_attachment:
+    type: OS::Cinder::VolumeAttachment
+    properties:
+      instance_uuid: { get_resource: postgres_instance }
+      volume_id: { get_resource: postgres_volumedata }
+      mountpoint: /dev/vdb
+
+
+  #---------------------------------------------------------------------
+  #                Postgres Software Config
+  #---------------------------------------------------------------------  
+
+  set_etc_hosts:
+    depends_on: postgres_instance
+    type: OS::Heat::SoftwareConfig
+    properties:
+      group: script
+      outputs:
+      - name: results
+      inputs:
+      - name: ip_addr
+      - name: server_name
+      - name: dns_zone 
+      config: |
+        #!/bin/bash -v
+        set -e
+        sudo hostname $server_name.$dns_zone
+        sudo echo $server_name.$dns_zone > /etc/hostname
+        sudo echo "$ip_addr  $server_name.$dns_zone" >> /etc/hosts
+        sudo echo "127.0.0.1 $server_name.$dns_zone" >> /etc/hosts
+        sudo sed -i 's/preserve_hostname: false/preserve_hostname: true/g' /etc/cloud/cloud.cfg
+
+
+  prepare_volume:
+    depends_on: postgres_instance
+    type: OS::Heat::SoftwareConfig
+    properties:
+      group: ansible
+      inputs:
+      - name: proxy_server
+      config: |
+        ---
+        - name: Install volume2
+          connection: local
+          hosts: localhost
+          vars:
+            proxy_env:
+              http_proxy: "{{ proxy_server }}"
+              https_proxy: "{{ proxy_server }}"
+          tasks:
+            - name: install yum-config manager
+              yum:
+                name: yum-utils
+                state: present
+            - name: install lvm2
+              yum:
+                name: lvm2
+                state: present
+            - name: Create and assign data dir
+              file:
+                path: "{{ item }}"
+                state: directory
+                owner: root
+                group: root
+                mode:  0755
+              with_items:
+              - "/data"
+              ignore_errors: yes
+          become: yes
+          environment: "{{proxy_env}}"
+
+  format_volume:
+    depends_on: prepare_volume
+    type: OS::Heat::SoftwareConfig
+    properties:
+      group: script
+      outputs:
+      - name: results
+      config: |
+        #!/bin/bash
+        echo -e "n\np\n1\n\n\nt\n8e\nw"| sudo fdisk /dev/vdb
+
+  mount_volume:
+    depends_on: format_volume
+    type: OS::Heat::SoftwareConfig
+    properties:
+      group: script
+      outputs:
+      - name: results
+      config: |
+        #!/bin/bash
+        set -e
+        sudo pvcreate /dev/vdb1
+        sudo vgcreate vg_data /dev/vdb1
+        sudo lvcreate -l 100%FREE -n lv_fsdata vg_data
+        sudo mkfs.xfs /dev/vg_data/lv_fsdata
+        sudo mount /dev/vg_data/lv_fsdata /data/
+
+
+
+  install_postgres:
+    depends_on: mount_volume
+    type: OS::Heat::SoftwareConfig
+    properties:
+      group: ansible
+      inputs:
+      - name: postgresql_version
+      - name: ip_repository
+      - name: proxy_server
+      - name: db_root_password      
+      - name: db_name
+      - name: db_schema_name
+      - name: db_superuser_name
+      - name: db_superuser_password
+      - name: db_appuser_name
+      - name: db_appuser_password
+      - name: postgis_extension
+      outputs:
+      - name: result
+      config: |
+        ---
+        - name: Install and run PostgreSQL
+          connection: local
+          hosts: localhost
+          vars:
+            #postgresql_version: "9.6"
+            #ip_repository: "http://10.138.144.15"
+            remove_old_cluster: yes
+            proxy_env:
+              http_proxy: "{{ proxy_server }}"
+              https_proxy: "{{ proxy_server }}"
+            postgresql_config_params:
+              - { key: "listen_addresses =" , value: "listen_addresses = '*'" }
+              - { key: "log_connections =" , value: "log_connections = on" }
+              - { key: "log_disconnections =" , value: "log_disconnections = on" }      
+              - { key: "log_statement =" , value: "log_statement = 'ddl'" }
+              - { key: "log_line_prefix =" , value: "log_line_prefix = '%d %u %t'" }
+              - { key: "log_filename =" , value: "log_filename = 'postgresql-%Y-%m-%d_%H%M%S.log'" }
+              - { key: "checkpoint_completion_target =" , value: "checkpoint_completion_target = 0.9" }
+              - { key: "data_directory =" , value: "data_directory = '/data/postgres'" }
+              - { key: "effective_cache_size =" , value: "effective_cache_size = '1024MB'" }
+              - { key: "max_connections =" , value: "max_connections = 300" }
+              - { key: "shared_buffers =" , value: "shared_buffers = '1024MB'" }
+              - { key: "synchronous_commit =" , value: "synchronous_commit = on" }
+              - { key: "wal_buffers =" , value: "wal_buffers = -1" }
+              - { key: "work_mem =" , value: "work_mem = '2MB'" }
+              - { key: "shared_preload_libraries =" , value: "shared_preload_libraries = 'pg_stat_statements'" }
+            postgres_extentions:
+              - "adminpack"
+              - "pgcrypto"
+              - "pg_stat_statements"
+              - "orafce"
+            postgis_extension_presence: "{{ postgis_extension }}"
+            postgres_repo_params:
+              - { key: "[postgres]" , value: "[postgres]" }
+              - { key: "name=" , value: "name=postgres.repo" }
+              - { key: "baseurl=" , value: "baseurl= http://{{ ip_repository }}/repos/postgresql/{{ postgresql_version }}/" }
+              - { key: "gpgcheck=" , value: "gpgcheck=0" }
+              - { key: "proxy=" , value: "proxy=_none_" }
+
+          tasks:
+           - name: install epel repository
+             yum:
+               name: https://download.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+               state: latest
+           - name: install yum-config manager
+             yum:
+               name: yum-utils
+               state: present
+           - name : Create PostgreSQL repo file 
+             lineinfile:
+               path=/etc/yum.repos.d/postgres.repo
+               line='{{item.value}}'
+               state=present
+               create=yes
+             with_items: "{{ postgres_repo_params }}"
+           - name: Enable PostgreSQL repo
+             shell: "{{ item }}"
+             with_items:
+             - sudo yum-config-manager --enable postgres                
+           - name: Ensure PostgreSQL packages are installed.
+             yum: 
+               name: 
+                 - CGAL
+                 - libgeotiff
+                 - geos36
+                 - proj49
+                 - SFCGAL
+                 - SFCGAL-libs
+                 - orafce{{ postgresql_version |replace('.', '') }}
+                 - pgdg-centos{{ postgresql_version |replace('.', '') }}
+                 - postgresql{{ postgresql_version |replace('.', '') }}
+                 - postgresql{{ postgresql_version |replace('.', '') }}-server
+                 - postgresql{{ postgresql_version |replace('.', '') }}-libs
+                 - postgresql{{ postgresql_version |replace('.', '') }}-contrib
+                 - postgresql{{ postgresql_version |replace('.', '') }}-devel
+                 - postgis24_{{ postgresql_version |replace('.', '') }}
+                 - postgis24_{{ postgresql_version |replace('.', '') }}-client
+                 - python-psycopg2
+                 - gdal-libs
+               state: installed
+           
+           - name: Create and assign data dir to postgres user
+             file:
+               path: /data
+               state: directory
+               owner: postgres
+               group: postgres
+               mode: 0700
+           #next two tasks are to be idempotent
+           - name: "Stop old postgresql service"
+             service: name="postgresql-{{ postgresql_version }}" state=stopped
+             when: remove_old_cluster
+           - name: "Remove old postgresql cluster"
+             command: "rm -rf /var/lib/pgsql/{{ postgresql_version }}/data /data/postgres/"
+             when: remove_old_cluster
+           - name : Set PGDATA in service file
+             lineinfile : 
+               path=/usr/lib/systemd/system/postgresql-{{ postgresql_version }}.service
+               regexp='Environment=PGDATA='
+               line='Environment=PGDATA=/data/postgres/'
+               state=present
+           - name: "Initialize new postgresql cluster"
+             become_user: "postgres"
+             command: "/usr/pgsql-{{ postgresql_version }}/bin/initdb -D /data/postgres/"
+           - name: "Start postgresql service"
+             service: name="postgresql-{{ postgresql_version }}" state=started enabled=yes
+           - name : Modify /pg_hba.conf step 1 remove old
+             lineinfile :
+               path=/data/postgres/pg_hba.conf
+               regexp="{{item}}"
+               state=absent
+             with_items:        
+               - "local   all"
+               - "host    all"
+           - name : Modify /pg_hba.conf step 2 add new
+             lineinfile :
+               path=/data/postgres/pg_hba.conf
+               line='local   all             all                                     peer\nlocal   all             postgres                                ident\nhost    all             all             127.0.0.1/32            md5\nhost    all             all             ::1/128                 md5\nhost    all             all             0.0.0.0/0               md5\n' 
+               state=present
+           - name : Modify /data/postgres/postgresql.conf step 1 remove old
+             lineinfile:
+               path=/data/postgres/postgresql.conf
+               regexp='{{item.key}}'
+               state=absent
+             with_items: "{{ postgresql_config_params }}"
+           - name : Modify /data/postgres/postgresql.conf step 2 remove add new 
+             lineinfile:
+               path=/data/postgres/postgresql.conf
+               line='{{item.value}}'
+               state=present
+             with_items: "{{ postgresql_config_params }}"
+           - name: "Restart postgresql service"
+             become_user: "postgres"
+             command: "/usr/pgsql-{{ postgresql_version }}/bin/pg_ctl -D /data/postgres restart"
+           - name : Modify bash_profile step 1 remove old
+             become_user: "postgres"
+             lineinfile:
+               path=.bash_profile
+               regexp='{{item}}'
+               state=absent
+             with_items:
+               - "PGDATA"
+               - "/usr/pgsql-9.6/bin"
+           - name : Modify bash_profile step 2 add new
+             become_user: "postgres"
+             lineinfile:
+               path=.bash_profile
+               line='PGDATA=/data/postgres\nexport PGDATA\nPATH=$PATH:/usr/pgsql-9.6/bin\n'
+               state=present
+           - name: "Create a DB"
+             become_user: "postgres"
+             postgresql_db:
+               name: "{{ db_name }}"
+               encoding: UTF-8
+               lc_collate: en_US.UTF-8
+               lc_ctype: en_US.UTF-8
+           - name: "Create a user with superuser role"
+             become_user: "postgres"
+             postgresql_user:
+               db: "{{ db_name }}"
+               name: "{{ db_superuser_name }}"
+               password: "{{ db_superuser_password }}"
+               role_attr_flags: SUPERUSER
+           - name: "Add pstgres sxtensions"
+             become_user: "postgres"
+             postgresql_ext:
+               name: "{{ item }}"
+               db: "{{ db_name }}"
+             with_items: "{{ postgres_extentions }}"
+           - name: "Add postgis extensions"
+             become_user: "postgres"
+             postgresql_ext:
+               name: "postgis"
+               db: "{{ db_name }}"
+             when: ("{{ postgis_extension_presence }}" == "true")             
+           - name: "Create a user with app role"
+             become_user: "postgres"
+             postgresql_user:
+               db: "{{ db_name }}"
+               name: "{{ db_appuser_name }}"
+               password: "{{ db_appuser_password }}"
+               role_attr_flags: NOSUPERUSER,INHERIT,NOCREATEDB,NOCREATEROLE
+           - name: "Create app schema"
+             become_user: "postgres"
+             postgresql_schema:
+               name: "{{ db_schema_name }}"
+               owner: "{{ db_appuser_name }}"               
+           - name: PosgreSQL missing ansible commands to set up db
+             become_user: "postgres"
+             shell: psql -c "{{ item }}";
+             with_items:
+               - ALTER ROLE postgres WITH PASSWORD '"{{ db_root_password }}"'
+               - ALTER DATABASE "{{ db_name }}" CONNECTION LIMIT -1
+               - ALTER DATABASE "{{ db_name }}" SET search_path="{{ db_superuser_name }}", public, topology
+               - GRANT ALL ON SCHEMA "{{ db_schema_name }}" TO "{{ db_appuser_name }}"
+               - ALTER ROLE "{{ db_appuser_name }}" SET search_path="{{ db_schema_name }}", public
+           - name: Postgis settings
+             become_user: "postgres"
+             shell: psql -d dbtest -c "{{ item }}";
+             with_items:
+               - GRANT select, insert, update, delete ON TABLE public.geometry_columns TO public
+               - GRANT select ON TABLE public.spatial_ref_sys to public
+               - GRANT select, insert, update, delete ON TABLE public.geometry_columns TO public
+               - GRANT select ON TABLE public.spatial_ref_sys to public
+               - GRANT SELECT, UPDATE, INSERT, DELETE ON TABLE public.geography_columns TO public
+             when: ("{{ postgis_extension_presence }}" == "true")
+           - name: modify fstab   
+             lineinfile:
+               path: /etc/fstab
+               line: "/dev/vg_data/lv_fsdata /data xfs defaults 0 0"
+               state: present 
+           - name: "Restart postgresql service"
+             become_user: "postgres"
+             command: "/usr/pgsql-{{ postgresql_version }}/bin/pg_ctl -D /data/postgres restart" 
+          environment: "{{proxy_env}}"
+          become: yes
+          
+
+
+  #---------------------------------------------------------------------
+  #                Postgres Software Deployment
+  #---------------------------------------------------------------------  
+
+
+  deployment_first_postgres:
+    depends_on: postgres_instance
+    type: OS::Heat::SoftwareDeployment
+    properties:
+      signal_transport: TEMP_URL_SIGNAL
+      input_values:      
+        ip_addr: {get_attr: [postgres_instance, first_address]}
+        server_name: { get_param: name }
+        dns_zone: { get_param: dns_zone }
+      config:
+        get_resource: set_etc_hosts
+      server:
+        get_resource: postgres_instance
+
+
+  deployment_prepare:
+    depends_on: postgres_instance
+    type: OS::Heat::SoftwareDeployment
+    properties:
+      signal_transport: TEMP_URL_SIGNAL
+      input_values:
+        proxy_server: { get_param: proxy_server }
+      config:
+        get_resource: prepare_volume
+      server:
+        get_resource: postgres_instance
+
+  deployment_format:
+    depends_on: deployment_prepare
+    type: OS::Heat::SoftwareDeployment
+    properties:
+      signal_transport: TEMP_URL_SIGNAL
+      config:
+        get_resource: format_volume
+      server:
+        get_resource: postgres_instance
+
+  deployment_volume:
+    depends_on: deployment_format
+    type: OS::Heat::SoftwareDeployment
+    properties:
+      signal_transport: TEMP_URL_SIGNAL
+      config:
+        get_resource: mount_volume
+      server:
+        get_resource: postgres_instance
+
+
+  deployment_install_postgres:
+    depends_on: [install_postgres, deployment_first_postgres, deployment_volume]
+    type: OS::Heat::SoftwareDeployment
+    properties:
+      signal_transport: TEMP_URL_SIGNAL
+      input_values:      
+        postgresql_version: { get_param: postgresql_version }
+        ip_repository: { get_param: ip_repository }
+        proxy_server: { get_param: proxy_server }
+        db_name: { get_param: db_name }
+        db_schema_name: { get_param: db_schema_name }
+        db_root_password: { get_param: db_root_password }
+        db_superuser_name: { get_param: db_superuser_name }
+        db_superuser_password: { get_param: db_superuser_password }
+        db_appuser_name: { get_param: db_appuser_name }
+        db_appuser_password: { get_param: db_appuser_password }
+        postgis_extension: { get_param: postgis_extension }
+      config:
+        get_resource: install_postgres
+      server:
+        get_resource: postgres_instance
+
+
+outputs:
+  #---------------------------------------------------------------------
+  #                Postgres Outputs
+  #---------------------------------------------------------------------
+  ResourceIP:
+    description: Master Server IP address
+    value: { get_attr: [postgres_instance, first_address] }
+
+  ResourceHostname:
+    description: Master Server Hostname
+    value: { get_attr: [postgres_instance, name] }
+
+  ResourceID:
+    description: Master Server Resource ID.
+    value:
+      get_resource: postgres_instance
+
+  MasterDatabaseURL:
+    description: URL for Postgres
+    value:
+      str_replace:
+        template: host:5432
+        params:
+          host: { get_attr: [postgres_instance, first_address] }
+
+  deployment_install_postgres_result:
+    value:
+      get_attr: [deployment_install_postgres, result]
+
+  deployment_install_postgres_status_code:
+    value:
+      get_attr: [deployment_install_postgres, deploy_status_code]
+
+  deployment_install_postgres_stdout:
+    description: Standard output captured from the installuration execution.
+    value:
+      get_attr: [deployment_install_postgres, deploy_stdout]
+
+  deployment_install_postgres_stderr:
+    description: Standard error captured from the installuration execution.
+    value:
+      get_attr: [deployment_install_postgres, deploy_stderr]
+

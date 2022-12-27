@@ -1,0 +1,404 @@
+'''
+Created on Jun 9, 2016
+
+@author: darkbk
+'''
+import ujson as json
+from binascii import hexlify, unhexlify
+from datetime import datetime
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy import Column, Integer, String, DateTime, create_engine, exc
+from sqlalchemy.dialects.mysql import LONGBLOB
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.exc import SQLAlchemyError
+from logging import getLogger
+from beecell.simple import truncate,transaction_id_generator
+from beecell.db.manager import MysqlManager
+from beehive.common.data import operation
+from beecell.db.util import transaction, query
+
+Base = declarative_base()
+
+
+def text_to_bits(text, encoding='utf-8', errors='surrogatepass'):
+    bits = bin(int(hexlify(text.encode(encoding, errors)), 16))[2:]
+    return bits.zfill(8 * ((len(bits) + 7) // 8))
+
+def text_from_bits(bits, encoding='utf-8', errors='surrogatepass'):
+    n = int(bits, 2)
+    return int2bytes(n).decode(encoding, errors)
+
+def int2bytes(i):
+    hex_string = '%x' % i
+    n = len(hex_string)
+    return unhexlify(hex_string.zfill(n + (n & 1)))
+
+
+class Template(Base):
+    __tablename__ = 'template'
+    __table_args__ = {'mysql_engine':'InnoDB'}
+    
+    templ_id = Column(String(14), primary_key=True, unique=True, nullable=False)
+    name = Column(String(150), primary_key=True, unique=True, nullable=False)
+    desc = Column(String(300), unique=False, nullable=True)
+    parent = Column(Integer, unique=False, nullable=False)
+    data_type = Column(String(24), primary_key=False, unique=False, nullable=False)
+    data = Column(LONGBLOB)
+    created = Column('created', DateTime())
+    modified = Column('modified', DateTime())
+    
+
+    def __init__(self, templ_id, name, desc, parent, data_type, data, created, modified):
+        self.templ_id = templ_id
+        self.name = name
+        self.desc = desc
+        self.parent = parent
+        self.data_type = data_type        
+        self.data = data
+        self.created = datetime.today()
+        self.modified = self.created
+    
+
+    def __repr__(self):
+        d = {'templ_id':self.templ_id,'name':self.name, 
+                'parent':self.parent, 'data_type':self.data_type}
+        return json.dumps(d)
+    
+    
+
+class TemplateDbManager(object):
+    """
+    """
+    def __init__(self, session=None):
+        """ """
+        self.logger = getLogger(self.__class__.__module__+ \
+                                        '.'+self.__class__.__name__)        
+        self._session = session
+    
+    def __repr__(self):
+        return "<TemplateDbManager id='%s'>" % id(self)
+
+    def set_session(self, session):
+        self._session = session
+
+    def get_session(self):
+        """open db session"""
+        if self._session is None:
+            return operation.session
+        else:
+            return self._session
+        '''try:
+            operation.session = self.db_manager.get_session()
+            return operation.session
+        except exc.DBAPIError, e:
+            raise e '''
+
+    def create_pool_engine(self, dbconf):
+        """Create mysql pool engine.
+        
+        :param dbconf list: (uri, timeout, pool_size, max_overflow, pool_recycle) 
+        """
+        try:
+            db_uri = dbconf[0]
+            connect_timeout = dbconf[1]
+            pool_size = dbconf[2]
+            max_overflow = dbconf[3]
+            pool_recycle = dbconf[4]
+            self.db_manager = MysqlManager('db_manager01', db_uri, 
+                                           connect_timeout=connect_timeout)
+            self.db_manager.create_pool_engine(pool_size=pool_size, 
+                                               max_overflow=max_overflow, 
+                                               pool_recycle=pool_recycle)
+        except exc.DBAPIError, e:
+            raise e 
+   
+    
+    @staticmethod
+    def create_table_sql():
+        """Create statements in raw SQL."""
+        try:
+            engine = create_engine('mysql+pymysql://')
+            print Base.metadata.create_all(engine)
+            getLogger('gibbon.cloudapi.db').info('Create template tables sql')
+            del engine
+        except exc.DBAPIError, e:
+            raise e 
+
+    @staticmethod
+    def create_table(db_uri):
+        """Create all tables in the engine. This is equivalent to "Create Table"
+        statements in raw SQL."""
+        try:
+            engine = create_engine(db_uri)
+            Base.metadata.create_all(engine)
+            getLogger('gibbon.cloudapi.db').info('Create template tables on : %s' % db_uri)
+            del engine
+        except exc.DBAPIError, e:
+            raise e
+    
+    @staticmethod
+    def remove_table(db_uri):
+        """ Remove all tables in the engine. This is equivalent to "Drop Table"
+        statements in raw SQL."""
+        try:
+            engine = create_engine(db_uri)
+            Base.metadata.drop_all(engine)
+            getLogger('gibbon.cloudapi.db').info('Remove template tables from : %s' % db_uri)
+            del engine
+        except exc.DBAPIError, e:
+            raise e
+
+    @transaction
+    def add_template(self, templ_id=None, name=None, desc=None, parent=None, 
+                     data_type=None, data=None):
+        """Add a template.
+        
+        :param templ_id int: template id.
+        :param name str: template name.
+        :param desc str: description [default='']
+        :param parent: parent id
+        :param data_type: values admitted TEMPLATE, TEMPLATEBASE, ENVIRONMENTS, 
+            PARAMS, RESOURCES, OUTPUTS, FILES, SWCONFIG, SWDEPLOY
+        :param data LONGBLOB: the template data in binary format
+        :return: True if operation is successful, False otherwise
+        :raises TransactionError: raise :class:`TransactionError`
+        """
+        types=['TEMPLATE', 'TEMPLATEBASE', 'ENVIRONMENTS', 'PARAMS', 
+               'RESOURCES', 'OUTPUTS', 'FILES', 'SWCONFIG', 'SWDEPLOY']
+        if data_type not in types:
+            self.logger.error("Specify a valid data type value: %s" %types)
+            raise SQLAlchemyError("Specify a valid data type value: %s" %types)
+        if templ_id is None or templ_id =='':
+            templ_id = "TEID%s"%transaction_id_generator(length=10)
+        elif len(templ_id) != 14:
+            self.logger.error("Specify a 14 char template id value: %s" %templ_id)
+            raise SQLAlchemyError("Specify a 14 char template id value: %s" %templ_id) 
+        if desc==None:
+            desc=''
+        self.logger.debug("Template data typ: %s" %data_type)            
+        if data_type in ['TEMPLATE','TEMPLATEBASE','SWCONFIG','SWDEPLOY',
+                         'RESOURCES', 'OUTPUTS']:
+            record = Template(templ_id=templ_id, name=name, desc=desc, parent=parent,
+                          data_type=data_type, data=text_to_bits(data), 
+                          created=None, modified=None)
+        else:
+            record = Template(templ_id=templ_id, name=name, desc=desc, parent=parent,
+                          data_type=data_type, data=text_to_bits(json.dumps(data)), 
+                          created=None, modified=None)            
+        
+        session = self.get_session()
+        session.add(record)
+        try:
+            session.commit()
+            self.logger.info("DB updated")
+        except IntegrityError as e:
+            self.logger.warning("Row cannot be added!    %s" %e)
+            session.rollback()
+            raise SQLAlchemyError('Row cannot be added : %s' %e)
+        except:
+            raise SQLAlchemyError('Row cannot be added!')
+        session.flush()
+        #self.logger.debug('Add template: %s' % json.dumps(record))
+        return record
+
+    @transaction
+    def update_template(self, templ_id=None, name=None, 
+                        new_templ_id=None, new_name=None, new_desc=None, 
+                        new_parent=None, new_data_type=None, new_data=None):
+        """Update template.
+
+        :param templ_id int: template id.
+        :param name str: template name.
+        :param new_templ_id int: template id.
+        :param new_name str: new template name.
+        :param new_desc str: new description [default='']
+        :param new_parent: new parent id
+        :param new_data_type: values admitted TEMPLATE, ENVIRONMENTS, PARAMS, 
+            RESOURCES, OUTPUTS, FILES, SWCONFIG, SWDEPLOY
+        :param new_data BLOB: the new template data in binary format
+        :return: True if operation is successful, False otherwise
+        :rtype: bool
+        :raises TransactionError: raise :class:`TransactionError`
+        """      
+        types=['TEMPLATE', 'ENVIRONMENTS', 'PARAMS', 'RESOURCES', 'OUTPUTS', 
+               'FILES', 'SWCONFIG', 'SWDEPLOY']
+        if new_data_type not in types:
+            self.logger.error("Specify a valid data type value: %s" %types)
+            raise SQLAlchemyError("Specify a valid data type value: %s" %types)
+        session = self.get_session()
+        if templ_id is not None:
+            if len(templ_id) == 14:
+                rec = session.query(Template).filter_by(templ_id=templ_id)                
+            else:
+                self.logger.error("Specify a 14 char template id value: %s" %templ_id)
+                raise SQLAlchemyError("Specify a 14 char template id value: %s" %templ_id)  
+        elif name is not None:
+            rec = session.query(Template).filter_by(name=name)
+        else:
+            self.logger.error("Specify templ_id or name")
+            raise SQLAlchemyError("Specify templ_id or name")
+        
+        template = rec.first()
+        if template is None:
+            self.logger.error("No template found")
+            raise SQLAlchemyError("No template found")
+        
+        template = rec.first()
+        
+        # create data dict with update
+        d = {'modified':datetime.utcnow()}
+        
+        if new_templ_id is not None:
+            d['templ_id'] = new_templ_id            
+        if new_name is not None:
+            d['name'] = new_name
+        if new_parent is not None:
+            d['parent'] = new_parent
+        if new_desc is not None:
+            d['desc'] = new_desc
+        if new_data_type is not None:
+            d['data_type'] = new_data_type
+        if new_data is not None:
+            d['data'] = text_to_bits(new_data)
+
+        res = rec.update(d)
+
+        try:
+            session.commit()
+            self.logger.info("DB updated")
+            return True
+        except IntegrityError as e:
+            self.logger.warning("Row cannot be modified!    %s" %e)
+            session.rollback()
+            raise SQLAlchemyError('Row cannot be modified : %e' %e)
+        except:
+            raise SQLAlchemyError('Row cannot be modified!')
+        session.flush()            
+        self.logger.debug('Update template %s with data: %s"' % (template, d))
+        return True    
+
+    @transaction
+    def remove_template(self, templ_id=None, name=None):
+        """Remove template. Specify templ_id or name.
+        
+        :param templ_id int: id of the template [optional]
+        :param name str: template name.[optional]
+        :return: True if operation is successful, False otherwise
+        :rtype: bool
+        :raises TransactionError: raise :class:`TransactionError`
+        """
+        session = self.get_session()
+        if templ_id is not None:  
+            res = session.query(Template).filter_by(templ_id=templ_id)
+        elif name is not None:
+            res = session.query(Template)\
+                         .filter_by(name=name)
+        else:
+            self.logger.error("Specify template id or name")
+            raise SQLAlchemyError("Specify template id or name")
+        
+        templ = res.first()
+        if templ is not None:
+            session.delete(templ)
+        else:
+            self.logger.error("No templates found")
+            raise SQLAlchemyError("No template found")
+        try:
+            session.commit()
+            self.logger.info("DB updated")
+        except IntegrityError as e:
+            self.logger.warning("Row cannot be deleted!    %s" %e)
+            session.rollback()
+            raise SQLAlchemyError('Row cannot be deleted : %e' %e)
+        except:
+            raise SQLAlchemyError('Row cannot be deleted!')
+        session.flush()  
+        
+        self.logger.debug('Remove template: %s' % templ)
+        return True               
+
+    @query
+    def get_templates(self, templ_id=None, name=None, desc=None, parent=None,
+                     data_type=None, created=None, modified=None):
+        """Get templates.
+
+        :param templ_id str: template id. [optional]
+        :param name str: template name. [optional]
+        :param desc str: description [optional]
+        :param parent: parent id [optional]
+        :param data_type: TEMPLATE, ENVIRONMENTS, PARAMS, RESOURCES, OUTPUTS, 
+            FILES, SWCONFIG, SWDEPLOY [optional]       
+        :param created: date of creation [optional]
+        :param modified: date of modification[optional]
+        :return: List of templates
+        :rtype: list of :class:`Resource`
+        :raises QueryError: raise :class:`QueryError`  
+        """
+        session = self.get_session()
+        if templ_id is not None:  
+            res = session.query(Template).filter_by(templ_id=templ_id).all()
+        elif name is not None or \
+             desc is not None or \
+             parent is not None or \
+             created is not None or \
+             data_type is not None or \
+             modified is not None:
+            res = session.query(Template)
+            if name is not None:
+                res = res.filter(Template.name.like(name))
+            if desc is not None:
+                res = res.filter(Template.desc.like('%'+desc+'%'))
+            if parent is not None:  
+                res = res.filter(Template.objid.like(parent))
+            if data_type is not None:
+                res = res.filter(Template.data_type.like(data_type))                
+            if created is not None: 
+                res = res.filter(Template.creation_date==created)
+            if modified is not None: 
+                res = res.filter(Template.modification_date==modified)
+            
+            res = res.all()
+            #res['data']= text_from_bits(res['data'])
+        else:
+            res = session.query(Template).all()
+            
+        rfilter = {'templ_id':templ_id, 'name':name, 
+                   'desc':desc, 'parent':parent, 'data_type':data_type,
+                   'created':created, 'modified':modified}
+            
+        if len(res) == 0:
+            self.logger.error("No resource found %s" % rfilter)
+            raise SQLAlchemyError("No resource found %s" % rfilter)
+                        
+        self.logger.debug('Get resource %s: %s' % (rfilter, truncate(res)))
+        return res    
+
+    @query
+    def get_template_data(self, templ_id=None, name=None,):
+        """Get sigle template data.
+
+        :param templ_id str: template id. [optional]
+        :param name str: template name. [optional]
+        :return: a template with data converted from bin
+        :rtype: list of :class:`Resource`
+        :raises QueryError: raise :class:`QueryError`  
+        """
+        session = self.get_session()
+        if templ_id is not None:  
+            r = session.query(Template).filter_by(templ_id=templ_id).all()
+        elif name is not None:
+            r = session.query(Template).filter_by(templ_id=templ_id).all()
+        else:
+            self.logger.error("No resource found %s %s" % (templ_id,name))
+            raise SQLAlchemyError("No resource found %s %s" % (templ_id,name))           
+        if len(r) == 0:
+            self.logger.error("No resource found %s %s" % (templ_id,name))
+            raise SQLAlchemyError("No resource found %s %s" % (templ_id,name))
+        re = r[0]
+        self.logger.debug('Get template resource %s: %s %s' % (templ_id,name, str(re)))
+        res =  {'templ_id':re.templ_id,'name':re.name, 
+                'parent':re.parent, 'data_type':re.data_type, 
+                'data':text_from_bits(re.data), 
+                'created':str(re.created), 
+                'modified':str(re.modified)}
+        return res

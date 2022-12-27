@@ -1,0 +1,241 @@
+heat_template_version: 2017-02-24
+
+description: >
+  Install 2 server with Manila share
+
+
+parameters:
+  #---------------------------------------------------------------------
+  #                Mysql Parameters
+  #---------------------------------------------------------------------  
+
+  key_name:
+    type: string
+    description: Name of a KeyPair to enable SSH access to the instance
+    default: "opstkcsi"
+
+  instance_type:
+    type: string
+    description: >
+        Instance type for server
+        -- maximum resources with"m1.big"
+    default: "m1.small"
+
+  volume_size:
+    type: string
+    description: >
+        Cinder volume size
+    default: "40"
+
+  server_network:
+    type: string
+    description: Network used by the db server
+    default: "NVLP1-Prov-WEB"
+    
+  proxy_server:
+    type: string
+    description: Proxy Server
+    default: "http://10.138.149.7:3128"
+
+  security_groups:
+    type: comma_delimited_list
+    description: >
+      Security group to be assigned, NOTE: default must be a single string, not a list
+    default: "mysql"
+    
+  image_id:
+    type: string
+    description: >
+      Name or ID of the image to use for the db server.
+    default: "centos7-guestagent-timezone"
+    
+  share_type:
+    type: string
+    description: >
+      Name or ID of the image to use for the db server.
+    default: "svmp1-nfs-1121"
+
+  share_dimension:
+    type: string
+    description: >
+      Dimension Gb of the shared file system
+    default: 10
+
+resources:
+  #---------------------------------------------------------------------
+  #                Resource
+  #---------------------------------------------------------------------  
+  instance1_nova:
+    type: OS::Nova::Server
+    properties:
+      name: server1-manila
+      image: { get_param: image_id }
+      flavor: { get_param: instance_type }
+      key_name: { get_param: key_name }
+      networks: [{network: {get_param: server_network}}]
+      security_groups: { get_param: security_groups }
+      user_data_format: SOFTWARE_CONFIG
+      config_drive: true
+
+  instance2_nova:
+    type: OS::Nova::Server
+    properties:
+      name: server2-manila
+      image: { get_param: image_id }
+      flavor: { get_param: instance_type }
+      key_name: { get_param: key_name }
+      networks: [{network: {get_param: server_network}}]
+      security_groups: { get_param: security_groups }
+      user_data_format: SOFTWARE_CONFIG
+      config_drive: true
+
+      
+      
+  my_shared_filesystem:
+    depends_on: [instance1_nova, instance2_nova]
+    type: OS::Manila::Share
+    properties:
+      name: shared_filesystem
+      is_public: true
+      share_protocol: "NFS"
+      share_type: { get_param: share_type }
+      size: { get_param: share_dimension }
+      access_rules: [{"access_level": "rw",
+       "access_to":  { get_attr: [instance1_nova, first_address] },
+       "access_type": "ip"},
+       {"access_level": "rw",
+       "access_to":  { get_attr: [instance2_nova, first_address] },
+       "access_type": "ip"}]  
+       
+  #---------------------------------------------------------------------
+  #               Software Config
+  #---------------------------------------------------------------------  
+
+  sw_config:
+    type: OS::Heat::SoftwareConfig
+    depends_on: [instance1_nova, instance2_nova, my_shared_filesystem]
+    properties:
+      group: ansible
+      inputs:
+      - name: ip_addr_share
+      outputs:
+      - name: results
+      config: |
+        ---
+        - name: create mount point
+          connection: local
+          hosts: localhost
+          vars:
+             remote_dir: "{{ ip_addr_share | regex_replace('\\[u|\\]','') }}"
+            
+          tasks:
+           - name: create mount directory
+             file:
+               path: /usr/www
+               state: directory
+               owner: centos
+               mode: 0775 
+           - debug:
+               msg: Remote server is  "{{ ip_addr_share }}"
+           - debug:
+               msg: Remote serverReg is  "{{ remote_dir }}" 
+           - debug:
+               var:  remote_dir | regex_replace("\'","")
+           - name: print variable
+             shell: echo "{{ remote_dir }}" >> /tmp/p
+           - name: change variable
+             shell: echo "{{ remote_dir }}" | sed -e "s:'::g"
+             register: mount_point
+           - debug:
+               msg:   "{{ mount_point.stdout }}"
+           
+           - name: create mount directory
+             mount:
+               path: /usr/www
+               fstype: nfs
+               src:  "{{ mount_point.stdout }}"
+               state: mounted  	
+          become: yes
+           
+  
+  deploy_sw1:
+    type: OS::Heat::SoftwareDeployment
+    depends_on: my_shared_filesystem
+    properties:
+      signal_transport: TEMP_URL_SIGNAL
+      input_values:
+        ip_addr_share:
+           get_attr: [my_shared_filesystem, export_locations]   
+      config:            
+        get_resource: sw_config
+      server:
+        get_resource: instance1_nova
+        
+  deploy_sw2:
+    type: OS::Heat::SoftwareDeployment
+    depends_on: my_shared_filesystem
+    properties:
+      signal_transport: TEMP_URL_SIGNAL
+      input_values:
+        ip_addr_share: 
+           get_attr: [my_shared_filesystem, export_locations]   
+      config:
+        get_resource: sw_config
+      server:
+        get_resource: instance2_nova        
+
+        
+outputs:
+  #---------------------------------------------------------------------
+  #                Mysql Outputs
+  #---------------------------------------------------------------------  
+  IPServer1:
+    description: Master Server IP address
+    value: { get_attr: [instance1_nova, first_address] }
+
+  IPServer2:
+    description: Master Server IP address
+    value: { get_attr: [instance2_nova, first_address] }
+
+  ResourceHostname1:
+    description: Server Hostname
+    value: { get_attr: [instance1_nova, name] }
+
+  ResourceID1:
+    description: Master Server Resource ID.
+    value:
+      get_resource: instance1_nova
+      
+  ResourceHostname2:
+    description: Server Hostname
+    value: { get_attr: [instance2_nova, name] }
+    
+
+  ShareLocation : 
+    value: 
+      str_replace:
+       template: { get_attr: [my_shared_filesystem, export_locations] }    
+       params:
+         "[u'": ""
+         "']": ""
+         
+  DetailedInfo:
+    value: { get_attr: [my_shared_filesystem, show] } 
+
+  ResourceID2:
+    description: Master Server Resource ID.
+    value:
+      get_resource: instance2_nova
+  
+  sw1_result:
+    value:
+      get_attr: [deploy_sw1, result]
+      
+  stdout_sw1_result:
+    value:
+      get_attr: [deploy_sw1, deploy_stdout]
+      
+  error_sw1_result:
+    value:
+      get_attr: [deploy_sw1, deploy_stderr]
+ 
