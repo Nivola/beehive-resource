@@ -1,11 +1,15 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive_resource.plugins.openstack.entity.ops_domain import OpenstackDomain
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
-from beehive.common.apimanager import PaginatedResponseSchema, SwaggerApiView, GetApiObjectRequestSchema
+from beehive.common.apimanager import (
+    PaginatedResponseSchema,
+    SwaggerApiView,
+    GetApiObjectRequestSchema,
+)
 from beehive_resource.view import ResourceResponseSchema, ListResourcesRequestSchema
 from beehive_resource.plugins.openstack.views import OpenstackAPI, OpenstackApiView
 
@@ -28,18 +32,13 @@ class ListDomainsResponseSchema(PaginatedResponseSchema):
 
 
 class ListDomains(OpenstackDomainApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'ListDomainsResponseSchema': ListDomainsResponseSchema,
+        "ListDomainsResponseSchema": ListDomainsResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(ListDomainsRequestSchema)
     parameters_schema = ListDomainsRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': ListDomainsResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListDomainsResponseSchema}})
 
     def get(self, controller, data, *args, **kwargs):
         """
@@ -54,17 +53,12 @@ class GetDomainResponseSchema(Schema):
 
 
 class GetDomain(OpenstackDomainApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'GetDomainResponseSchema': GetDomainResponseSchema,
+        "GetDomainResponseSchema": GetDomainResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetDomainResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetDomainResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -75,14 +69,14 @@ class GetDomain(OpenstackDomainApiView):
 
 
 class OpenstackDomainAPI(OpenstackAPI):
-    """Openstack base platform api routes:
-    """
+    """Openstack base platform api routes:"""
+
     @staticmethod
     def register_api(module, **kwargs):
         base = OpenstackAPI.base
         rules = [
-            ('%s/domains' % base, 'GET', ListDomains, {}),
-            ('%s/domains/<oid>' % base, 'GET', GetDomain, {}),
+            ("%s/domains" % base, "GET", ListDomains, {}),
+            ("%s/domains/<oid>" % base, "GET", GetDomain, {}),
         ]
 
         OpenstackAPI.register_api(module, rules, **kwargs)

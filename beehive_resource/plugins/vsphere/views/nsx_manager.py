@@ -1,20 +1,23 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive_resource.plugins.vsphere.views import VsphereAPI, VsphereApiView
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
-from beehive.common.apimanager import PaginatedResponseSchema, SwaggerApiView, GetApiObjectRequestSchema,\
-    ApiGraphResponseSchema
-from beehive_resource.view import ResourceResponseSchema,\
-    ListResourcesRequestSchema
+from beehive.common.apimanager import (
+    PaginatedResponseSchema,
+    SwaggerApiView,
+    GetApiObjectRequestSchema,
+    ApiGraphResponseSchema,
+)
+from beehive_resource.view import ResourceResponseSchema, ListResourcesRequestSchema
 from beehive_resource.plugins.vsphere.entity.nsx_manager import NsxManager
 from networkx.readwrite import json_graph
 
 
 class VsphereNsxManagerApiView(VsphereApiView):
-    tags = ['vsphere']
+    tags = ["vsphere"]
     resclass = NsxManager
     parentclass = None
 
@@ -33,16 +36,11 @@ class ListNsxManagersResponseSchema(PaginatedResponseSchema):
 
 class ListNsxManagers(VsphereNsxManagerApiView):
     definitions = {
-        'ListNsxManagersResponseSchema': ListNsxManagersResponseSchema,
+        "ListNsxManagersResponseSchema": ListNsxManagersResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(ListNsxManagersRequestSchema)
     parameters_schema = ListNsxManagersRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': ListNsxManagersResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListNsxManagersResponseSchema}})
 
     def get(self, controller, data, *args, **kwargs):
         """
@@ -68,15 +66,10 @@ class GetNsxManagerResponseSchema(Schema):
 
 class GetNsxManager(VsphereNsxManagerApiView):
     definitions = {
-        'GetNsxManagerResponseSchema': GetNsxManagerResponseSchema,
+        "GetNsxManagerResponseSchema": GetNsxManagerResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetNsxManagerResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetNsxManagerResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -128,13 +121,13 @@ class GetNsxManager(VsphereNsxManagerApiView):
 
 
 class ListNsxManagerComponentsParamsResponseSchema(Schema):
-    componentGroup = fields.String(required=True, example='SYSTEM')
-    componentId = fields.String(required=True, example='SSH')
-    description = fields.String(required=True, example='Secure Shell')
+    componentGroup = fields.String(required=True, example="SYSTEM")
+    componentId = fields.String(required=True, example="SSH")
+    description = fields.String(required=True, example="Secure Shell")
     enabled = fields.Boolean(required=True, example=True)
-    name = fields.String(required=True, example='SSH Service')
+    name = fields.String(required=True, example="SSH Service")
     showTechSupportLogs = fields.Boolean(required=True, example=False)
-    status = fields.String(required=True, example='RUNNING')
+    status = fields.String(required=True, example="RUNNING")
     usedBy = fields.List(fields.String(), required=True, example=[], allow_none=True)
     uses = fields.List(fields.String(), required=True, example=[], allow_none=True)
     versionInfo = fields.Dict(required=True, example={}, allow_none=True)
@@ -142,37 +135,53 @@ class ListNsxManagerComponentsParamsResponseSchema(Schema):
 
 class ListNsxManagerComponentsResponseSchema(Schema):
     count = fields.Integer(required=True, default=10, example=10)
-    nsx_components = fields.Nested(ListNsxManagerComponentsParamsResponseSchema,
-                                   many=True, required=True, allow_none=True)
+    nsx_components = fields.Nested(
+        ListNsxManagerComponentsParamsResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListNsxManagerComponents(VsphereNsxManagerApiView):
     definitions = {
-        'ListNsxManagerComponentsResponseSchema': ListNsxManagerComponentsResponseSchema,
+        "ListNsxManagerComponentsResponseSchema": ListNsxManagerComponentsResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': ListNsxManagerComponentsResponseSchema
+    responses = SwaggerApiView.setResponses(
+        {
+            200: {
+                "description": "success",
+                "schema": ListNsxManagerComponentsResponseSchema,
+            }
         }
-    })
+    )
 
     def get(self, controller, data, oid, *args, **kwargs):
         manager = self.get_resource_reference(controller, oid)
         resp = manager.get_manager_components()
-        return {'nsx_components': resp, 'count': len(resp)}
+        return {"nsx_components": resp, "count": len(resp)}
 
 
 class ListNsxManagerEventsRequestSchema(GetApiObjectRequestSchema):
-    page = fields.Integer(required=False, missing=0, example=0, context='query',
-                        description='start index is an optional parameter which specifies the starting point for '
-                                    'retrieving the logs. If this parameter is not specified, logs are retrieved '
-                                    'from the beginning.')
-    size = fields.Integer(required=False, missing=20, example=20, context='query',
-                          description='page size is an optional parameter that limits the maximum number of entries '
-                                      'returned by the API. The default value for this parameter is 256 and the valid '
-                                      'range is 1-1024.')
+    page = fields.Integer(
+        required=False,
+        missing=0,
+        example=0,
+        context="query",
+        description="start index is an optional parameter which specifies the starting point for "
+        "retrieving the logs. If this parameter is not specified, logs are retrieved "
+        "from the beginning.",
+    )
+    size = fields.Integer(
+        required=False,
+        missing=20,
+        example=20,
+        context="query",
+        description="page size is an optional parameter that limits the maximum number of entries "
+        "returned by the API. The default value for this parameter is 256 and the valid "
+        "range is 1-1024.",
+    )
 
 
 class ListNsxManagerEventsResponseSchema(PaginatedResponseSchema):
@@ -181,17 +190,14 @@ class ListNsxManagerEventsResponseSchema(PaginatedResponseSchema):
 
 class ListNsxManagerEvents(VsphereNsxManagerApiView):
     definitions = {
-        'ListNsxManagerEventsRequestSchema': ListNsxManagerEventsRequestSchema,
-        'ListNsxManagerEventsResponseSchema': ListNsxManagerEventsResponseSchema,
+        "ListNsxManagerEventsRequestSchema": ListNsxManagerEventsRequestSchema,
+        "ListNsxManagerEventsResponseSchema": ListNsxManagerEventsResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(ListNsxManagerEventsRequestSchema)
     parameters_schema = ListNsxManagerEventsRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': ListNsxManagerEventsResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses(
+        {200: {"description": "success", "schema": ListNsxManagerEventsResponseSchema}}
+    )
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -221,33 +227,40 @@ class ListNsxManagerEvents(VsphereNsxManagerApiView):
         ]
         """
         manager = self.get_resource_reference(controller, oid)
-        resp = manager.get_system_events(start_index=data.get('page', 0),
-                                         page_size=data.get('size', 20))
-        paging = resp.get('pagingInfo')
-        res = resp.get('systemEvent')
-        order = 'ASC'
-        if paging.get('sortOrderAscending') == 'false': order = 'DESC'
+        resp = manager.get_system_events(start_index=data.get("page", 0), page_size=data.get("size", 20))
+        paging = resp.get("pagingInfo")
+        res = resp.get("systemEvent")
+        order = "ASC"
+        if paging.get("sortOrderAscending") == "false":
+            order = "DESC"
         return {
-            'nsx_events': res,
-            'count': len(res),
-            'page': int(paging.get('pageSize')),
-            'total': int(paging.get('totalCount')),
-            'sort': {
-                'field': 'eventId',
-                'order': order
-            }
+            "nsx_events": res,
+            "count": len(res),
+            "page": int(paging.get("pageSize")),
+            "total": int(paging.get("totalCount")),
+            "sort": {"field": "eventId", "order": order},
         }
 
 
 class ListNsxManagerAuditsRequestSchema(GetApiObjectRequestSchema):
-    page = fields.Integer(required=False, missing=0, example=0, context='query',
-                           description='start index is an optional parameter which specifies the starting point for '
-                                       'retrieving the logs. If this parameter is not specified, logs are retrieved '
-                                       'from the beginning.')
-    size = fields.Integer(required=False, missing=20, example=20, context='query',
-                          description='page size is an optional parameter that limits the maximum number of entries '
-                                      'returned by the API. The default value for this parameter is 256 and the valid '
-                                      'range is 1-1024.')
+    page = fields.Integer(
+        required=False,
+        missing=0,
+        example=0,
+        context="query",
+        description="start index is an optional parameter which specifies the starting point for "
+        "retrieving the logs. If this parameter is not specified, logs are retrieved "
+        "from the beginning.",
+    )
+    size = fields.Integer(
+        required=False,
+        missing=20,
+        example=20,
+        context="query",
+        description="page size is an optional parameter that limits the maximum number of entries "
+        "returned by the API. The default value for this parameter is 256 and the valid "
+        "range is 1-1024.",
+    )
 
 
 class ListNsxManagerAuditsResponseSchema(PaginatedResponseSchema):
@@ -256,16 +269,13 @@ class ListNsxManagerAuditsResponseSchema(PaginatedResponseSchema):
 
 class ListNsxManagerAudits(VsphereNsxManagerApiView):
     definitions = {
-        'ListNsxManagerAuditsResponseSchema': ListNsxManagerAuditsResponseSchema,
+        "ListNsxManagerAuditsResponseSchema": ListNsxManagerAuditsResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(ListNsxManagerAuditsRequestSchema)
     parameters_schema = ListNsxManagerAuditsRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': ListNsxManagerAuditsResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses(
+        {200: {"description": "success", "schema": ListNsxManagerAuditsResponseSchema}}
+    )
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -287,21 +297,18 @@ class ListNsxManagerAudits(VsphereNsxManagerApiView):
         ]
         """
         manager = self.get_resource_reference(controller, oid)
-        resp = manager.get_system_audit_logs(start_index=data.get('page', 0),
-                                             page_size=data.get('size', 20))
-        paging = resp.get('pagingInfo')
-        res = resp.get('auditLog')
-        order = 'ASC'
-        if paging.get('sortOrderAscending') == 'false': order = 'DESC'
+        resp = manager.get_system_audit_logs(start_index=data.get("page", 0), page_size=data.get("size", 20))
+        paging = resp.get("pagingInfo")
+        res = resp.get("auditLog")
+        order = "ASC"
+        if paging.get("sortOrderAscending") == "false":
+            order = "DESC"
         return {
-            'nsx_audits':res,
-            'count':len(res),
-            'page':int(paging.get('pageSize')),
-            'total':int(paging.get('totalCount')),
-            'sort':{
-                'field': 'id',
-                'order': order
-            }
+            "nsx_audits": res,
+            "count": len(res),
+            "page": int(paging.get("pageSize")),
+            "total": int(paging.get("totalCount")),
+            "sort": {"field": "id", "order": order},
         }
 
 
@@ -312,15 +319,17 @@ class ListNsxManagerControllersResponseSchema(Schema):
 
 class ListNsxManagerControllers(VsphereNsxManagerApiView):
     definitions = {
-        'ListNsxManagerControllersResponseSchema': ListNsxManagerControllersResponseSchema,
+        "ListNsxManagerControllersResponseSchema": ListNsxManagerControllersResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': ListNsxManagerControllersResponseSchema
+    responses = SwaggerApiView.setResponses(
+        {
+            200: {
+                "description": "success",
+                "schema": ListNsxManagerControllersResponseSchema,
+            }
         }
-    })
+    )
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -406,7 +415,7 @@ class ListNsxManagerControllers(VsphereNsxManagerApiView):
         """
         manager = self.get_resource_reference(controller, oid)
         resp = manager.get_controllers()
-        return {'nsx_controllers': resp, 'count': len(resp)}
+        return {"nsx_controllers": resp, "count": len(resp)}
 
 
 class ListNsxManagerTransportZoneResponseSchema(Schema):
@@ -416,15 +425,17 @@ class ListNsxManagerTransportZoneResponseSchema(Schema):
 
 class ListNsxManagerTransportZone(VsphereNsxManagerApiView):
     definitions = {
-        'ListNsxManagerTransportZoneResponseSchema': ListNsxManagerTransportZoneResponseSchema,
+        "ListNsxManagerTransportZoneResponseSchema": ListNsxManagerTransportZoneResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': ListNsxManagerTransportZoneResponseSchema
+    responses = SwaggerApiView.setResponses(
+        {
+            200: {
+                "description": "success",
+                "schema": ListNsxManagerTransportZoneResponseSchema,
+            }
         }
-    })
+    )
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -475,7 +486,7 @@ class ListNsxManagerTransportZone(VsphereNsxManagerApiView):
         """
         manager = self.get_resource_reference(controller, oid)
         resp = manager.get_transport_zones()
-        return {'nsx_transport_zones': resp, 'count': len(resp)}
+        return {"nsx_transport_zones": resp, "count": len(resp)}
 
 
 class GetSecurityGroupsGraphResponseSchema(Schema):
@@ -484,15 +495,17 @@ class GetSecurityGroupsGraphResponseSchema(Schema):
 
 class GetSecurityGroupsGraph(VsphereNsxManagerApiView):
     definitions = {
-        'GetSecurityGroupsGraphResponseSchema': GetSecurityGroupsGraphResponseSchema,
+        "GetSecurityGroupsGraphResponseSchema": GetSecurityGroupsGraphResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetSecurityGroupsGraphResponseSchema
+    responses = SwaggerApiView.setResponses(
+        {
+            200: {
+                "description": "success",
+                "schema": GetSecurityGroupsGraphResponseSchema,
+            }
         }
-    })
+    )
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -513,7 +526,7 @@ class GetSecurityGroupsGraph(VsphereNsxManagerApiView):
         manager = self.get_resource_reference(controller, oid)
         obj = manager.get_security_groups_graph()
         resp = json_graph.node_link_data(obj)
-        return {'nsx_security_group_graph': resp}
+        return {"nsx_security_group_graph": resp}
 
 
 class GetSecurityGroupsTreeResponseSchema(Schema):
@@ -522,15 +535,12 @@ class GetSecurityGroupsTreeResponseSchema(Schema):
 
 class GetSecurityGroupsTree(VsphereNsxManagerApiView):
     definitions = {
-        'GetSecurityGroupsTreeResponseSchema': GetSecurityGroupsTreeResponseSchema,
+        "GetSecurityGroupsTreeResponseSchema": GetSecurityGroupsTreeResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetSecurityGroupsTreeResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses(
+        {200: {"description": "success", "schema": GetSecurityGroupsTreeResponseSchema}}
+    )
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -569,25 +579,40 @@ class GetSecurityGroupsTree(VsphereNsxManagerApiView):
         manager = self.get_resource_reference(controller, oid)
         obj = manager.get_security_groups_tree()
         resp = json_graph.tree_data(obj, root=0)
-        return {'nsx_security_group_tree': resp}
+        return {"nsx_security_group_tree": resp}
 
 
 class VsphereNsxManagerAPI(VsphereAPI):
-    """Vsphere nsx manager platform api routes:
-    """
+    """Vsphere nsx manager platform api routes:"""
+
     @staticmethod
     def register_api(module, **kwargs):
-        base = VsphereAPI.base + '/network'
+        base = VsphereAPI.base + "/network"
         rules = [
-            ('%s/nsxs' % base, 'GET', ListNsxManagers, {}),
-            ('%s/nsxs/<oid>' % base, 'GET', GetNsxManager, {}),
-            ('%s/nsxs/<oid>/components' % base, 'GET', ListNsxManagerComponents, {}),
-            ('%s/nsxs/<oid>/events' % base, 'GET', ListNsxManagerEvents, {}),
-            ('%s/nsxs/<oid>/audits' % base, 'GET', ListNsxManagerAudits, {}),
-            ('%s/nsxs/<oid>/controllers' % base, 'GET', ListNsxManagerControllers, {}),
-            ('%s/nsxs/<oid>/transport_zones' % base, 'GET', ListNsxManagerTransportZone, {}),
-            ('%s/nsxs/<oid>/security_groups_graph' % base, 'GET', GetSecurityGroupsGraph, {}),
-            ('%s/nsxs/<oid>/security_groups_tree' % base, 'GET', GetSecurityGroupsTree, {}),
+            ("%s/nsxs" % base, "GET", ListNsxManagers, {}),
+            ("%s/nsxs/<oid>" % base, "GET", GetNsxManager, {}),
+            ("%s/nsxs/<oid>/components" % base, "GET", ListNsxManagerComponents, {}),
+            ("%s/nsxs/<oid>/events" % base, "GET", ListNsxManagerEvents, {}),
+            ("%s/nsxs/<oid>/audits" % base, "GET", ListNsxManagerAudits, {}),
+            ("%s/nsxs/<oid>/controllers" % base, "GET", ListNsxManagerControllers, {}),
+            (
+                "%s/nsxs/<oid>/transport_zones" % base,
+                "GET",
+                ListNsxManagerTransportZone,
+                {},
+            ),
+            (
+                "%s/nsxs/<oid>/security_groups_graph" % base,
+                "GET",
+                GetSecurityGroupsGraph,
+                {},
+            ),
+            (
+                "%s/nsxs/<oid>/security_groups_tree" % base,
+                "GET",
+                GetSecurityGroupsTree,
+                {},
+            ),
         ]
 
         VsphereAPI.register_api(module, rules, **kwargs)

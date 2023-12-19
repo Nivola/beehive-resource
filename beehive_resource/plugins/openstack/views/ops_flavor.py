@@ -1,14 +1,18 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive_resource.plugins.openstack.entity.ops_flavor import OpenstackFlavor
 from beehive_resource.plugins.openstack.views import OpenstackAPI, OpenstackApiView
 from beehive_resource.plugins.openstack.entity.ops_domain import OpenstackDomain
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
-from beehive.common.apimanager import PaginatedResponseSchema, SwaggerApiView, GetApiObjectRequestSchema, \
-    CrudApiObjectJobResponseSchema
+from beehive.common.apimanager import (
+    PaginatedResponseSchema,
+    SwaggerApiView,
+    GetApiObjectRequestSchema,
+    CrudApiObjectJobResponseSchema,
+)
 from beehive_resource.view import ResourceResponseSchema, ListResourcesRequestSchema
 
 
@@ -30,18 +34,13 @@ class ListFlavorsResponseSchema(PaginatedResponseSchema):
 
 
 class ListFlavors(OpenstackFlavorApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'ListFlavorsResponseSchema': ListFlavorsResponseSchema,
+        "ListFlavorsResponseSchema": ListFlavorsResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(ListFlavorsRequestSchema)
     parameters_schema = ListFlavorsRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': ListFlavorsResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListFlavorsResponseSchema}})
 
     def get(self, controller, data, *args, **kwargs):
         """
@@ -56,17 +55,12 @@ class GetFlavorResponseSchema(Schema):
 
 
 class GetFlavor(OpenstackFlavorApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'GetFlavorResponseSchema': GetFlavorResponseSchema,
+        "GetFlavorResponseSchema": GetFlavorResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetFlavorResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetFlavorResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -77,13 +71,13 @@ class GetFlavor(OpenstackFlavorApiView):
 
 
 class CreateFlavorParamRequestSchema(Schema):
-    container = fields.String(required=True, example='12', description='container id, uuid or name')
-    name = fields.String(required=True, default='test')
-    desc = fields.String(required=True, default='test')
-    tags = fields.String(default='')
-    vcpus = fields.Integer(default='', description='vcpus')
-    ram = fields.Integer(default='', description='ram')
-    disk = fields.Integer(default='', description='disk')
+    container = fields.String(required=True, example="12", description="container id, uuid or name")
+    name = fields.String(required=True, default="test")
+    desc = fields.String(required=True, default="test")
+    tags = fields.String(default="")
+    vcpus = fields.Integer(default="", description="vcpus")
+    ram = fields.Integer(default="", description="ram")
+    disk = fields.Integer(default="", description="disk")
 
 
 class CreateFlavorRequestSchema(Schema):
@@ -91,23 +85,18 @@ class CreateFlavorRequestSchema(Schema):
 
 
 class CreateFlavorBodyRequestSchema(Schema):
-    body = fields.Nested(CreateFlavorRequestSchema, context='body')
+    body = fields.Nested(CreateFlavorRequestSchema, context="body")
 
 
 class CreateFlavor(OpenstackFlavorApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'CreateFlavorRequestSchema': CreateFlavorRequestSchema,
-        'CrudApiObjectJobResponseSchema': CrudApiObjectJobResponseSchema
+        "CreateFlavorRequestSchema": CreateFlavorRequestSchema,
+        "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(CreateFlavorBodyRequestSchema)
     parameters_schema = CreateFlavorRequestSchema
-    responses = SwaggerApiView.setResponses({
-        202: {
-            'description': 'success',
-            'schema': CrudApiObjectJobResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def post(self, controller, data, *args, **kwargs):
         """
@@ -118,8 +107,8 @@ class CreateFlavor(OpenstackFlavorApiView):
 
 
 class UpdateFlavorParamRequestSchema(Schema):
-    name = fields.String(default='test')
-    desc = fields.String(default='test')
+    name = fields.String(default="test")
+    desc = fields.String(default="test")
     enabled = fields.Boolean(default=True)
     extra_specs = fields.Dict(default=False)
 
@@ -129,23 +118,18 @@ class UpdateFlavorRequestSchema(Schema):
 
 
 class UpdateFlavorBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateFlavorRequestSchema, context='body')
+    body = fields.Nested(UpdateFlavorRequestSchema, context="body")
 
 
 class UpdateFlavor(OpenstackFlavorApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'UpdateFlavorRequestSchema': UpdateFlavorRequestSchema,
-        'CrudApiObjectJobResponseSchema': CrudApiObjectJobResponseSchema
+        "UpdateFlavorRequestSchema": UpdateFlavorRequestSchema,
+        "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(UpdateFlavorBodyRequestSchema)
     parameters_schema = UpdateFlavorRequestSchema
-    responses = SwaggerApiView.setResponses({
-        202: {
-            'description': 'success',
-            'schema': CrudApiObjectJobResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def put(self, controller, data, oid, *args, **kwargs):
         """
@@ -156,34 +140,27 @@ class UpdateFlavor(OpenstackFlavorApiView):
 
 
 class DeleteFlavor(OpenstackFlavorApiView):
-    tags = ['openstack']
-    definitions = {
-        'CrudApiObjectJobResponseSchema': CrudApiObjectJobResponseSchema
-    }
+    tags = ["openstack"]
+    definitions = {"CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        202: {
-            'description': 'success',
-            'schema': CrudApiObjectJobResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def delete(self, controller, data, oid, *args, **kwargs):
         return self.expunge_resource(controller, oid)
 
 
 class OpenstackFlavorAPI(OpenstackAPI):
-    """Openstack base platform api routes:
-    """
+    """Openstack base platform api routes:"""
+
     @staticmethod
     def register_api(module, **kwargs):
         base = OpenstackAPI.base
         rules = [
-            ('%s/flavors' % base, 'GET', ListFlavors, {}),
-            ('%s/flavors/<oid>' % base, 'GET', GetFlavor, {}),
-            ('%s/flavors' % base, 'POST', CreateFlavor, {}),
-            ('%s/flavors/<oid>' % base, 'PUT', UpdateFlavor, {}),
-            ('%s/flavors/<oid>' % base, 'DELETE', DeleteFlavor, {}),
+            ("%s/flavors" % base, "GET", ListFlavors, {}),
+            ("%s/flavors/<oid>" % base, "GET", GetFlavor, {}),
+            ("%s/flavors" % base, "POST", CreateFlavor, {}),
+            ("%s/flavors/<oid>" % base, "PUT", UpdateFlavor, {}),
+            ("%s/flavors/<oid>" % base, "DELETE", DeleteFlavor, {}),
         ]
 
         OpenstackAPI.register_api(module, rules, **kwargs)

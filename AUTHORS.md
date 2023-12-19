@@ -1,8 +1,16 @@
-beehive-resource is written and maintained by: 
+beehive-resource is written and maintained by:
 
-* Sergio Tonani
-* Michele Bello
+* Alessandro Morè
+* Alessandro More'
+* Antonio Brasile
+* Daniela Ferraini
 * Davide Sacchetto
 * Filippo Vallero
 * Franco Frattini
-* Alessandro More'
+* Gianni Doria
+* Marco Paschetta
+* Michele Bello
+* Pasquale Lepera
+* Pietro Pillolli
+* Roberto D'Albano
+* Sergio Tonani

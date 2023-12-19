@@ -1,15 +1,25 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from celery.utils.log import get_task_logger
 from beehive_resource.tasks import ResourceJobTask, ResourceJob
 from beehive.common.task.manager import task_manager
 from beehive.common.task.job import job_task, Job
-from beehive_resource.tasks import create_resource_pre, create_resource_post, update_resource_pre, \
-    update_resource_post, expunge_resource_pre, expunge_resource_post
+from beehive_resource.tasks import (
+    create_resource_pre,
+    create_resource_post,
+    update_resource_pre,
+    update_resource_post,
+    expunge_resource_pre,
+    expunge_resource_post,
+)
 from beehive.common.task.util import end_task, start_task
-from beehive_resource.plugins.provider.task import group_remove_task, ProviderOrchestrator
+from beehive_resource.plugins.provider.task import (
+    group_remove_task,
+    ProviderOrchestrator,
+)
 from beehive_resource.plugins.provider.task.openstack import ProviderOpenstack
 from beehive_resource.plugins.provider.task.vsphere import ProviderVsphere
 
@@ -29,33 +39,50 @@ def task_create_site_network(self, options, orchestrator):
     params = self.get_shared_data()
 
     self.get_session()
-    oid = params.get('id')
+    oid = params.get("id")
     resource = self.get_resource(oid)
-    self.update('PROGRESS', msg='Get resource %s' % resource)
+    self.update("PROGRESS", msg="Get resource %s" % resource)
 
     # get params
-    name = params.get('name')
-    network_type = params.get('network_type')
-    vlan = params.get('vlan')
-    orchestrator_id = orchestrator['id']
-    orchestrator_config = orchestrator.get('config', {})
-    physical_network = orchestrator_config.get('physical_network', None)
+    name = params.get("name")
+    network_type = params.get("network_type")
+    vlan = params.get("vlan")
+    orchestrator_id = orchestrator["id"]
+    orchestrator_config = orchestrator.get("config", {})
+    physical_network = orchestrator_config.get("physical_network", None)
     # subnets = params.get('subnets')
-    external = params.get('external', None)
-    private = params.get('private', None)
-    public_network = orchestrator_config.get('public_network', None)
-    self.update('PROGRESS', msg='Get configuration params')
+    external = params.get("external", None)
+    private = params.get("private", None)
+    public_network = orchestrator_config.get("public_network", None)
+    self.update("PROGRESS", msg="Get configuration params")
 
     # create network
-    if orchestrator['type'] == 'vsphere':
-        network_id = ProviderVsphere.create_network(self, orchestrator_id, resource, network_type, name, vlan,
-                                                    external, private, physical_network=physical_network,
-                                                    public_network=public_network)
-    elif orchestrator['type'] == 'openstack':
-
-        network_id = ProviderOpenstack.create_network(self, orchestrator_id, resource, network_type, name, vlan,
-                                                      external, private, physical_network=physical_network,
-                                                      public_network=public_network)
+    if orchestrator["type"] == "vsphere":
+        network_id = ProviderVsphere.create_network(
+            self,
+            orchestrator_id,
+            resource,
+            network_type,
+            name,
+            vlan,
+            external,
+            private,
+            physical_network=physical_network,
+            public_network=public_network,
+        )
+    elif orchestrator["type"] == "openstack":
+        network_id = ProviderOpenstack.create_network(
+            self,
+            orchestrator_id,
+            resource,
+            network_type,
+            name,
+            vlan,
+            external,
+            private,
+            physical_network=physical_network,
+            public_network=public_network,
+        )
         # network_id = ProviderOpenstack.create_network(self, orchestrator_id, resource, network_type, name, vlan,
         #                                               subnets, external, private, physical_network=physical_network,
         #                                               public_network=public_network)
@@ -79,40 +106,58 @@ def task_site_network_add_subnet(self, options, orchestrators, subnet):
     # validate input params
     params = self.get_shared_data()
     self.get_session()
-    oid = params.get('id')
+    oid = params.get("id")
     resource = self.get_resource(oid)
-    self.update('PROGRESS', msg='Get resource %s' % resource)
+    self.update("PROGRESS", msg="Get resource %s" % resource)
 
     # append subnet
     res = []
 
-    cidr = subnet['cidr']
-    gateway = subnet.get('gateway', None)
-    routes = subnet.get('routes', None)
-    allocation_pools = subnet.get('allocation_pools', None)
-    enable_dhcp = subnet['enable_dhcp']
-    dns_nameservers = subnet.get('dns_nameservers', None)
+    cidr = subnet["cidr"]
+    gateway = subnet.get("gateway", None)
+    routes = subnet.get("routes", None)
+    allocation_pools = subnet.get("allocation_pools", None)
+    enable_dhcp = subnet["enable_dhcp"]
+    dns_nameservers = subnet.get("dns_nameservers", None)
 
     # insert empty subnet
-    subnet['vsphere_id'] = None
-    subnet['openstack_id'] = None
+    subnet["vsphere_id"] = None
+    subnet["openstack_id"] = None
     resource.update_subnet_in_configs(subnet)
 
     for orchestrator in orchestrators:
-        orchestrator_id = orchestrator['id']
+        orchestrator_id = orchestrator["id"]
 
-        if orchestrator['type'] == 'vsphere':
-            allocation_pool = allocation_pools.get('vsphere', None)
+        if orchestrator["type"] == "vsphere":
+            allocation_pool = allocation_pools.get("vsphere", None)
             if allocation_pool is not None:
-                sid = ProviderVsphere.create_subnet(self, orchestrator_id, resource, cidr, gateway, routes,
-                                                    allocation_pool, enable_dhcp, dns_nameservers)
-                subnet['vsphere_id'] = sid
-        elif orchestrator['type'] == 'openstack':
-            allocation_pool = allocation_pools.get('openstack', None)
+                sid = ProviderVsphere.create_subnet(
+                    self,
+                    orchestrator_id,
+                    resource,
+                    cidr,
+                    gateway,
+                    routes,
+                    allocation_pool,
+                    enable_dhcp,
+                    dns_nameservers,
+                )
+                subnet["vsphere_id"] = sid
+        elif orchestrator["type"] == "openstack":
+            allocation_pool = allocation_pools.get("openstack", None)
             if allocation_pool is not None:
-                sid = ProviderOpenstack.create_subnet(self, orchestrator_id, resource, cidr, gateway, routes,
-                                                      allocation_pool, enable_dhcp, dns_nameservers)
-                subnet['openstack_id'] = sid
+                sid = ProviderOpenstack.create_subnet(
+                    self,
+                    orchestrator_id,
+                    resource,
+                    cidr,
+                    gateway,
+                    routes,
+                    allocation_pool,
+                    enable_dhcp,
+                    dns_nameservers,
+                )
+                subnet["openstack_id"] = sid
 
         # update subnet with orchestrator subnet id
         resource.update_subnet_in_configs(subnet)
@@ -135,21 +180,21 @@ def task_site_network_del_subnet(self, options, orchestrators, subnet):
     # validate input params
     params = self.get_shared_data()
     self.get_session()
-    oid = params.get('id')
+    oid = params.get("id")
     resource = self.get_resource(oid)
-    self.update('PROGRESS', msg='Get resource %s' % resource)
+    self.update("PROGRESS", msg="Get resource %s" % resource)
 
     res = []
     for orchestrator in orchestrators:
-        orchestrator_id = orchestrator['id']
-        if orchestrator['type'] == 'vsphere':
-            subnet_id = subnet.get('vsphere_id', None)
+        orchestrator_id = orchestrator["id"]
+        if orchestrator["type"] == "vsphere":
+            subnet_id = subnet.get("vsphere_id", None)
             sid = ProviderVsphere.delete_subnet(self, orchestrator_id, resource, subnet_id)
-            subnet['vsphere_id'] = None
-        elif orchestrator['type'] == 'openstack':
-            subnet_id = subnet.get('openstack_id', None)
+            subnet["vsphere_id"] = None
+        elif orchestrator["type"] == "openstack":
+            subnet_id = subnet.get("openstack_id", None)
             sid = ProviderOpenstack.delete_subnet(self, orchestrator_id, resource, subnet_id)
-            subnet['openstack_id'] = None
+            subnet["openstack_id"] = None
 
         resource.update_subnet_in_configs(subnet)
         res.append(sid)
@@ -383,17 +428,17 @@ def task_update_site_network_append_physical_network(self, options):
     params = self.get_shared_data()
 
     # validate input params
-    oid = params.get('id')
-    network_type = params.get('network_type')
-    net_id = params.get('network_id')
-    orchestrator_type = params.get('orchestrator_type')
-    self.update('PROGRESS', msg='Get configuration params')
+    oid = params.get("id")
+    network_type = params.get("network_type")
+    net_id = params.get("network_id")
+    orchestrator_type = params.get("orchestrator_type")
+    self.update("PROGRESS", msg="Get configuration params")
 
     # get parent cloud domain
     self.get_session()
     resource = self.get_resource(oid)
     self.release_session()
-    self.update('PROGRESS', msg='Get resource %s' % resource)
+    self.update("PROGRESS", msg="Get resource %s" % resource)
 
     # create network
     self.get_session()

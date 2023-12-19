@@ -1,14 +1,18 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive_resource.plugins.openstack.entity.ops_image import OpenstackImage
 from beehive_resource.plugins.openstack.views import OpenstackAPI, OpenstackApiView
 from beehive_resource.plugins.openstack.entity.ops_domain import OpenstackDomain
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
-from beehive.common.apimanager import PaginatedResponseSchema, SwaggerApiView, GetApiObjectRequestSchema, \
-    CrudApiObjectJobResponseSchema
+from beehive.common.apimanager import (
+    PaginatedResponseSchema,
+    SwaggerApiView,
+    GetApiObjectRequestSchema,
+    CrudApiObjectJobResponseSchema,
+)
 from beehive_resource.view import ResourceResponseSchema, ListResourcesRequestSchema
 
 
@@ -30,18 +34,13 @@ class ListImagesResponseSchema(PaginatedResponseSchema):
 
 
 class ListImages(OpenstackImageApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'ListImagesResponseSchema': ListImagesResponseSchema,
+        "ListImagesResponseSchema": ListImagesResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(ListImagesRequestSchema)
     parameters_schema = ListImagesRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': ListImagesResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListImagesResponseSchema}})
 
     def get(self, controller, data, *args, **kwargs):
         """
@@ -56,17 +55,12 @@ class GetImageResponseSchema(Schema):
 
 
 class GetImage(OpenstackImageApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'GetImageResponseSchema': GetImageResponseSchema,
+        "GetImageResponseSchema": GetImageResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetImageResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetImageResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -77,10 +71,10 @@ class GetImage(OpenstackImageApiView):
 
 
 class CreateImageParamRequestSchema(Schema):
-    container = fields.String(required=True, example='12', description='container id, uuid or name')
-    name = fields.String(required=True, default='test')
-    desc = fields.String(required=True, default='test')
-    tags = fields.String(default='')
+    container = fields.String(required=True, example="12", description="container id, uuid or name")
+    name = fields.String(required=True, default="test")
+    desc = fields.String(required=True, default="test")
+    tags = fields.String(default="")
 
 
 class CreateImageRequestSchema(Schema):
@@ -88,23 +82,18 @@ class CreateImageRequestSchema(Schema):
 
 
 class CreateImageBodyRequestSchema(Schema):
-    body = fields.Nested(CreateImageRequestSchema, context='body')
+    body = fields.Nested(CreateImageRequestSchema, context="body")
 
 
 class CreateImage(OpenstackImageApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'CreateImageRequestSchema': CreateImageRequestSchema,
-        'CrudApiObjectJobResponseSchema': CrudApiObjectJobResponseSchema
+        "CreateImageRequestSchema": CreateImageRequestSchema,
+        "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(CreateImageBodyRequestSchema)
     parameters_schema = CreateImageRequestSchema
-    responses = SwaggerApiView.setResponses({
-        202: {
-            'description': 'success',
-            'schema': CrudApiObjectJobResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def post(self, controller, data, *args, **kwargs):
         """
@@ -115,8 +104,8 @@ class CreateImage(OpenstackImageApiView):
 
 
 class UpdateImageParamRequestSchema(Schema):
-    name = fields.String(default='test')
-    desc = fields.String(default='test')
+    name = fields.String(default="test")
+    desc = fields.String(default="test")
     enabled = fields.Boolean(default=True)
 
 
@@ -125,23 +114,18 @@ class UpdateImageRequestSchema(Schema):
 
 
 class UpdateImageBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateImageRequestSchema, context='body')
+    body = fields.Nested(UpdateImageRequestSchema, context="body")
 
 
 class UpdateImage(OpenstackImageApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'UpdateImageRequestSchema': UpdateImageRequestSchema,
-        'CrudApiObjectJobResponseSchema': CrudApiObjectJobResponseSchema
+        "UpdateImageRequestSchema": UpdateImageRequestSchema,
+        "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(UpdateImageBodyRequestSchema)
     parameters_schema = UpdateImageRequestSchema
-    responses = SwaggerApiView.setResponses({
-        202: {
-            'description': 'success',
-            'schema': CrudApiObjectJobResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def put(self, controller, data, oid, *args, **kwargs):
         """
@@ -152,17 +136,10 @@ class UpdateImage(OpenstackImageApiView):
 
 
 class DeleteImage(OpenstackImageApiView):
-    tags = ['openstack']
-    definitions = {
-        'CrudApiObjectJobResponseSchema': CrudApiObjectJobResponseSchema
-    }
+    tags = ["openstack"]
+    definitions = {"CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        202: {
-            'description': 'success',
-            'schema': CrudApiObjectJobResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def delete(self, controller, data, oid, *args, **kwargs):
         return self.expunge_resource(controller, oid)
@@ -196,18 +173,17 @@ class DeleteImage(OpenstackImageApiView):
 
 
 class OpenstackImageAPI(OpenstackAPI):
-    """Openstack base platform api routes:
-    """
+    """Openstack base platform api routes:"""
+
     @staticmethod
     def register_api(module, **kwargs):
         base = OpenstackAPI.base
         rules = [
-            ('%s/images' % base, 'GET', ListImages, {}),
-            ('%s/images/<oid>' % base, 'GET', GetImage, {}),
-            ('%s/images' % base, 'POST', CreateImage, {}),
-            ('%s/images/<oid>' % base, 'PUT', UpdateImage, {}),
-            ('%s/images/<oid>' % base, 'DELETE', DeleteImage, {}),
-
+            ("%s/images" % base, "GET", ListImages, {}),
+            ("%s/images/<oid>" % base, "GET", GetImage, {}),
+            ("%s/images" % base, "POST", CreateImage, {}),
+            ("%s/images/<oid>" % base, "PUT", UpdateImage, {}),
+            ("%s/images/<oid>" % base, "DELETE", DeleteImage, {}),
             # ('%s/images/<oid>/metadata' % base, 'GET', GetImageMetadata, {}),
         ]
 

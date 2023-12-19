@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from re import match
 from ipaddress import IPv4Address
@@ -16,13 +17,13 @@ from beehive_resource.plugins.provider.entity.zone import AvailabilityZoneChildR
 
 
 class ComputeRule(ComputeProviderResource):
-    """Compute rule
-    """
-    objdef = 'Provider.ComputeZone.ComputeRule'
-    objuri = '%s/rules/%s'
-    objname = 'rule'
-    objdesc = 'Provider ComputeRule'
-    task_path = 'beehive_resource.plugins.provider.task_v2.rule.RuleTask.'
+    """Compute rule"""
+
+    objdef = "Provider.ComputeZone.ComputeRule"
+    objuri = "%s/rules/%s"
+    objname = "rule"
+    objdesc = "Provider ComputeRule"
+    task_path = "beehive_resource.plugins.provider.task_v2.rule.RuleTask."
 
     def __init__(self, *args, **kvargs):
         ComputeProviderResource.__init__(self, *args, **kvargs)
@@ -93,23 +94,23 @@ class ComputeRule(ComputeProviderResource):
         :param kvargs.reserved: Flag to use when rule must be reserved to admin management
         :return: (:py:class:`dict`)
         :raise ApiManagerError:
-        
+
         Ex. service
-        
+
             {'port':'*', 'protocol':'*'} -> *:*
             {'port':'*', 'protocol':6} -> tcp:*
             {'port':80, 'protocol':6} -> tcp:80
             {'port':80, 'protocol':17} -> udp:80
-            {'protocol':1, 'subprotocol':8} -> icmp:echo request        
+            {'protocol':1, 'subprotocol':8} -> icmp:echo request
         """
         proto_check = InternetProtocol()
 
-        orchestrator_tag = kvargs.get('orchestrator_tag', 'default')
-        zone_id = kvargs.get('parent')
-        reserved = kvargs.get('reserved')
-        source = kvargs.get('source')
-        destination = kvargs.get('destination')
-        service = kvargs.get('service', {'port': '*', 'protocol': '*'})
+        orchestrator_tag = kvargs.get("orchestrator_tag", "default")
+        zone_id = kvargs.get("parent")
+        reserved = kvargs.get("reserved")
+        source = kvargs.get("source")
+        destination = kvargs.get("destination")
+        service = kvargs.get("service", {"port": "*", "protocol": "*"})
 
         # get zone
         compute_zone = container.get_resource(zone_id)
@@ -126,26 +127,29 @@ class ComputeRule(ComputeProviderResource):
         # avzones, total = compute_zone.get_linked_resources(link_type_filter='relation%')
 
         def check(source):
-            rval = get_value(source, 'value', None, exception=True)
-            rtype = get_value(source, 'type', None, exception=True)
-            if rtype not in ['SecurityGroup', 'Instance', 'Cidr']:
-                raise ApiManagerError('Rule type %s is not supported' % rtype, code=400)
+            rval = get_value(source, "value", None, exception=True)
+            rtype = get_value(source, "type", None, exception=True)
+            if rtype not in ["SecurityGroup", "Instance", "Cidr"]:
+                raise ApiManagerError("Rule type %s is not supported" % rtype, code=400)
 
             # check value exist or is correct
             obj = None
-            if rtype == 'SecurityGroup':
+            if rtype == "SecurityGroup":
                 obj = container.get_simple_resource(rval, entity_class=SecurityGroup)
-            elif rtype == 'Instance':
+            elif rtype == "Instance":
                 obj = container.get_simple_resource(rval, entity_class=ComputeInstance)
-            elif rtype == 'Cidr':
+            elif rtype == "Cidr":
                 try:
-                    ip, prefix = rval.split('/')
+                    ip, prefix = rval.split("/")
                     prefix = int(prefix)
                 except ValueError:
-                    raise ApiManagerError('Cidr is malformed. Use xxx.xxxx.xxx.xxx/xx syntax', code=400)
+                    raise ApiManagerError("Cidr is malformed. Use xxx.xxxx.xxx.xxx/xx syntax", code=400)
                 IPv4Address(ensure_text(ip))
                 if prefix < 0 or prefix > 32:
-                    raise ApiManagerError('Cidr is malformed. Network prefix must be >= 0 and < 33', code=400)
+                    raise ApiManagerError(
+                        "Cidr is malformed. Network prefix must be >= 0 and < 33",
+                        code=400,
+                    )
 
             return obj
 
@@ -154,56 +158,77 @@ class ComputeRule(ComputeProviderResource):
         dest_entity = check(destination)
 
         # check service
-        protocol = get_value(service, 'protocol', None, exception=True)
+        protocol = get_value(service, "protocol", None, exception=True)
 
         # convert string protocol in numeric protocol
-        if protocol != '*' and not match('^\d+$', protocol):
+        if protocol != "*" and not match("^\d+$", protocol):
             protocol = str(proto_check.get_number_from_name(protocol))
-            service['protocol'] = protocol
+            service["protocol"] = protocol
 
-        if protocol in ['6', '17']:
-            port = get_value(service, 'port', None, exception=True)
-            if match('[0-9]+-[0-9]+', str(port)):
-                container.logger.debug('Port is a range')
-                min, max = port.split('-')
+        if protocol in ["6", "17"]:
+            port = get_value(service, "port", None, exception=True)
+            if match("[0-9]+-[0-9]+", str(port)):
+                container.logger.debug("Port is a range")
+                min, max = port.split("-")
                 min = int(min)
                 max = int(max)
                 if min >= max:
-                    raise ApiManagerError('Start port must be lower than end port', code=400)
+                    raise ApiManagerError("Start port must be lower than end port", code=400)
                 if min < 0 or min > 65535:
-                    raise ApiManagerError('Start port can be a number between 0 and 65535', code=400)
+                    raise ApiManagerError("Start port can be a number between 0 and 65535", code=400)
                 if max < 0 or max > 65535:
-                    raise ApiManagerError('End port can be a number between 0 and 65535', code=400)
-            elif match('[0-9]+', str(port)):
-                container.logger.debug('Port is single')
+                    raise ApiManagerError("End port can be a number between 0 and 65535", code=400)
+            elif match("[0-9]+", str(port)):
+                container.logger.debug("Port is single")
                 port = int(port)
                 if port < 0 or port > 65535:
-                    raise ApiManagerError('Port can be a number between 0 and 65535', code=400)
-            elif port != '*':
-                container.logger.debug('Port is all')
-                raise ApiManagerError('Port can be * or a number or an interval between 0 and 65535 ', code=400)
-            acl_protocol = '%s:*' % protocol
-        elif protocol == '1':
-            icmp = ['0', '3', '4', '5', '8', '9', '10', '11', '12', '13', '1', '4', '41', '253', '254']
-            subprotocol = get_value(service, 'subprotocol', None, exception=False)
-            service['subprotocol'] = '-1'
+                    raise ApiManagerError("Port can be a number between 0 and 65535", code=400)
+            elif port != "*":
+                container.logger.debug("Port is all")
+                raise ApiManagerError(
+                    "Port can be * or a number or an interval between 0 and 65535 ",
+                    code=400,
+                )
+            acl_protocol = "%s:*" % protocol
+        elif protocol == "1":
+            icmp = [
+                "0",
+                "3",
+                "4",
+                "5",
+                "8",
+                "9",
+                "10",
+                "11",
+                "12",
+                "13",
+                "1",
+                "4",
+                "41",
+                "253",
+                "254",
+            ]
+            subprotocol = get_value(service, "subprotocol", None, exception=False)
+            service["subprotocol"] = "-1"
             controller.logger.warn(subprotocol)
             controller.logger.warn(type(subprotocol))
-            if subprotocol == '-1':
-                service['subprotocol'] = subprotocol
+            if subprotocol == "-1":
+                service["subprotocol"] = subprotocol
             elif subprotocol is not None:
-                service['subprotocol'] = subprotocol
+                service["subprotocol"] = subprotocol
                 if subprotocol not in icmp:
-                    raise ApiManagerError('Icmp type can be in %s' % icmp, code=400)
-                acl_protocol = '%s:%s' % (protocol, subprotocol)
-        elif protocol == '*':
-            port = get_value(service, 'port', None, exception=True)
-            if port != '*':
-                raise ApiManagerError('Protocol * accept only port *', code=400)
-            acl_protocol = '*:*'
+                    raise ApiManagerError("Icmp type can be in %s" % icmp, code=400)
+                acl_protocol = "%s:%s" % (protocol, subprotocol)
+        elif protocol == "*":
+            port = get_value(service, "port", None, exception=True)
+            if port != "*":
+                raise ApiManagerError("Protocol * accept only port *", code=400)
+            acl_protocol = "*:*"
         else:
-            raise ApiManagerError('Protocol %s is not supported. Use 6-tcp, 17-udp, 1-icmp, *-all' % protocol,
-                                  code=400)
+            raise ApiManagerError(
+                "Protocol %s is not supported. Use 6-tcp, 17-udp, 1-icmp, *-all" % protocol,
+                code=400,
+            )
 
         # if rule is not reserved and destination type is SecurityGroup check if SecurityGroup has acl that permit rule
         # creation
@@ -216,31 +241,36 @@ class ComputeRule(ComputeProviderResource):
         #                               'and ports=%s' % (dest_entity.uuid, acl_source, acl_protocol, acl_ports))
 
         params = {
-            'orchestrator_tag': orchestrator_tag,
-            'service': service,
-            'availability_zones': [z for z in availability_zones],
-            'attribute': {
-                'reserved': reserved,
-                'configs': {
-                    'source': source,
-                    'destination': destination,
-                    'service': service,
-                }
-            }
+            "orchestrator_tag": orchestrator_tag,
+            "service": service,
+            "availability_zones": [z for z in availability_zones],
+            "attribute": {
+                "reserved": reserved,
+                "configs": {
+                    "source": source,
+                    "destination": destination,
+                    "service": service,
+                },
+            },
         }
         kvargs.update(params)
 
         # create task workflow
         steps = [
-            ComputeRule.task_path + 'create_resource_pre_step',
-            ComputeRule.task_path + 'link_rule_step',
+            ComputeRule.task_path + "create_resource_pre_step",
+            ComputeRule.task_path + "link_rule_step",
         ]
-             
-        for availability_zone in params['availability_zones']:
-            steps.append({'step': ComputeRule.task_path + 'create_zone_rule_step', 'args': [availability_zone]})
 
-        steps.append(ComputeRule.task_path + 'create_resource_post_step')
-        kvargs['steps'] = steps
+        for availability_zone in params["availability_zones"]:
+            steps.append(
+                {
+                    "step": ComputeRule.task_path + "create_zone_rule_step",
+                    "args": [availability_zone],
+                }
+            )
+
+        steps.append(ComputeRule.task_path + "create_resource_post_step")
+        kvargs["steps"] = steps
 
         return kvargs
 
@@ -259,28 +289,28 @@ class ComputeRule(ComputeProviderResource):
         :return: kvargs
         :raise ApiManagerError:
         """
-        kvargs['steps'] = self.group_patch_step(ComputeRule.task_path + 'task_patch_zone_rule_step')
+        kvargs["steps"] = self.group_patch_step(ComputeRule.task_path + "task_patch_zone_rule_step")
 
         return kvargs
 
     def get_source(self):
-        return self.get_attribs('configs.source')
+        return self.get_attribs("configs.source")
 
     def get_dest(self):
-        return self.get_attribs('configs.destination')
+        return self.get_attribs("configs.destination")
 
     def get_service(self):
-        return self.get_attribs('configs.service')
+        return self.get_attribs("configs.service")
 
 
 class Rule(AvailabilityZoneChildResource):
-    """Availability Zone Rule
-    """
-    objdef = 'Provider.Region.Site.AvailabilityZone.Rule'
-    objuri = '%s/rules/%s'
-    objname = 'rule'
-    objdesc = 'Provider Availability Zone Rule'
-    task_path = 'beehive_resource.plugins.provider.task_v2.rule.RuleTask.'
+    """Availability Zone Rule"""
+
+    objdef = "Provider.Region.Site.AvailabilityZone.Rule"
+    objuri = "%s/rules/%s"
+    objname = "rule"
+    objdesc = "Provider Availability Zone Rule"
+    task_path = "beehive_resource.plugins.provider.task_v2.rule.RuleTask."
 
     def __init__(self, *args, **kvargs):
         AvailabilityZoneChildResource.__init__(self, *args, **kvargs)
@@ -300,12 +330,12 @@ class Rule(AvailabilityZoneChildResource):
             rule = dfw.get_rule(section_id, rule_id)
             self.logger.warn(rule)
             if rule == {}:
-                self.logger.error('Vsphere nsx dfw rule %s:%s is KO' % (section_id, rule_id))
+                self.logger.error("Vsphere nsx dfw rule %s:%s is KO" % (section_id, rule_id))
                 return False
-            self.logger.debug('Vsphere nsx dfw rule %s:%s is OK' % (section_id, rule_id))
+            self.logger.debug("Vsphere nsx dfw rule %s:%s is OK" % (section_id, rule_id))
             return True
         except:
-            self.logger.error('Vsphere nsx dfw rule %s:%s is KO' % (section_id, rule_id))
+            self.logger.error("Vsphere nsx dfw rule %s:%s is KO" % (section_id, rule_id))
             return False
 
     def check_openstack(self, orchestrator, rule):
@@ -378,35 +408,38 @@ class Rule(AvailabilityZoneChildResource):
         :param kvargs.service: service configuration [optional]
         :return: kvargs
         :raise ApiManagerError:
-        
+
         Ex. service:
-        
+
             {'port':'*', 'protocol':'*'} -> *:*
             {'port':'*', 'protocol':6} -> tcp:*
             {'port':80, 'protocol':6} -> tcp:80
             {'port':80, 'protocol':17} -> udp:80
             {'protocol':1, 'subprotocol':8} -> icmp:echo request
         """
-        orchestrator_tag = kvargs.get('orchestrator_tag', 'default')
+        orchestrator_tag = kvargs.get("orchestrator_tag", "default")
 
         # get zone
-        zone = controller.get_resource(kvargs.get('parent'))
+        zone = controller.get_resource(kvargs.get("parent"))
 
         # select remote orchestrators
         orchestrator_idx = zone.get_orchestrators_by_tag(orchestrator_tag)
 
-        params = {
-            'orchestrators': orchestrator_idx
-        }
+        params = {"orchestrators": orchestrator_idx}
         kvargs.update(params)
 
         # create job workflow
         steps = []
         for item in orchestrator_idx.values():
-            steps.append({'step': Rule.task_path + 'rule_create_orchestrator_resource_step', 'args': [item]})
+            steps.append(
+                {
+                    "step": Rule.task_path + "rule_create_orchestrator_resource_step",
+                    "args": [item],
+                }
+            )
 
-        kvargs['steps'] = AvailabilityZoneChildResource.group_create_step(steps)
-        kvargs['sync'] = True
+        kvargs["steps"] = AvailabilityZoneChildResource.group_create_step(steps)
+        kvargs["sync"] = True
 
         return kvargs
 
@@ -425,21 +458,21 @@ class Rule(AvailabilityZoneChildResource):
         :return: kvargs
         :raise ApiManagerError:
         """
-        orchestrator_tag = kvargs.get('orchestrator_tag', 'default')
+        orchestrator_tag = kvargs.get("orchestrator_tag", "default")
 
         # select remote orchestrators
         orchestrator_idx = self.get_orchestrators_by_tag(orchestrator_tag)
 
         params = {
-            'tags': '',
-            'parent': self.model.parent_id,
-            'orchestrators': orchestrator_idx
+            "tags": "",
+            "parent": self.model.parent_id,
+            "orchestrators": orchestrator_idx,
         }
         kvargs.update(params)
-        kvargs.update(self.get_attribs('configs'))
+        kvargs.update(self.get_attribs("configs"))
 
         # get remote rules
-        physical_rules, total = self.get_linked_resources(link_type_filter='relation')
+        physical_rules, total = self.get_linked_resources(link_type_filter="relation")
         physical_rules_orchestrators_used = [str(r.container.oid) for r in physical_rules]
 
         # create job workflow
@@ -451,30 +484,37 @@ class Rule(AvailabilityZoneChildResource):
         for cid, orchestrator in orchestrator_idx.items():
             # check rule exists in the orchestrator
             if cid not in physical_rules_orchestrators_used:
-                new_orchestrators[orchestrator.get('id')] = orchestrator
+                new_orchestrators[orchestrator.get("id")] = orchestrator
 
         # check existing rules
         for physical_rule in physical_rules:
             # check rule is correct
-            orchestrator_type = physical_rule.get_attribs('type')
-            if orchestrator_type == 'vsphere':
-                res = self.check_vsphere(physical_rule.container, physical_rule.get_attribs('section'),
-                                         physical_rule.get_attribs('id'))
-            elif orchestrator_type == 'openstack':
-                res = self.check_openstack(physical_rule.container, physical_rule.get_attribs('id'))
+            orchestrator_type = physical_rule.get_attribs("type")
+            if orchestrator_type == "vsphere":
+                res = self.check_vsphere(
+                    physical_rule.container,
+                    physical_rule.get_attribs("section"),
+                    physical_rule.get_attribs("id"),
+                )
+            elif orchestrator_type == "openstack":
+                res = self.check_openstack(physical_rule.container, physical_rule.get_attribs("id"))
 
             if res is False:
                 # remove wrong rule
                 physical_rule.expunge()
 
                 orchestrator = orchestrator_idx.get(str(physical_rule.container.oid))
-                new_orchestrators[orchestrator.get('id')] = orchestrator
+                new_orchestrators[orchestrator.get("id")] = orchestrator
 
         for orchestrator in new_orchestrators.values():
-                steps.append({'step': Rule.task_path + 'rule_create_orchestrator_resource_step',
-                              'args': [orchestrator]})
+            steps.append(
+                {
+                    "step": Rule.task_path + "rule_create_orchestrator_resource_step",
+                    "args": [orchestrator],
+                }
+            )
 
-        kvargs['steps'] = AvailabilityZoneChildResource.group_create_step(steps)
-        kvargs['sync'] = True
+        kvargs["steps"] = AvailabilityZoneChildResource.group_create_step(steps)
+        kvargs["sync"] = True
 
         return kvargs

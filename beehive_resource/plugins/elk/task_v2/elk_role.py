@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 import logging
 from beehive.common.task_v2 import task_step
@@ -10,9 +11,9 @@ from beehive_resource.task_v2 import AbstractResourceTask, task_manager
 
 
 class ElkRoleTask(AbstractResourceTask):
-    """ElkRole task
-    """
-    name = 'elk_role_task'
+    """ElkRole task"""
+
+    name = "elk_role_task"
     entity_class = ElkRole
 
     @staticmethod
@@ -26,19 +27,19 @@ class ElkRoleTask(AbstractResourceTask):
         :return: oid, params
         """
         logger = logging.getLogger(__name__)
-        logger.debug('+++++ elk_role_create_physical_step')
+        logger.debug("+++++ elk_role_create_physical_step")
 
-        cid = params.get('cid') #container id
-        oid = params.get('id')
-        
+        cid = params.get("cid")  # container id
+        oid = params.get("id")
+
         # role_id = params.get('role_id')
-        name = params.get('name')
+        name = params.get("name")
         role_name = name
         # desc = params.get('desc')
-        indice = params.get('indice')
-        space_id = params.get('space_id')
-        
-        task.progress(step_id, msg='Get configuration params')
+        indice = params.get("indice")
+        space_id = params.get("space_id")
+
+        task.progress(step_id, msg="Get configuration params")
 
         container: ElkContainer
         container = task.get_container(cid)
@@ -46,19 +47,19 @@ class ElkRoleTask(AbstractResourceTask):
 
         inst_id = role_name
         try:
-            # controllare se esiste l'oggetto prima di crearlo 
+            # controllare se esiste l'oggetto prima di crearlo
             remote_entity = conn_kibana.role.get(role_name)
-            task.progress(step_id, msg=' -+-+- Elk role %s already exist ' % role_name)
+            task.progress(step_id, msg=" -+-+- Elk role %s already exist " % role_name)
         except:
-            task.progress(step_id, msg=' -+-+- Elk role %s does not exist yet' % role_name)
+            task.progress(step_id, msg=" -+-+- Elk role %s does not exist yet" % role_name)
             inst = conn_kibana.role.add(role_name, indice, space_id)
             # inst_id = inst['id']
-            task.progress(step_id, msg=' -+-+- Elk role created %s' % inst_id)
+            task.progress(step_id, msg=" -+-+- Elk role created %s" % inst_id)
 
         # save current data in shared area
-        params['ext_id'] = inst_id
-        params['attrib'] = {}
-        task.progress(step_id, msg='Update shared area')
+        params["ext_id"] = inst_id
+        params["attrib"] = {}
+        task.progress(step_id, msg="Update shared area")
 
         return oid, params
 
@@ -72,7 +73,7 @@ class ElkRoleTask(AbstractResourceTask):
         :param dict params: step params
         :return: oid, params
         """
-        oid = params.get('id')
+        oid = params.get("id")
         return oid, params
 
     @staticmethod
@@ -85,8 +86,8 @@ class ElkRoleTask(AbstractResourceTask):
         :param dict params: step params
         :return: oid, params
         """
-        cid = params.get('cid')
-        oid = params.get('id')
+        cid = params.get("cid")
+        oid = params.get("id")
 
         container: ElkContainer
         container = task.get_container(cid)
@@ -99,10 +100,11 @@ class ElkRoleTask(AbstractResourceTask):
                 conn_kibana.role.get(resource.ext_id)
                 # delete role
                 conn_kibana.role.delete(resource.ext_id)
-                task.progress(step_id, msg='Elk role deleted %s' % resource.ext_id)
+                task.progress(step_id, msg="Elk role deleted %s" % resource.ext_id)
             except:
-                task.progress(step_id, msg='Elk role %s does not exist anymore' % resource.ext_id)
+                task.progress(step_id, msg="Elk role %s does not exist anymore" % resource.ext_id)
 
         return oid, params
+
 
 task_manager.tasks.register(ElkRoleTask())

@@ -7,17 +7,18 @@ from beehive_resource.plugins.zabbix.entity import ZabbixResource
 from beehive_resource.plugins.zabbix.entity.zbx_hostgroup import ZabbixHostgroup
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 
 class ZabbixTemplate(ZabbixResource):
-    objdef = 'Zabbix.Template'
-    objuri = 'template'
-    objname = 'template'
-    objdesc = 'Zabbix template'
+    objdef = "Zabbix.Template"
+    objuri = "template"
+    objname = "template"
+    objdesc = "Zabbix template"
 
-    default_tags = ['zabbix', 'monitoring']
-    task_base_path = 'beehive_resource.plugins.zabbix.task_v2.zbx_template.ZabbixTemplateTask.'
+    default_tags = ["zabbix", "monitoring"]
+    task_base_path = "beehive_resource.plugins.zabbix.task_v2.zbx_template.ZabbixTemplateTask."
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -53,12 +54,21 @@ class ZabbixTemplate(ZabbixResource):
         # add new items to final list
         res = []
         for item in items:
-            item_id = item['templateid']
+            item_id = item["templateid"]
             if item_id not in res_ext_ids:
                 level = None
-                name = item['name']
+                name = item["name"]
                 parent_id = None
-                res.append((ZabbixTemplate, item_id, parent_id, ZabbixTemplate.objdef, name, level))
+                res.append(
+                    (
+                        ZabbixTemplate,
+                        item_id,
+                        parent_id,
+                        ZabbixTemplate.objdef,
+                        name,
+                        level,
+                    )
+                )
 
         return res
 
@@ -73,10 +83,7 @@ class ZabbixTemplate(ZabbixResource):
         items = []
         templates = container.conn.template.list()
         for template in templates:
-            items.append({
-                'id': template['templateid'],
-                'name': template['name']
-            })
+            items.append({"id": template["templateid"], "name": template["name"]})
         return items
 
     @staticmethod
@@ -106,18 +113,18 @@ class ZabbixTemplate(ZabbixResource):
         parent_id = entity[2]
         name = entity[4]
 
-        objid = '%s//%s' % (container.objid, id_gen())
+        objid = "%s//%s" % (container.objid, id_gen())
 
         res = {
-            'resource_class': resclass,
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent_id,
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent_id,
+            "tags": resclass.default_tags,
         }
 
         return res
@@ -141,14 +148,14 @@ class ZabbixTemplate(ZabbixResource):
         remote_entities = container.conn.template.list()
 
         # create index of remote objs
-        remote_entities_index = {i['templateid']: i for i in remote_entities}
+        remote_entities_index = {i["templateid"]: i for i in remote_entities}
 
         for entity in entities:
             try:
                 ext_obj = remote_entities_index.get(entity.ext_id, None)
                 entity.set_physical_entity(ext_obj)
             except:
-                container.logger.warn('', exc_info=1)
+                container.logger.warn("", exc_info=1)
 
         return entities
 
@@ -164,32 +171,31 @@ class ZabbixTemplate(ZabbixResource):
             self.set_physical_entity(ext_obj)
 
             # retrieve hosts that are linked to the template
-            ext_hosts = self.container.conn.template.hosts(ext_obj['templateid']).get('hosts', [])
+            ext_hosts = self.container.conn.template.hosts(ext_obj["templateid"]).get("hosts", [])
             for item in ext_hosts:
-                host = self.controller.get_resource_by_extid(item['hostid'])
+                host = self.controller.get_resource_by_extid(item["hostid"])
                 self.hosts.append(host)
 
             # retrieve hostgroups the template belongs to
-            ext_groups = self.container.conn.template.groups(ext_obj['templateid']).get('groups', [])
+            ext_groups = self.container.conn.template.groups(ext_obj["templateid"]).get("groups", [])
             for item in ext_groups:
-                group = self.controller.get_resource_by_extid(item['groupid'])
+                group = self.controller.get_resource_by_extid(item["groupid"])
                 self.groups.append(group)
         except:
             # pass
-            logger.warning('', exc_info=True)
+            logger.warning("", exc_info=True)
 
     @staticmethod
     def pre_create(controller, container, *args, **kvargs):
-        """Check input params before resource creation. This function is used in container resource_factory method.
-        """
-        name = kvargs.get('name')
-        groups = kvargs.get('groups')
+        """Check input params before resource creation. This function is used in container resource_factory method."""
+        name = kvargs.get("name")
+        groups = kvargs.get("groups")
 
         # check whether a template named 'name' already exists on zabbix
         found = False
         templates = container.conn.template.list()
         for item in templates:
-            if item['name'] == name:
+            if item["name"] == name:
                 # template already exists, do not proceed with creation
                 found = True
                 break
@@ -200,38 +206,36 @@ class ZabbixTemplate(ZabbixResource):
             for item in groups:
                 group = container.get_resource(item, entity_class=ZabbixHostgroup)
                 ext_ids.append(group.ext_id)
-            kvargs['groups'] = ext_ids
+            kvargs["groups"] = ext_ids
 
             steps = [
-                ZabbixTemplate.task_base_path + 'create_resource_pre_step',
-                ZabbixTemplate.task_base_path + 'template_create_physical_step',
-                ZabbixTemplate.task_base_path + 'create_resource_post_step'
+                ZabbixTemplate.task_base_path + "create_resource_pre_step",
+                ZabbixTemplate.task_base_path + "template_create_physical_step",
+                ZabbixTemplate.task_base_path + "create_resource_post_step",
             ]
-            kvargs['steps'] = steps
+            kvargs["steps"] = steps
 
         return kvargs
 
     def pre_update(self, *args, **kvargs):
-        """Pre update function. This function is used in update method.
-        """
+        """Pre update function. This function is used in update method."""
         steps = [
-            ZabbixTemplate.task_base_path + 'update_resource_pre_step',
+            ZabbixTemplate.task_base_path + "update_resource_pre_step",
             # ZabbixTemplate.task_base_path + 'template_update_physical_step',
-            ZabbixTemplate.task_base_path + 'update_resource_post_step'
+            ZabbixTemplate.task_base_path + "update_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
 
         return kvargs
 
     def pre_delete(self, *args, **kvargs):
-        """Pre delete function. This function is used in delete method.
-        """
+        """Pre delete function. This function is used in delete method."""
         steps = [
-            ZabbixTemplate.task_base_path + 'expunge_resource_pre_step',
-            ZabbixTemplate.task_base_path + 'template_delete_physical_step',
-            ZabbixTemplate.task_base_path + 'expunge_resource_post_step'
+            ZabbixTemplate.task_base_path + "expunge_resource_pre_step",
+            ZabbixTemplate.task_base_path + "template_delete_physical_step",
+            ZabbixTemplate.task_base_path + "expunge_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
 
         return kvargs
 
@@ -256,12 +260,12 @@ class ZabbixTemplate(ZabbixResource):
         """
         info = ZabbixResource.detail(self)
 
-        hostgroups = [{'id': item.oid, 'objid': item.objid, 'name': item.name} for item in self.groups]
-        hosts = [{'id': item.oid, 'objid': item.objid, 'name': item.name} for item in self.hosts]
+        hostgroups = [{"id": item.oid, "objid": item.objid, "name": item.name} for item in self.groups]
+        hosts = [{"id": item.oid, "objid": item.objid, "name": item.name} for item in self.hosts]
         data = {
-            'groups': hostgroups,
-            'hosts': hosts,
+            "groups": hostgroups,
+            "hosts": hosts,
         }
-        info['details'].update(data)
+        info["details"].update(data)
 
         return info

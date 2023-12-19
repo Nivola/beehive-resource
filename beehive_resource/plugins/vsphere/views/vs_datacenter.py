@@ -1,17 +1,21 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive_resource.plugins.vsphere.entity.vs_datacenter import VsphereDatacenter
 from beehive_resource.plugins.vsphere.views import VsphereAPI, VsphereApiView
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
-from beehive.common.apimanager import PaginatedResponseSchema, SwaggerApiView, GetApiObjectRequestSchema
+from beehive.common.apimanager import (
+    PaginatedResponseSchema,
+    SwaggerApiView,
+    GetApiObjectRequestSchema,
+)
 from beehive_resource.view import ResourceResponseSchema, ListResourcesRequestSchema
 
 
 class VsphereDatacenterApiView(VsphereApiView):
-    tags = ['vsphere']
+    tags = ["vsphere"]
     resclass = VsphereDatacenter
     parentclass = None
 
@@ -30,16 +34,11 @@ class ListDatacentersResponseSchema(PaginatedResponseSchema):
 
 class ListDatacenters(VsphereDatacenterApiView):
     definitions = {
-        'ListDatacentersResponseSchema': ListDatacentersResponseSchema,
+        "ListDatacentersResponseSchema": ListDatacentersResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(ListDatacentersRequestSchema)
     parameters_schema = ListDatacentersRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': ListDatacentersResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListDatacentersResponseSchema}})
 
     def get(self, controller, data, *args, **kwargs):
         """
@@ -55,15 +54,10 @@ class GetDatacenterResponseSchema(Schema):
 
 class GetDatacenter(VsphereDatacenterApiView):
     definitions = {
-        'GetDatacenterResponseSchema': GetDatacenterResponseSchema,
+        "GetDatacenterResponseSchema": GetDatacenterResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetDatacenterResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetDatacenterResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -74,14 +68,14 @@ class GetDatacenter(VsphereDatacenterApiView):
 
 
 class VsphereDatacenterAPI(VsphereAPI):
-    """Vsphere base platform api routes:
-    """
+    """Vsphere base platform api routes:"""
+
     @staticmethod
     def register_api(module, **kwargs):
         base = VsphereAPI.base
         rules = [
-            ('%s/datacenters' % base, 'GET', ListDatacenters, {}),
-            ('%s/datacenters/<oid>' % base, 'GET', GetDatacenter, {}),
+            ("%s/datacenters" % base, "GET", ListDatacenters, {}),
+            ("%s/datacenters/<oid>" % base, "GET", GetDatacenter, {}),
         ]
 
         VsphereAPI.register_api(module, rules, **kwargs)

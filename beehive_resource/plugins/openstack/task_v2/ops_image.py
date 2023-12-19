@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from logging import getLogger
 
@@ -13,9 +13,9 @@ logger = getLogger(__name__)
 
 
 class ImageTask(AbstractResourceTask):
-    """Image task
-    """
-    name = 'image_task'
+    """Image task"""
+
+    name = "image_task"
     entity_class = OpenstackImage
 
     @staticmethod
@@ -28,30 +28,30 @@ class ImageTask(AbstractResourceTask):
         :param dict params: step params
         :return: oid, params
         """
-        cid = params.get('cid')
-        oid = params.get('id')
-        name = params.get('name')
-        data_path = params.get('data_path')
-        task.progress(step_id, msg='Get configuration params')
+        cid = params.get("cid")
+        oid = params.get("id")
+        name = params.get("name")
+        data_path = params.get("data_path")
+        task.progress(step_id, msg="Get configuration params")
 
         container = task.get_container(cid)
         conn = container.conn
         inst = conn.image.create(name)
-        inst_id = inst['id']
-        task.progress(step_id, msg='Create image %s' % inst_id)
+        inst_id = inst["id"]
+        task.progress(step_id, msg="Create image %s" % inst_id)
 
         # save current data in shared area
-        params['ext_id'] = inst_id
-        params['attrib'] = {}
-        task.progress(step_id, msg='Update shared area')
+        params["ext_id"] = inst_id
+        params["attrib"] = {}
+        task.progress(step_id, msg="Update shared area")
 
         # upload data
-        f = open(data_path, 'rb+')
+        f = open(data_path, "rb+")
         data = f.read()
         f.close()
         conn.image.upload(inst_id, data)
-        inst_id = inst['id']
-        task.progress(step_id, msg='Upload image %s' % inst_id)
+        inst_id = inst["id"]
+        task.progress(step_id, msg="Upload image %s" % inst_id)
 
         return oid, params
 
@@ -65,7 +65,7 @@ class ImageTask(AbstractResourceTask):
         :param dict params: step params
         :return: oid, params
         """
-        oid = params.get('id')
+        oid = params.get("id")
         return oid, params
 
     @staticmethod
@@ -78,8 +78,8 @@ class ImageTask(AbstractResourceTask):
         :param dict params: step params
         :return: oid, params
         """
-        cid = params.get('cid')
-        oid = params.get('id')
+        cid = params.get("cid")
+        oid = params.get("id")
 
         container = task.get_container(cid)
         conn = container.conn
@@ -93,7 +93,7 @@ class ImageTask(AbstractResourceTask):
 
                 # delete openstack image
                 conn.image.delete(resource.ext_id)
-                task.progress(step_id, msg='Delete image %s' % resource.ext_id)
+                task.progress(step_id, msg="Delete image %s" % resource.ext_id)
             except:
                 pass
 

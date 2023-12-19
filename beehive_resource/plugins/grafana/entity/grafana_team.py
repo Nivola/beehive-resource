@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 import logging
 from beecell.simple import id_gen
@@ -12,14 +13,14 @@ logger = logging.getLogger(__name__)
 
 
 class GrafanaTeam(GrafanaResource):
-    objdef = 'Grafana.Team'
-    objuri = 'teams'
-    objname = 'team'
-    objdesc = 'Grafana Team'
-    
-    default_tags = ['grafana']
-    task_base_path = 'beehive_resource.plugins.grafana.task_v2.grafana_team.GrafanaTeamTask.'
-    
+    objdef = "Grafana.Team"
+    objuri = "teams"
+    objname = "team"
+    objdesc = "Grafana Team"
+
+    default_tags = ["grafana"]
+    task_base_path = "beehive_resource.plugins.grafana.task_v2.grafana_team.GrafanaTeamTask."
+
     def __init__(self, *args, **kvargs):
         """ """
         GrafanaResource.__init__(self, *args, **kvargs)
@@ -28,7 +29,7 @@ class GrafanaTeam(GrafanaResource):
 
         # object uri
         # self.objuri = '/%s/%s/%s' % (self.container.version, self.container.objuri, GrafanaTeam.objuri)
-        
+
     #
     # discover, synchronize
     #
@@ -42,10 +43,10 @@ class GrafanaTeam(GrafanaResource):
         :return: list of tuple (resource class, ext_id, parent_id, resource class objdef, name, parent_class)
         :raises ApiManagerError:
         """
-        logger.debug('+++++ discover_new - res_ext_ids {}'.format(res_ext_ids))
+        logger.debug("+++++ discover_new - res_ext_ids {}".format(res_ext_ids))
 
         # get from grafana
-        logger.debug('+++++ discover_new - ext_id {}'.format(ext_id))
+        logger.debug("+++++ discover_new - ext_id {}".format(ext_id))
         if ext_id is not None:
             items = container.conn_grafana.team.get(ext_id)
         else:
@@ -54,15 +55,15 @@ class GrafanaTeam(GrafanaResource):
         # add new item to final list
         res = []
         for item in items:
-            item_id = str(item['id'])
-            logger.debug('+++++ discover_new - item_id {}'.format(item_id))
+            item_id = str(item["id"])
+            logger.debug("+++++ discover_new - item_id {}".format(item_id))
             if item_id not in res_ext_ids:
                 level = None
-                name = item['name']
+                name = item["name"]
                 # status = item['status']
                 parent_id = None
-                logger.debug('+++++ discover_new - append item_id {}'.format(item_id))
-                res.append((GrafanaTeam, item_id, parent_id, GrafanaTeam.objdef, name, level)) #, status))
+                logger.debug("+++++ discover_new - append item_id {}".format(item_id))
+                res.append((GrafanaTeam, item_id, parent_id, GrafanaTeam.objdef, name, level))  # , status))
 
         return res
 
@@ -74,19 +75,16 @@ class GrafanaTeam(GrafanaResource):
         :return: list of remote entities
         :raises ApiManagerError:
         """
-        
+
         # get from grafana
         items = []
         remote_entities = container.conn_grafana.team.list()
         for item in remote_entities:
-            logger.debug('+++++ discover_died - id {}'.format(item['id']))
-            items.append({
-                'id': str(item['id']),
-                'name': item['name']
-            })
+            logger.debug("+++++ discover_died - id {}".format(item["id"]))
+            items.append({"id": str(item["id"]), "name": item["name"]})
 
         return items
-    
+
     @staticmethod
     def synchronize(container, entity):
         """Discover method used when synchronize beehive container with remote platform.
@@ -101,19 +99,19 @@ class GrafanaTeam(GrafanaResource):
         ext_id = entity[1]
         parent_id = entity[2]
         name = entity[4]
-        
-        objid = '%s//%s' % (container.objid, id_gen())
-        
+
+        objid = "%s//%s" % (container.objid, id_gen())
+
         res = {
-            'resource_class': resclass,
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent_id,
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent_id,
+            "tags": resclass.default_tags,
         }
 
         return res
@@ -136,10 +134,10 @@ class GrafanaTeam(GrafanaResource):
         """
         # get from grafana
         remote_entities = container.conn_grafana.team.list()
-        
+
         # create index of remote objs
-        remote_entities_index = {i['id']: i for i in remote_entities}
-        
+        remote_entities_index = {i["id"]: i for i in remote_entities}
+
         entity: GrafanaTeam
         for entity in entities:
             try:
@@ -147,10 +145,10 @@ class GrafanaTeam(GrafanaResource):
                 entity.set_physical_entity(ext_obj)
                 entity.get_grafana_user()
             except:
-                container.logger.warn('', exc_info=1)
+                container.logger.warn("", exc_info=1)
 
         return entities
-    
+
     def post_get(self):
         """Post get function. This function is used in get_entity method.
         Extend this function to extend description info returned after query.
@@ -161,7 +159,7 @@ class GrafanaTeam(GrafanaResource):
         ext_obj = self.get_remote_team(self.controller, self.ext_id, self.container, self.ext_id)
         self.set_physical_entity(ext_obj)
         self.get_grafana_user()
-        
+
     @staticmethod
     def pre_create(controller, container, *args, **kvargs):
         """Check input params before resource creation. This function is used in container resource_factory method.
@@ -186,48 +184,48 @@ class GrafanaTeam(GrafanaResource):
         :raise ApiManagerError:
         """
         steps = [
-            GrafanaTeam.task_base_path + 'create_resource_pre_step',
-            GrafanaTeam.task_base_path + 'grafana_team_create_physical_step',
-            GrafanaTeam.task_base_path + 'create_resource_post_step',
+            GrafanaTeam.task_base_path + "create_resource_pre_step",
+            GrafanaTeam.task_base_path + "grafana_team_create_physical_step",
+            GrafanaTeam.task_base_path + "create_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
     def pre_update(self, *args, **kvargs):
         """Pre update function. This function is used in update method.
 
         :param args: custom params
-        :param kvargs: custom params            
-        :return: kvargs            
+        :param kvargs: custom params
+        :return: kvargs
         :raises ApiManagerError:
         """
         steps = [
-            GrafanaTeam.task_base_path + 'update_resource_pre_step',
-            GrafanaTeam.task_base_path + 'grafana_team_update_physical_step',
-            GrafanaTeam.task_base_path + 'update_resource_post_step',
+            GrafanaTeam.task_base_path + "update_resource_pre_step",
+            GrafanaTeam.task_base_path + "grafana_team_update_physical_step",
+            GrafanaTeam.task_base_path + "update_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
     def pre_delete(self, *args, **kvargs):
         """Pre delete function. This function is used in delete method.
 
         :param args: custom params
-        :param kvargs: custom params            
-        :return: kvargs            
+        :param kvargs: custom params
+        :return: kvargs
         :raises ApiManagerError:
         """
         steps = [
-            GrafanaTeam.task_base_path + 'expunge_resource_pre_step',
-            GrafanaTeam.task_base_path + 'grafana_team_delete_physical_step',
-            GrafanaTeam.task_base_path + 'expunge_resource_post_step',
+            GrafanaTeam.task_base_path + "expunge_resource_pre_step",
+            GrafanaTeam.task_base_path + "grafana_team_delete_physical_step",
+            GrafanaTeam.task_base_path + "expunge_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
-    
+
     #
     # info
-    #    
+    #
     def info(self):
         """Get info.
 
@@ -236,7 +234,7 @@ class GrafanaTeam(GrafanaResource):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = GrafanaResource.info(self)
-        info['users'] = self.grafana_users
+        info["users"] = self.grafana_users
         return info
 
     def detail(self):
@@ -247,21 +245,24 @@ class GrafanaTeam(GrafanaResource):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = GrafanaResource.detail(self)
-        info['users'] = self.grafana_users
+        info["users"] = self.grafana_users
         return info
 
     # Attenzione al nome del metodo per non fare l'overload di get_user()
     def get_grafana_user(self):
         """get team user"""
         remote_users = self.get_remote_team_users(self.controller, self.ext_id, self.container, self.ext_id)
-        self.grafana_users = [{
-            'id': dict_get(d, 'userId'),
-            'email': dict_get(d, 'email'),
-            'login': dict_get(d, 'login'),
-            # 'updated_at': dict_get(d, 'meta.updated'),
-        } for d in remote_users]
+        self.grafana_users = [
+            {
+                "id": dict_get(d, "userId"),
+                "email": dict_get(d, "email"),
+                "login": dict_get(d, "login"),
+                # 'updated_at': dict_get(d, 'meta.updated'),
+            }
+            for d in remote_users
+        ]
 
-    @trace(op='update')
+    @trace(op="update")
     def add_user(self, users_email, team_id_to, *args, **kvargs):
         """Add user
 
@@ -269,16 +270,19 @@ class GrafanaTeam(GrafanaResource):
         :return: {'taskid':..}, 202
         :raise ApiManagerError:
         """
+
         def check(*args, **kvargs):
             # add check user exists
             return kvargs
 
-        kvargs.update({
-            'users_email': users_email,
-            'team_id_to': team_id_to,
-        })
-        logger.debug('add_user - after update kvargs {}'.format(kvargs))
-        
-        steps = ['beehive_resource.plugins.grafana.task_v2.grafana_team.GrafanaTeamTask.add_user_step']
-        res = self.action('add_user', steps, log='Add user', check=check, **kvargs)
-        return res, 'called'
+        kvargs.update(
+            {
+                "users_email": users_email,
+                "team_id_to": team_id_to,
+            }
+        )
+        logger.debug("add_user - after update kvargs {}".format(kvargs))
+
+        steps = ["beehive_resource.plugins.grafana.task_v2.grafana_team.GrafanaTeamTask.add_user_step"]
+        res = self.action("add_user", steps, log="Add user", check=check, **kvargs)
+        return res, "called"

@@ -10,13 +10,13 @@ logger = logging.getLogger(__name__)
 
 
 class GitlabProject(GitlabResource):
-    objdef = 'Gitlab.Project'
-    objuri = 'project'
-    objname = 'project'
-    objdesc = 'Gitlab project'
+    objdef = "Gitlab.Project"
+    objuri = "project"
+    objname = "project"
+    objdesc = "Gitlab project"
 
-    default_tags = ['gitlab']
-    task_base_path = 'beehive_resource.plugins.gitlab.task_v2.zbx_project.GitlabProjectTask.'
+    default_tags = ["gitlab"]
+    task_base_path = "beehive_resource.plugins.gitlab.task_v2.zbx_project.GitlabProjectTask."
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -48,13 +48,23 @@ class GitlabProject(GitlabResource):
         # add new items to final list
         res = []
         for item in items:
-            item_id = item['projectid']
+            item_id = item["projectid"]
             if item_id not in res_ext_ids:
                 level = None
-                name = item['name']
-                status = item['status']
+                name = item["name"]
+                status = item["status"]
                 parent_id = None
-                res.append((GitlabProject, item_id, parent_id, GitlabProject.objdef, name, level, status))
+                res.append(
+                    (
+                        GitlabProject,
+                        item_id,
+                        parent_id,
+                        GitlabProject.objdef,
+                        name,
+                        level,
+                        status,
+                    )
+                )
 
         return res
 
@@ -70,10 +80,7 @@ class GitlabProject(GitlabResource):
         items = []
         projects = container.conn.project.list()
         for project in projects:
-            items.append({
-                'id': project['projectid'],
-                'name': project['name']
-            })
+            items.append({"id": project["projectid"], "name": project["name"]})
         return items
 
     @staticmethod
@@ -92,18 +99,18 @@ class GitlabProject(GitlabResource):
         name = entity[4]
         status = entity[6]
 
-        objid = '%s//%s' % (container.objid, id_gen())
+        objid = "%s//%s" % (container.objid, id_gen())
 
         res = {
-            'resource_class': resclass,
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent_id,
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent_id,
+            "tags": resclass.default_tags,
         }
 
         return res
@@ -173,11 +180,10 @@ class GitlabProject(GitlabResource):
     #
     @staticmethod
     def pre_create(controller, container, *args, **kvargs):
-        """check input params before resource creation.
-        """
-        container.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        container.logger.warn('I am the pre_create')
-        container.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        """check input params before resource creation."""
+        container.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        container.logger.warn("I am the pre_create")
+        container.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         return kvargs
 
     def do_create(self, **params):
@@ -186,9 +192,9 @@ class GitlabProject(GitlabResource):
         :param params: custom params required by task
         :return:
         """
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        self.logger.warn('I am the do_create')
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        self.logger.warn("I am the do_create")
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         pass
 
     #
@@ -196,8 +202,7 @@ class GitlabProject(GitlabResource):
     #
     @staticmethod
     def pre_import(controller, container, *args, **kvargs):
-        """check input params before resource import.
-        """
+        """check input params before resource import."""
         return kvargs
 
     def do_import(self, **params):
@@ -212,11 +217,10 @@ class GitlabProject(GitlabResource):
     # patch
     #
     def pre_patch(self, *args, **kvargs):
-        """check input params before resource patch.
-        """
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        self.logger.warn('I am the pre_patch')
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        """check input params before resource patch."""
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        self.logger.warn("I am the pre_patch")
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         return kvargs
 
     def do_patch(self, **params):
@@ -225,20 +229,19 @@ class GitlabProject(GitlabResource):
         :param params: custom params required by task
         :return:
         """
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        self.logger.warn('I am the do_patch')
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        self.logger.warn("I am the do_patch")
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         pass
 
     #
     # update
     #
     def pre_update(self, *args, **kvargs):
-        """pre update function. This function is used in update method.
-        """
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        self.logger.warn('I am the pre_update')
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        """pre update function. This function is used in update method."""
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        self.logger.warn("I am the pre_update")
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         return kvargs
 
     def do_update(self, **params):
@@ -247,20 +250,19 @@ class GitlabProject(GitlabResource):
         :param params: custom params required by task
         :return:
         """
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        self.logger.warn('I am the do_update')
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        self.logger.warn("I am the do_update")
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         pass
 
     #
     # expunge
     #
     def pre_expunge(self, *args, **kvargs):
-        """check input params before resource expunge.
-        """
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        self.logger.warn('I am the pre_expunge')
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        """check input params before resource expunge."""
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        self.logger.warn("I am the pre_expunge")
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         return kvargs
 
     def do_expunge(self, **params):
@@ -269,9 +271,9 @@ class GitlabProject(GitlabResource):
         :param params: custom params required by task
         :return:
         """
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        self.logger.warn('I am the do_expunge')
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        self.logger.warn("I am the do_expunge")
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
 
         # if self.is_ext_id_valid() is False:
         #     self.logger.warn('resource %s ext_id is not valid' % self.oid)

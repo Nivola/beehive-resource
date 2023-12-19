@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from celery.utils.log import get_task_logger
 from beecell.simple import truncate
@@ -14,17 +14,15 @@ logger = get_task_logger(__name__)
 
 
 class ResourceContainerTask(BaseTask):
-    """ResourceContainer task
-    """
-    name = 'resource_container_task'
+    """ResourceContainer task"""
+
+    name = "resource_container_task"
     entity_class = ResourceContainer
 
     def __init__(self, *args, **kwargs):
         super(ResourceContainerTask, self).__init__(*args, **kwargs)
 
-        self.steps = [
-            ResourceContainerTask.synchronize_container_step
-        ]
+        self.steps = [ResourceContainerTask.synchronize_container_step]
 
     def get_container(self, container_oid, projectid=None):
         """Get resource container instance.
@@ -36,12 +34,12 @@ class ResourceContainerTask(BaseTask):
         """
         operation.cache = False
         local_container = self.controller.get_container(container_oid, connect=False, cache=False)
-        if local_container.objdef == 'Openstack':
+        if local_container.objdef == "Openstack":
             # local_container.conn = self.__get_openstack_connection(local_container, projectid=projectid)
             local_container.get_connection(projectid=projectid)
         else:
             local_container.get_connection()
-        self.logger.debug('Get container %s of type %s' % (local_container, local_container.objdef))
+        self.logger.debug("Get container %s of type %s" % (local_container, local_container.objdef))
         return local_container
 
     @staticmethod
@@ -59,21 +57,21 @@ class ResourceContainerTask(BaseTask):
         :param params.changed: if True update changed resources
         :return: True, params
         """
-        cid = params.get('cid')
+        cid = params.get("cid")
         container = task.get_container(cid)
 
         # get resource classes
-        resource_types = params.get('types', None)
-        new = params.get('new', True)
-        died = params.get('died', True)
-        changed = params.get('changed', True)
+        resource_types = params.get("types", None)
+        new = params.get("new", True)
+        died = params.get("died", True)
+        changed = params.get("changed", True)
 
         resource_objdefs = []
         if resource_types is None:
             for resource_class in container.child_classes:
                 resource_objdefs.append(resource_class.objdef)
         else:
-            types = resource_types.split(',')
+            types = resource_types.split(",")
             for t in types:
                 resource_objdefs.append(t)
 

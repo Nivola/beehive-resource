@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 import json
 
 from time import sleep
@@ -13,13 +13,13 @@ logger = logging.getLogger(__name__)
 
 
 class AwxAdHocCommand(AwxResource):
-    objdef = 'Awx.AdHocCommand'
-    objuri = 'ad_hoc_commands'
-    objname = 'ad_hoc_command'
-    objdesc = 'Awx AdHocCommand'
-    
-    default_tags = ['awx']
-    task_base_path = 'beehive_resource.plugins.awx.task_v2.awx_ad_hoc_command.AwxAdHocCommandTask.'
+    objdef = "Awx.AdHocCommand"
+    objuri = "ad_hoc_commands"
+    objname = "ad_hoc_command"
+    objdesc = "Awx AdHocCommand"
+
+    default_tags = ["awx"]
+    task_base_path = "beehive_resource.plugins.awx.task_v2.awx_ad_hoc_command.AwxAdHocCommandTask."
 
     create_task = None
     # clone_task = 'beehive_resource.task_v2.core.resource_clone_task'
@@ -56,11 +56,20 @@ class AwxAdHocCommand(AwxResource):
         # add new item to final list
         res = []
         for item in remote_entities:
-            if item['id'] not in res_ext_ids:
+            if item["id"] not in res_ext_ids:
                 level = None
-                name = item['name']
+                name = item["name"]
                 parent_id = None
-                res.append((AwxAdHocCommand, item['id'], parent_id, AwxAdHocCommand.objdef, name, level))
+                res.append(
+                    (
+                        AwxAdHocCommand,
+                        item["id"],
+                        parent_id,
+                        AwxAdHocCommand.objdef,
+                        name,
+                        level,
+                    )
+                )
 
         return res
 
@@ -76,13 +85,10 @@ class AwxAdHocCommand(AwxResource):
         items = []
         remote_entities = container.conn.ad_hoc_command.list()
         for item in remote_entities:
-            items.append({
-                'id': item['id'],
-                'name': item['name']
-            })
+            items.append({"id": item["id"], "name": item["name"]})
 
         return items
-    
+
     @staticmethod
     def synchronize(container, entity):
         """Discover method used when synchronize beehive container with remote platform.
@@ -98,18 +104,18 @@ class AwxAdHocCommand(AwxResource):
         parent_id = entity[2]
         name = entity[4]
 
-        objid = '%s//%s' % (container.objid, id_gen())
+        objid = "%s//%s" % (container.objid, id_gen())
 
         res = {
-            'resource_class': resclass,
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent_id,
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent_id,
+            "tags": resclass.default_tags,
         }
 
         return res
@@ -134,17 +140,17 @@ class AwxAdHocCommand(AwxResource):
         remote_entities = container.conn.ad_hoc_command.list()
 
         # create index of remote objs
-        remote_entities_index = {i['id']: i for i in remote_entities}
+        remote_entities_index = {i["id"]: i for i in remote_entities}
 
         for entity in entities:
             try:
                 ext_obj = remote_entities_index.get(entity.ext_id, None)
                 entity.set_physical_entity(ext_obj)
             except:
-                container.logger.warn('', exc_info=1)
+                container.logger.warn("", exc_info=1)
 
         return entities
-    
+
     def post_get(self):
         """Post get function. This function is used in get_entity method.
         Extend this function to extend description info returned after query.
@@ -154,7 +160,7 @@ class AwxAdHocCommand(AwxResource):
         """
         ext_obj = self.get_remote_ad_hoc_command(self.controller, self.ext_id, self.container, self.ext_id)
         self.set_physical_entity(ext_obj)
-        
+
     @staticmethod
     def pre_create(controller, container, *args, **kvargs):
         """Check input params before resource creation. This function is used in container resource_factory method.
@@ -181,103 +187,117 @@ class AwxAdHocCommand(AwxResource):
         :param kvargs.module_name: module name [optional]
         :param kvargs.module_args: module args [optional]
         :param kvargs.extra_vars: extra vars [optional]
-        :return: kvargs            
-        :raise ApiManagerError: 
+        :return: kvargs
+        :raise ApiManagerError:
         """
-        awx_name = kvargs.get('name')
+        awx_name = kvargs.get("name")
 
         def to_dict(extras):
             variables = {}
             if extras is not None:
-                for item in extras.split(';'):
-                    k, v = item.split(':', 1)
+                for item in extras.split(";"):
+                    k, v = item.split(":", 1)
                     # remove string quotes at start and end if present
-                    v = v.strip('\'')
-                    if k == 'host_groups' or k == 'host_templates':
+                    v = v.strip("'")
+                    if k == "host_groups" or k == "host_templates":
                         # convert string to list
-                        v = v.replace('[', '').replace(']', '').split(', ')
+                        v = v.replace("[", "").replace("]", "").split(", ")
                     variables[k] = v
             return variables
 
         def get_organization_id(name):
             res = container.conn.organization.list(name=name)
             if len(res) > 1:
-                msg = 'More than an organization with the same name'
+                msg = "More than an organization with the same name"
                 logger.error(msg)
                 raise Exception(msg)
-            return res[0].get('id')
+            return res[0].get("id")
 
         def add_ssh_credentials(organization, ssh_creds, rand):
             # append random code to avoid getting duplicate name error from awx
-            name = '-'.join(('TEMP-%s-creds-ssh', rand)) % awx_name
-            username = ssh_creds.get('username')
-            password = ssh_creds.get('password')
+            name = "-".join(("TEMP-%s-creds-ssh", rand)) % awx_name
+            username = ssh_creds.get("username")
+            password = ssh_creds.get("password")
             res = container.conn.credential.add_ssh(name, organization, username, password)
-            ext_id = res.get('id')
-            logger.info('Ssh credentials \'{}\' created: {}'.format(name, ext_id))
+            ext_id = res.get("id")
+            logger.info("Ssh credentials '{}' created: {}".format(name, ext_id))
             return ext_id
 
         def del_ssh_credentials(credential):
             container.conn.credential.delete(credential)
-            logger.info('Ssh credentials \'{}\' deleted'.format(credential))
+            logger.info("Ssh credentials '{}' deleted".format(credential))
 
         def add_inventory(organization, rand):
             # append random code to avoid getting duplicate name error from awx
-            name = '-'.join(('TEMP-%s-inventory', rand)) % awx_name
+            name = "-".join(("TEMP-%s-inventory", rand)) % awx_name
             res = container.conn.inventory.add(name, organization)
-            ext_id = res.get('id')
-            logger.info('Inventory \'{}\' created: {}'.format(name, ext_id))
+            ext_id = res.get("id")
+            logger.info("Inventory '{}' created: {}".format(name, ext_id))
             return ext_id
 
         def del_inventory(inventory):
             container.conn.inventory.delete(inventory)
-            logger.info('Inventory \'{}\' deleted'.format(inventory))
+            logger.info("Inventory '{}' deleted".format(inventory))
 
         def add_hosts(hosts, inventory):
             host_extids = []
             for host in hosts:
-                ip_addr = host.get('ip_addr')
-                extra_vars = host.get('extra_vars', None)
+                ip_addr = host.get("ip_addr")
+                extra_vars = host.get("extra_vars", None)
                 if isinstance(extra_vars, str):
                     extra_vars = to_dict(extra_vars)
                 res = container.conn.host.add(ip_addr, inventory, vars=extra_vars)
-                ext_id = res.get('id')
+                ext_id = res.get("id")
                 host_extids.append(ext_id)
-                logger.info('Host \'{}\' added to inventory: {}'.format(ip_addr, ext_id))
+                logger.info("Host '{}' added to inventory: {}".format(ip_addr, ext_id))
             return host_extids
 
         def del_hosts(hosts):
             for host in hosts:
                 container.conn.host.delete(host)
-                logger.info('Host \'{}\' deleted'.format(host))
+                logger.info("Host '{}' deleted".format(host))
 
-        def add_ad_hoc_command(inventory_id, credential_id, module_name, module_args, verbosity=0, extra_vars=''):
-            res = container.conn.ad_hoc_command.add(inventory_id, limit='', credential=credential_id,
-                                                    module_name=module_name, module_args=module_args,
-                                                    verbosity=verbosity, extra_vars=extra_vars, become_enabled=False)
-            ext_id = res.get('id')
-            logger.info('Ad hoc command for inventory \'{}\' created: {}'.format(inventory_id, ext_id))
+        def add_ad_hoc_command(
+            inventory_id,
+            credential_id,
+            module_name,
+            module_args,
+            verbosity=0,
+            extra_vars="",
+        ):
+            res = container.conn.ad_hoc_command.add(
+                inventory_id,
+                limit="",
+                credential=credential_id,
+                module_name=module_name,
+                module_args=module_args,
+                verbosity=verbosity,
+                extra_vars=extra_vars,
+                become_enabled=False,
+            )
+            ext_id = res.get("id")
+            logger.info("Ad hoc command for inventory '{}' created: {}".format(inventory_id, ext_id))
             return ext_id
 
-        org_name = kvargs.pop('organization')
-        hosts = kvargs.pop('hosts', None)
-        ssh_creds = kvargs.pop('ssh_creds', None)
-        extra_vars = kvargs.pop('extra_vars', None)
-        module_name = kvargs.pop('module_name', None)
-        module_args = kvargs.pop('module_args', None)
+        org_name = kvargs.pop("organization")
+        hosts = kvargs.pop("hosts", None)
+        ssh_creds = kvargs.pop("ssh_creds", None)
+        extra_vars = kvargs.pop("extra_vars", None)
+        module_name = kvargs.pop("module_name", None)
+        module_args = kvargs.pop("module_args", None)
 
         try:
             rand = id_gen(8)
             # get organization id
             org_ext_id = get_organization_id(org_name)
             # create temporary ssh credentials
-            ssh_creds_ext_id = kvargs.pop('ssh_cred_id', None)
+            ssh_creds_ext_id = kvargs.pop("ssh_cred_id", None)
             delete_ssh_cred = False
             if ssh_creds_ext_id is None:
                 ssh_creds_ext_id = add_ssh_credentials(org_ext_id, ssh_creds, rand)
                 delete_ssh_cred = True
             # create temporary inventory
-            inventory_ext_id = kvargs.pop('inventory', None)
+            inventory_ext_id = kvargs.pop("inventory", None)
             delete_inventory = False
             if inventory_ext_id is None:
                 inventory_ext_id = add_inventory(org_ext_id, rand)
@@ -285,8 +305,14 @@ class AwxAdHocCommand(AwxResource):
                 # add hosts to inventory
                 host_extids = add_hosts(hosts, inventory_ext_id)
             # create ad hoc command
-            kvargs['ext_id'] = add_ad_hoc_command(inventory_ext_id, ssh_creds_ext_id, module_name, module_args,
-                                                  verbosity=0, extra_vars=extra_vars)
+            kvargs["ext_id"] = add_ad_hoc_command(
+                inventory_ext_id,
+                ssh_creds_ext_id,
+                module_name,
+                module_args,
+                verbosity=0,
+                extra_vars=extra_vars,
+            )
             # # delete hosts
             # if delete_inventory is True:
             #     del_hosts(host_extids)
@@ -298,8 +324,6 @@ class AwxAdHocCommand(AwxResource):
         except Exception as ex:
             logger.error(ex, exc_info=True)
             raise Exception(ex)
-
-
 
         # kvargs['add']['inventory'] = inventory_ext_id
         # kvargs['add']['project'] = project_ext_id
@@ -322,8 +346,8 @@ class AwxAdHocCommand(AwxResource):
         """Pre update function. This function is used in update method.
 
         :param args: custom params
-        :param kvargs: custom params            
-        :return: kvargs            
+        :param kvargs: custom params
+        :return: kvargs
         :raises ApiManagerError:
         """
         # steps = [
@@ -338,8 +362,8 @@ class AwxAdHocCommand(AwxResource):
         """Pre delete function. This function is used in delete method.
 
         :param args: custom params
-        :param kvargs: custom params            
-        :return: kvargs            
+        :param kvargs: custom params
+        :return: kvargs
         :raises ApiManagerError:
         """
         # steps = [
@@ -374,11 +398,11 @@ class AwxAdHocCommand(AwxResource):
 
         if self.ext_obj is not None:
             data = {}
-            info['details'].update(data)
+            info["details"].update(data)
 
         return info
 
-    def get_stdout(self, parse='json'):
+    def get_stdout(self, parse="json"):
         """Get stdout
 
         :param parse: set output parser. json or text
@@ -389,28 +413,28 @@ class AwxAdHocCommand(AwxResource):
         elasped = 0
         delta = 0.5
         maxtime = 15
-        while status not in ['successful', 'failed', 'error', 'canceled']:
-            status = self.container.conn.ad_hoc_command.get(self.ext_id).get('status')
+        while status not in ["successful", "failed", "error", "canceled"]:
+            status = self.container.conn.ad_hoc_command.get(self.ext_id).get("status")
             sleep(delta)
             elasped += delta
             if elasped > maxtime:
                 break
-        if status == 'successful':
+        if status == "successful":
             res = self.container.conn.ad_hoc_command.stdout(self.ext_id)
 
-            res = dict_get(res, 'content')
+            res = dict_get(res, "content")
 
-            if parse == 'json':
+            if parse == "json":
                 n = res.find('{"')
-                m = res.find('}\x1b') + 1
+                m = res.find("}\x1b") + 1
                 res = res[n:m]
                 self.logger.warn(res)
                 res = json.loads(res)
-            elif parse == 'text':
-                n = res.find('>>')+2
+            elif parse == "text":
+                n = res.find(">>") + 2
                 res = res[n:]
-                res = res.replace('\x1b[0m', '').replace('\x1b[0;33m', '')
-                res = res.lstrip('\n').rstrip('\n')
+                res = res.replace("\x1b[0m", "").replace("\x1b[0;33m", "")
+                res = res.lstrip("\n").rstrip("\n")
 
-        self.logger.debug('get ad hoc command %s stdout: %s' % (self.oid, truncate(res)))
+        self.logger.debug("get ad hoc command %s stdout: %s" % (self.oid, truncate(res)))
         return res

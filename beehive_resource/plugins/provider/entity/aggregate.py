@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 import logging
 from beehive.common.data import truncate, operation
@@ -10,43 +11,51 @@ from typing import Any, Union
 
 
 def get_task(task_name):
-    return '%s.task.%s' % (__name__.replace('.entity.aggregate', ''), task_name)
+    return "%s.task.%s" % (__name__.replace(".entity.aggregate", ""), task_name)
 
 
 class ComputeQuotas(object):
     classes = {
-        'compute.instances': {'default': 10, 'unit': '#'},
-        'compute.images': {'default': 10, 'unit': '#'},
-        'compute.volumes': {'default': 10, 'unit': '#'},
-        'compute.snapshots': {'default': 10, 'unit': '#'},
-        'compute.blocks': {'default': 1024, 'unit': 'GB'},
-        'compute.ram': {'default': 1024, 'unit': 'GB'},
-        'compute.cores': {'default': 10, 'unit': '#'},
-        'compute.networks': {'default': 10, 'unit': '#'},
-        'compute.floatingips': {'default': 10, 'unit': '#'},
-        'compute.security_groups': {'default': 10, 'unit': '#'},
-        'compute.security_group_rules': {'default': 10, 'unit': '#'},
-        'compute.keypairs': {'default': 10, 'unit': '#'},
-        'database.instances': {'default': 10, 'unit': '#'},
-        'database.ram': {'default': 1024, 'unit': 'GB'},
-        'database.cores': {'default': 10, 'unit': '#'},
-        'database.volumes': {'default': 10, 'unit': '#'},
-        'database.snapshots': {'default': 10, 'unit': '#'},
-        'database.blocks': {'default': 1024, 'unit': 'GB'},
-        'share.instances': {'default': 10, 'unit': '#'},
-        'share.blocks': {'default': 1024, 'unit': 'GB'},
-        'appengine.instances': {'default': 10, 'unit': '#'},
-        'appengine.ram': {'default': 1024, 'unit': 'GB'},
-        'appengine.cores': {'default': 10, 'unit': '#'},
-        'appengine.volumes': {'default': 10, 'unit': '#'},
-        'appengine.snapshots': {'default': 10, 'unit': '#'},
-        'appengine.blocks': {'default': 1024, 'unit': 'GB'},
-        'logging.spaces': {'default': 10, 'unit': '#'},
-        'logging.instances': {'default': 10, 'unit': '#'},
+        "compute.instances": {"default": 10, "unit": "#"},
+        "compute.images": {"default": 10, "unit": "#"},
+        "compute.volumes": {"default": 10, "unit": "#"},
+        "compute.snapshots": {"default": 10, "unit": "#"},
+        "compute.blocks": {"default": 1024, "unit": "GB"},
+        "compute.ram": {"default": 1024, "unit": "GB"},
+        "compute.cores": {"default": 10, "unit": "#"},
+        "compute.networks": {"default": 10, "unit": "#"},
+        "compute.floatingips": {"default": 10, "unit": "#"},
+        "compute.security_groups": {"default": 10, "unit": "#"},
+        "compute.security_group_rules": {"default": 10, "unit": "#"},
+        "compute.keypairs": {"default": 10, "unit": "#"},
+        "database.instances": {"default": 10, "unit": "#"},
+        "database.ram": {"default": 1024, "unit": "GB"},
+        "database.cores": {"default": 10, "unit": "#"},
+        "database.volumes": {"default": 10, "unit": "#"},
+        "database.snapshots": {"default": 10, "unit": "#"},
+        "database.blocks": {"default": 1024, "unit": "GB"},
+        "share.instances": {"default": 10, "unit": "#"},
+        "share.blocks": {"default": 1024, "unit": "GB"},
+        "appengine.instances": {"default": 10, "unit": "#"},
+        "appengine.ram": {"default": 1024, "unit": "GB"},
+        "appengine.cores": {"default": 10, "unit": "#"},
+        "appengine.volumes": {"default": 10, "unit": "#"},
+        "appengine.snapshots": {"default": 10, "unit": "#"},
+        "appengine.blocks": {"default": 1024, "unit": "GB"},
+        "logging.spaces": {"default": 10, "unit": "#"},
+        "logging.instances": {"default": 100, "unit": "#"},
         # 'logging.blocks': {'default': 1024, 'unit': 'GB'},
-        'monitoring.folders': {'default': 10, 'unit': '#'},
+        "monitoring.folders": {"default": 10, "unit": "#"},
+        "monitoring.alerts": {"default": 10, "unit": "#"},
         # 'monitoring.instances': {'default': 10, 'unit': '#'},
-        'monitoring.instances': {'default': 100, 'unit': '#'},
+        "monitoring.instances": {"default": 100, "unit": "#"},
+        # network
+        "network.gateways": {"default": 1, "unit": "#"},
+        "network.networks": {"default": 20, "unit": "#"},
+        "network.security_groups": {"default": 20, "unit": "#"},
+        "network.security_group_rules": {"default": 100, "unit": "#"},
+        "network.floatingips": {"default": 10, "unit": "#"},
+        "network.loadbalancers": {"default": 10, "unit": "#"},
     }
 
     def __init__(self, quotas):
@@ -54,11 +63,11 @@ class ComputeQuotas(object):
 
         :param quotas:
         """
-        self.logger = logging.getLogger(self.__class__.__module__ + '.' + self.__class__.__name__)
+        self.logger = logging.getLogger(self.__class__.__module__ + "." + self.__class__.__name__)
 
         self.quotas = {}
         for quota, value in self.classes.items():
-            self.quotas[quota] = quotas.get(quota, value['default'])
+            self.quotas[quota] = quotas.get(quota, value["default"])
 
     def get_classes(self):
         """Get quotas
@@ -67,11 +76,7 @@ class ComputeQuotas(object):
         """
         classes = []
         for quota, value in self.classes.items():
-            item = {
-                'quota': quota,
-                'unit': value['unit'],
-                'default': value['default']
-            }
+            item = {"quota": quota, "unit": value["unit"], "default": value["default"]}
             classes.append(item)
         return classes
 
@@ -82,7 +87,7 @@ class ComputeQuotas(object):
         """
         quotas = {}
         for quota, value in self.classes.items():
-            quotas[quota] = self.quotas.get(quota, value['default'])
+            quotas[quota] = self.quotas.get(quota, value["default"])
         return quotas
 
     def get(self):
@@ -93,9 +98,9 @@ class ComputeQuotas(object):
         quotas = []
         for quota, value in self.classes.items():
             item = {
-                'quota': quota,
-                'unit': value['unit'],
-                'value': self.quotas.get(quota, value['default'])
+                "quota": quota,
+                "unit": value["unit"],
+                "value": self.quotas.get(quota, value["default"]),
             }
             quotas.append(item)
         return quotas
@@ -112,36 +117,42 @@ class ComputeQuotas(object):
         total = self.quotas
 
         for k, v in allocated.items():
-            new_allocated = v + to_allocate.get(k, 0)
-            if new_allocated > total.get(k, 0):
-                raise ApiManagerError('Quotas %s have been exceeded' % k)
+            quota_to_allocate = to_allocate.get(k, 0)
+            new_allocated = v + quota_to_allocate
+
+            quota_total = total.get(k, 0)
+            if new_allocated > quota_total:
+                self.logger.error(
+                    "quota_total: %s, quota_to_allocate: %s, quota_allocated: %s" % (quota_total, quota_to_allocate, v)
+                )
+                raise ApiManagerError("Quotas %s have been exceeded" % k)
 
         return True
 
 
 class ComputeProviderResource(AsyncResource):
-    """Compute provider resource. This resource aggregate other resource
-    """
-    objdef = 'Provider.ComputeResource'
-    objuri = '%s/compute_resources/%s'
-    objname = 'compute_resource'
-    objdesc = 'Provider compute resource'
+    """Compute provider resource. This resource aggregate other resource"""
 
-    task_path = 'beehive_resource.plugins.provider.task_v2.AbstractResourceTask.'
-    create_task = 'beehive_resource.plugins.provider.task_v2.provider_resource_add_task'
+    objdef = "Provider.ComputeResource"
+    objuri = "%s/compute_resources/%s"
+    objname = "compute_resource"
+    objdesc = "Provider compute resource"
+
+    task_path = "beehive_resource.plugins.provider.task_v2.AbstractResourceTask."
+    create_task = "beehive_resource.plugins.provider.task_v2.provider_resource_add_task"
     # clone_task = 'beehive_resource.plugins.provider.task_v2.provider_resource_clone_task'
-    import_task = 'beehive_resource.plugins.provider.task_v2.provider_resource_import_task'
-    update_task = 'beehive_resource.plugins.provider.task_v2.provider_resource_update_task'
-    patch_task = 'beehive_resource.plugins.provider.task_v2.provider_resource_patch_task'
-    delete_task = 'beehive_resource.plugins.provider.task_v2.provider_resource_delete_task'
-    expunge_task = 'beehive_resource.plugins.provider.task_v2.provider_resource_expunge_task'
-    action_task = 'beehive_resource.plugins.provider.task_v2.provider_resource_action_task'
+    import_task = "beehive_resource.plugins.provider.task_v2.provider_resource_import_task"
+    update_task = "beehive_resource.plugins.provider.task_v2.provider_resource_update_task"
+    patch_task = "beehive_resource.plugins.provider.task_v2.provider_resource_patch_task"
+    delete_task = "beehive_resource.plugins.provider.task_v2.provider_resource_delete_task"
+    expunge_task = "beehive_resource.plugins.provider.task_v2.provider_resource_expunge_task"
+    action_task = "beehive_resource.plugins.provider.task_v2.provider_resource_action_task"
 
     def __init__(self, *args, **kvargs):
         Resource.__init__(self, *args, **kvargs)
 
     def get_configs(self):
-        return self.attribs.get('configs')
+        return self.attribs.get("configs")
 
     @staticmethod
     def get_active_availability_zone(compute_zone, site):
@@ -153,12 +164,14 @@ class ComputeProviderResource(AsyncResource):
         """
         from beehive_resource.plugins.provider.entity.zone import AvailabilityZone
 
-        availability_zone, total = compute_zone.get_linked_resources(link_type='relation.%s' % site.oid,
-                                                                     entity_class=AvailabilityZone,
-                                                                     objdef=AvailabilityZone.objdef,
-                                                                     run_customize=False)
+        availability_zone, total = compute_zone.get_linked_resources(
+            link_type="relation.%s" % site.oid,
+            entity_class=AvailabilityZone,
+            objdef=AvailabilityZone.objdef,
+            run_customize=False,
+        )
         if availability_zone[0].is_active() is False:
-            raise ApiManagerError('Availability zone %s has not a correct state' % availability_zone[0].uuid)
+            raise ApiManagerError("Availability zone %s has not a correct state" % availability_zone[0].uuid)
 
         return availability_zone[0].oid
 
@@ -174,10 +187,12 @@ class ComputeProviderResource(AsyncResource):
 
         availability_zones = []
         if multi_avz is True:
-            avzs, total = compute_zone.get_linked_resources(link_type_filter='relation%',
-                                                            entity_class=AvailabilityZone,
-                                                            objdef=AvailabilityZone.objdef,
-                                                            run_customize=False)
+            avzs, total = compute_zone.get_linked_resources(
+                link_type_filter="relation%",
+                entity_class=AvailabilityZone,
+                objdef=AvailabilityZone.objdef,
+                run_customize=False,
+            )
             for avz in avzs:
                 if avz.is_active() is True:
                     availability_zones.append(avz.oid)
@@ -190,8 +205,7 @@ class ComputeProviderResource(AsyncResource):
         :return: list of availability zone id
         """
         availability_zones = []
-        objs, tot = self.get_linked_resources(link_type='relation%', run_customize=False, size=-1,
-                                              with_perm_tag=False)
+        objs, tot = self.get_linked_resources(link_type="relation%", run_customize=False, size=-1, with_perm_tag=False)
         for obj in objs:
             availability_zones.append(obj.get_parent().parent_id)
 
@@ -203,10 +217,14 @@ class ComputeProviderResource(AsyncResource):
         :param site_id: site id
         :return: availability zone child
         """
-        objs, tot = self.get_linked_resources(link_type='relation.%s' % site_id, run_customize=False, size=-1,
-                                              with_perm_tag=False)
+        objs, tot = self.get_linked_resources(
+            link_type="relation.%s" % site_id,
+            run_customize=False,
+            size=-1,
+            with_perm_tag=False,
+        )
         if len(objs) == 0:
-            raise ApiManagerError('resource %s does not have child in site %s' % (self.oid, site_id))
+            raise ApiManagerError("resource %s does not have child in site %s" % (self.oid, site_id))
         obj = objs[0]
         obj.check_active()
         return obj
@@ -217,10 +235,14 @@ class ComputeProviderResource(AsyncResource):
         :param site_id: site id
         :return: availability zone local resource
         """
-        objs, tot = self.get_linked_resources(link_type='relation.%s' % site_id, run_customize=False, size=-1,
-                                              with_perm_tag=False)
+        objs, tot = self.get_linked_resources(
+            link_type="relation.%s" % site_id,
+            run_customize=False,
+            size=-1,
+            with_perm_tag=False,
+        )
         if len(objs) == 0:
-            raise ApiManagerError('resource %s does not have child in site %s' % (self.oid, site_id))
+            raise ApiManagerError("resource %s does not have child in site %s" % (self.oid, site_id))
         obj = objs[0]
         obj.check_active()
         return obj
@@ -232,9 +254,9 @@ class ComputeProviderResource(AsyncResource):
         :param g_steps: list of additional steps
         :return: list of steps
         """
-        run_steps = [ComputeProviderResource.task_path + 'create_resource_pre_step']
+        run_steps = [ComputeProviderResource.task_path + "create_resource_pre_step"]
         run_steps.extend(g_steps)
-        run_steps.append(ComputeProviderResource.task_path + 'create_resource_post_step')
+        run_steps.append(ComputeProviderResource.task_path + "create_resource_post_step")
         return run_steps
 
     def group_update_step(self, g_steps):
@@ -243,10 +265,10 @@ class ComputeProviderResource(AsyncResource):
         :param g_steps: list of additional steps
         :return: list of steps
         """
-        run_steps = [self.task_path + 'update_resource_pre_step']
+        run_steps = [self.task_path + "update_resource_pre_step"]
         if g_steps is not None:
             run_steps.extend(g_steps)
-        run_steps.append(self.task_path + 'update_resource_post_step')
+        run_steps.append(self.task_path + "update_resource_post_step")
         return run_steps
 
     def group_patch_step(self, g_steps):
@@ -255,10 +277,10 @@ class ComputeProviderResource(AsyncResource):
         :param g_steps: list of additional steps
         :return: list of steps
         """
-        run_steps = [self.task_path + 'patch_resource_pre_step']
+        run_steps = [self.task_path + "patch_resource_pre_step"]
         if g_steps is not None:
             run_steps.extend(g_steps)
-        run_steps.append(self.task_path + 'patch_resource_post_step')
+        run_steps.append(self.task_path + "patch_resource_post_step")
         return run_steps
 
     def group_remove_step(self, childs):
@@ -267,11 +289,11 @@ class ComputeProviderResource(AsyncResource):
         :param childs: list of childs to remove
         :return: list of steps
         """
-        run_steps = [self.task_path + 'expunge_resource_pre_step']
+        run_steps = [self.task_path + "expunge_resource_pre_step"]
         for child in childs:
-            substep = {'step': self.task_path + 'remove_child_step', 'args': [child]}
+            substep = {"step": self.task_path + "remove_child_step", "args": [child]}
             run_steps.append(substep)
-        run_steps.append(self.task_path + 'expunge_resource_post_step')
+        run_steps.append(self.task_path + "expunge_resource_post_step")
         return run_steps
 
     def pre_delete(self, *args, **kvargs):
@@ -287,9 +309,9 @@ class ComputeProviderResource(AsyncResource):
         :return: kvargs
         :raise ApiManagerError
         """
-        objs, total = self.get_linked_resources(link_type_filter='relation%')
+        objs, total = self.get_linked_resources(link_type_filter="relation%")
         childs = [p.oid for p in objs]
-        kvargs['steps'] = self.group_remove_step(childs)
+        kvargs["steps"] = self.group_remove_step(childs)
         return kvargs
 
     def set_state(self, state):
@@ -301,67 +323,69 @@ class ComputeProviderResource(AsyncResource):
         Resource.set_state(self, state)
 
         # get zone childs
-        childs, total = self.get_linked_resources(link_type_filter='relation%', with_perm_tag=False,
-                                                  run_customize=False)
+        childs, total = self.get_linked_resources(
+            link_type_filter="relation%", with_perm_tag=False, run_customize=False
+        )
         for child in childs:
             child.set_state(state)
 
         return True
 
-    def reset_cache(self, method:str)-> bool:
-        """ TODO decidere se spostarla in Resource o ApiObject ?
-            Reset chace for method
-            if method is "*" in order to reset alla cached values
-            for current resource
+    def __cache_key(self, method):
+        return "%s.%s.%s" % (self.__class__.__name__, method, self.uuid)
+
+    def reset_cache(self, method: str) -> bool:
+        """TODO decidere se spostarla in Resource o ApiObject ?
+        Reset chace for method
+        if method is "*" in order to reset alla cached values
+        for current resource
         """
         # save data in cache
         if operation.cache is False or self.model is None:
             return False
-        key = f"{self.__class__.__name__}.{method}.{self.uuid}"
-        ### TODO DBG print( f'\n\n\n DBG CACHE deletting  key{key}')
+        key = self.__cache_key(method)
         return self.controller.cache.delete_by_pattern(key)
 
-    def set_cache(self, method:str, value:Any, ttl=2500, pickling=False)-> bool:
-        """ TODO decidere se spostarla in Resource o ApiObject ?
-            Cache a value
-            :param method is the method's name to be cached
-            :param value the value tu bi caches
-            :param ttl optional time to live in second
-            :param picling optional flag to use pckle while mmarshaling
+    def set_cache(self, method: str, value: Any, ttl=2500, pickling=False) -> bool:
+        """TODO decidere se spostarla in Resource o ApiObject ?
+        Cache a value
+        :param method is the method's name to be cached
+        :param value the value tu bi caches
+        :param ttl optional time to live in second
+        :param picling optional flag to use pckle while mmarshaling
         """
         # check if cache is enalbled and model has been loaded
         if operation.cache is False or self.model is None:
             return False
-        key = f"{self.__class__.__name__}.{method}.{self.uuid}"
 
-        ### TODO DBG print( f'\n\n\n DBG CACHE Setting key{key}')
+        key = self.__cache_key(method)
         return self.controller.cache.set(key, value, ttl=ttl, pickling=pickling)
 
-
-    def get_cached(self, method:str,)-> Union[Any, None]:
-        """ TODO decidere se spostarla in Resource o ApiObject
-            get a chached record value
-            :param method
+    def get_cached(
+        self,
+        method: str,
+    ) -> Union[Any, None]:
+        """TODO decidere se spostarla in Resource o ApiObject
+        get a chached record value
+        :param method
         """
         if operation.cache is False or self.model is None:
             return None
-        key = f"{self.__class__.__name__}.{method}.{self.uuid}"
+        key = self.__cache_key(method)
+        ret = None
         try:
-            ### TODO DBG print( f'\n\n\n DBG CACHE searching key{key}')
             ret = self.controller.cache.get(key)
             if ret is None or ret == {} or ret == []:
                 return None
             else:
-                ### TODO DBG print( f'\n\n\n DBG CACHE Found key{key}')
-                self.logger.debug2(f'Cache {key}:{truncate(ret)}')
+                self.logger.debug2("Cache %s:%s" % (key, truncate(ret)))
         except Exception as ex:
-                self.logger.error(ex)
-                ### TODO DBG print( f'\n\n\n DBG CACHE ERROR {ex}')
-                raise
+            self.logger.error(ex)
+            raise
         return ret
 
     def clean_cache(self):
-        """Clean cache
-        """
+        """Clean cache"""
+        # self.logger.debug("+++++ clean_cache - ComputeProviderResource")
         AsyncResource.clean_cache(self)
         self.reset_cache("*")

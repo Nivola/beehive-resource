@@ -16,7 +16,6 @@ class ZabbixApiView(ResourceApiView):
 
 
 class ZabbixAPI(ApiView):
-    """
-    """
-    base = 'nrs/zabbix'
+    """ """
 
+    base = "nrs/zabbix"

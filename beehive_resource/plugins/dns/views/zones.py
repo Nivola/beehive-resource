@@ -5,8 +5,12 @@
 from marshmallow import Schema, fields
 
 from beecell.swagger import SwaggerHelper
-from beehive.common.apimanager import PaginatedResponseSchema, SwaggerApiView, GetApiObjectRequestSchema, \
-    CrudApiObjectSimpleResponseSchema
+from beehive.common.apimanager import (
+    PaginatedResponseSchema,
+    SwaggerApiView,
+    GetApiObjectRequestSchema,
+    CrudApiObjectSimpleResponseSchema,
+)
 from beehive_resource.plugins.dns.controller import DnsZone
 from beehive_resource.plugins.dns.views import DnsAPI, DnsApiView
 from beehive_resource.view import ListResourcesRequestSchema, ResourceResponseSchema
@@ -31,16 +35,11 @@ class ListZoneResponseSchema(PaginatedResponseSchema):
 
 class ListZone(DnsZoneApiView):
     definitions = {
-        'ListZoneResponseSchema': ListZoneResponseSchema,
+        "ListZoneResponseSchema": ListZoneResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(ListZoneRequestSchema)
     parameters_schema = ListZoneRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': ListZoneResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListZoneResponseSchema}})
 
     def get(self, controller, data, *args, **kwargs):
         """
@@ -56,15 +55,10 @@ class GetZoneResponseSchema(Schema):
 
 class GetZone(DnsZoneApiView):
     definitions = {
-        'GetZoneResponseSchema': GetZoneResponseSchema,
+        "GetZoneResponseSchema": GetZoneResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetZoneResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetZoneResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -75,8 +69,8 @@ class GetZone(DnsZoneApiView):
 
 
 class CreateZoneParamRequestSchema(Schema):
-    container = fields.String(required=True, example='12', description='container id, uuid or name')
-    name = fields.String(required=True, example='site.prova.com', description='dns zone name')
+    container = fields.String(required=True, example="12", description="container id, uuid or name")
+    name = fields.String(required=True, example="site.prova.com", description="dns zone name")
 
 
 class CreateZoneRequestSchema(Schema):
@@ -84,22 +78,19 @@ class CreateZoneRequestSchema(Schema):
 
 
 class CreateZoneBodyRequestSchema(Schema):
-    body = fields.Nested(CreateZoneRequestSchema, context='body')
+    body = fields.Nested(CreateZoneRequestSchema, context="body")
 
 
 class CreateZone(DnsZoneApiView):
     definitions = {
-        'CreateZoneRequestSchema': CreateZoneRequestSchema,
-        'CrudApiObjectSimpleResponseSchema': CrudApiObjectSimpleResponseSchema
+        "CreateZoneRequestSchema": CreateZoneRequestSchema,
+        "CrudApiObjectSimpleResponseSchema": CrudApiObjectSimpleResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(CreateZoneBodyRequestSchema)
     parameters_schema = CreateZoneRequestSchema
-    responses = SwaggerApiView.setResponses({
-        202: {
-            'description': 'success',
-            'schema': CrudApiObjectSimpleResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses(
+        {202: {"description": "success", "schema": CrudApiObjectSimpleResponseSchema}}
+    )
 
     def post(self, controller, data, *args, **kwargs):
         """
@@ -110,8 +101,8 @@ class CreateZone(DnsZoneApiView):
 
 
 class UpdateZoneParamRequestSchema(Schema):
-    container = fields.String(required=True, example='12', description='container id, uuid or name')
-    name = fields.String(required=True, example='prova', description='dns zone name')
+    container = fields.String(required=True, example="12", description="container id, uuid or name")
+    name = fields.String(required=True, example="prova", description="dns zone name")
 
 
 class UpdateZoneRequestSchema(Schema):
@@ -119,36 +110,37 @@ class UpdateZoneRequestSchema(Schema):
 
 
 class UpdateZoneBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateZoneRequestSchema, context='body')
+    body = fields.Nested(UpdateZoneRequestSchema, context="body")
 
 
 class UpdateZone(DnsZoneApiView):
     definitions = {
-        'UpdateZoneRequestSchema': UpdateZoneRequestSchema,
-        'CrudApiObjectSimpleResponseSchema': CrudApiObjectSimpleResponseSchema
+        "UpdateZoneRequestSchema": UpdateZoneRequestSchema,
+        "CrudApiObjectSimpleResponseSchema": CrudApiObjectSimpleResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(UpdateZoneBodyRequestSchema)
     parameters_schema = UpdateZoneRequestSchema
-    responses = SwaggerApiView.setResponses({
-        202: {
-            'description': 'success',
-            'schema': CrudApiObjectSimpleResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses(
+        {202: {"description": "success", "schema": CrudApiObjectSimpleResponseSchema}}
+    )
 
     def put(self, controller, data, oid, *args, **kwargs):
         """
         Update zone
         Update zone
         """
-        data.get('zone').pop('container')
+        data.get("zone").pop("container")
         return self.update_resource(controller, oid, data)
 
 
 class ImportZoneRecordParamRequestSchema(Schema):
-    name = fields.String(required=True, example='prova', description='record host-name or alias')
-    type = fields.String(required=True, example='prova', description='record type like A or CNAME')
-    value = fields.String(required=True, example='prova', description='record value like ip address or host-name')
+    name = fields.String(required=True, example="prova", description="record host-name or alias")
+    type = fields.String(required=True, example="prova", description="record type like A or CNAME")
+    value = fields.String(
+        required=True,
+        example="prova",
+        description="record value like ip address or host-name",
+    )
 
 
 class ImportZoneRecordRequestSchema(Schema):
@@ -156,7 +148,7 @@ class ImportZoneRecordRequestSchema(Schema):
 
 
 class ImportZoneRecordBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(ImportZoneRecordRequestSchema, context='body')
+    body = fields.Nested(ImportZoneRecordRequestSchema, context="body")
 
 
 class ImportZoneRecordResponseSchema(GetApiObjectRequestSchema):
@@ -165,17 +157,12 @@ class ImportZoneRecordResponseSchema(GetApiObjectRequestSchema):
 
 class ImportZoneRecord(DnsZoneApiView):
     definitions = {
-        'ImportZoneRecordRequestSchema': ImportZoneRecordRequestSchema,
-        'ImportZoneRecordResponseSchema': ImportZoneRecordResponseSchema
+        "ImportZoneRecordRequestSchema": ImportZoneRecordRequestSchema,
+        "ImportZoneRecordResponseSchema": ImportZoneRecordResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(ImportZoneRecordBodyRequestSchema)
     parameters_schema = ImportZoneRecordRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': ImportZoneRecordResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ImportZoneRecordResponseSchema}})
 
     def put(self, controller, data, oid, *args, **kwargs):
         """
@@ -183,12 +170,17 @@ class ImportZoneRecord(DnsZoneApiView):
         Import zone record
         """
         resource = self.get_resource_reference(controller, oid)
-        res = resource.import_record(data.get('records'))
-        return {'records': res}
+        res = resource.import_record(data.get("records"))
+        return {"records": res}
 
 
 class DeleteZoneRequestSchema(Schema):
-    expunge = fields.Boolean(required=False, context='query', missing=False, description='If true expunge zone')
+    expunge = fields.Boolean(
+        required=False,
+        context="query",
+        missing=False,
+        description="If true expunge zone",
+    )
 
 
 class DeleteZoneRequest2Schema(GetApiObjectRequestSchema, DeleteZoneRequestSchema):
@@ -197,20 +189,17 @@ class DeleteZoneRequest2Schema(GetApiObjectRequestSchema, DeleteZoneRequestSchem
 
 class DeleteZone(DnsZoneApiView):
     definitions = {
-        'DeleteZoneRequestSchema': DeleteZoneRequestSchema,
-        'CrudApiObjectSimpleResponseSchema': CrudApiObjectSimpleResponseSchema
+        "DeleteZoneRequestSchema": DeleteZoneRequestSchema,
+        "CrudApiObjectSimpleResponseSchema": CrudApiObjectSimpleResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(DeleteZoneRequest2Schema)
     parameters_schema = DeleteZoneRequestSchema
-    responses = SwaggerApiView.setResponses({
-        202: {
-            'description': 'success',
-            'schema': CrudApiObjectSimpleResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses(
+        {202: {"description": "success", "schema": CrudApiObjectSimpleResponseSchema}}
+    )
 
     def delete(self, controller, data, oid, *args, **kwargs):
-        expunge = data.get('expunge')
+        expunge = data.get("expunge")
         if expunge is True:
             res = self.expunge_resource(controller, oid)
         else:
@@ -224,9 +213,9 @@ class GetZoneNameserversRequestSchema(GetApiObjectRequestSchema):
 
 
 class GetZoneNameserverResponseSchema(Schema):
-    start_nameserver = fields.String(required=True, example='prova', description='nameserver queried')
-    ip_addr = fields.String(required=True, example='prova', description='ip of the nameserver returned')
-    fqdn = fields.String(required=True, example='prova', description='fqdn of the nameserver returned')
+    start_nameserver = fields.String(required=True, example="prova", description="nameserver queried")
+    ip_addr = fields.String(required=True, example="prova", description="ip of the nameserver returned")
+    fqdn = fields.String(required=True, example="prova", description="fqdn of the nameserver returned")
 
 
 class GetZoneNameserversResponseSchema(Schema):
@@ -235,17 +224,14 @@ class GetZoneNameserversResponseSchema(Schema):
 
 class GetZoneNameservers(DnsZoneApiView):
     definitions = {
-        'GetZoneNameserversRequestSchema': GetZoneNameserversRequestSchema,
-        'GetZoneNameserversResponseSchema': GetZoneNameserversResponseSchema,
+        "GetZoneNameserversRequestSchema": GetZoneNameserversRequestSchema,
+        "GetZoneNameserversResponseSchema": GetZoneNameserversResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetZoneNameserversRequestSchema)
     parameters_schema = GetZoneNameserversRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetZoneNameserversResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses(
+        {200: {"description": "success", "schema": GetZoneNameserversResponseSchema}}
+    )
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -255,7 +241,7 @@ class GetZoneNameservers(DnsZoneApiView):
         resource = self.get_resource_reference(controller, oid)
         # cid = data.get('container')
         # container = self.get_container(controller, cid)
-        return {'nameservers': resource.get_nameservers()}
+        return {"nameservers": resource.get_nameservers()}
 
 
 class GetZoneAuthorityRequestSchema(GetApiObjectRequestSchema):
@@ -264,22 +250,46 @@ class GetZoneAuthorityRequestSchema(GetApiObjectRequestSchema):
 
 
 class GetZoneAuthorityResponseSchema(Schema):
-    start_nameserver = fields.String(required=True, example='prova', description='nameserver queried')
-    mname = fields.String(required=True, example='prova', description='The <domain-name> of the name server that was '
-                          'the original or primary source of data for this zone.')
-    rname = fields.String(required=True, example='prova', description='A <domain-name> which specifies the mailbox '
-                          'of the person responsible for this zone.')
-    serial = fields.String(required=True, example='prova', description='The unsigned 32 bit version number of the '
-                           'original copy of the zone. Zone transfers preserve this value. This value wraps and '
-                           'should be compared using sequence space arithmetic.')
-    refresh = fields.String(required=True, example='prova', description='A 32 bit time interval before the zone '
-                            'should be refreshed.')
-    retry = fields.String(required=True, example='prova', description='A 32 bit time interval that should elapse '
-                          'before a failed refresh should be retried.')
-    expire = fields.String(required=True, example='prova', description='A 32 bit time value that specifies the upper '
-                           'limit on the time interval that can elapse before the zone is no longer authoritative.')
-    minimum = fields.String(required=True, example='prova', description='The unsigned 32 bit minimum TTL field that '
-                            'should be exported with any RR from this zone.')
+    start_nameserver = fields.String(required=True, example="prova", description="nameserver queried")
+    mname = fields.String(
+        required=True,
+        example="prova",
+        description="The <domain-name> of the name server that was "
+        "the original or primary source of data for this zone.",
+    )
+    rname = fields.String(
+        required=True,
+        example="prova",
+        description="A <domain-name> which specifies the mailbox " "of the person responsible for this zone.",
+    )
+    serial = fields.String(
+        required=True,
+        example="prova",
+        description="The unsigned 32 bit version number of the "
+        "original copy of the zone. Zone transfers preserve this value. This value wraps and "
+        "should be compared using sequence space arithmetic.",
+    )
+    refresh = fields.String(
+        required=True,
+        example="prova",
+        description="A 32 bit time interval before the zone " "should be refreshed.",
+    )
+    retry = fields.String(
+        required=True,
+        example="prova",
+        description="A 32 bit time interval that should elapse " "before a failed refresh should be retried.",
+    )
+    expire = fields.String(
+        required=True,
+        example="prova",
+        description="A 32 bit time value that specifies the upper "
+        "limit on the time interval that can elapse before the zone is no longer authoritative.",
+    )
+    minimum = fields.String(
+        required=True,
+        example="prova",
+        description="The unsigned 32 bit minimum TTL field that " "should be exported with any RR from this zone.",
+    )
 
 
 class GetZoneAuthorityResponseSchema(Schema):
@@ -288,17 +298,12 @@ class GetZoneAuthorityResponseSchema(Schema):
 
 class GetZoneAuthority(DnsZoneApiView):
     definitions = {
-        'GetZoneAuthorityRequestSchema': GetZoneAuthorityRequestSchema,
-        'GetZoneAuthorityResponseSchema': GetZoneAuthorityResponseSchema,
+        "GetZoneAuthorityRequestSchema": GetZoneAuthorityRequestSchema,
+        "GetZoneAuthorityResponseSchema": GetZoneAuthorityResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetZoneAuthorityRequestSchema)
     parameters_schema = GetZoneAuthorityRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetZoneAuthorityResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetZoneAuthorityResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -308,18 +313,22 @@ class GetZoneAuthority(DnsZoneApiView):
         # cid = data.get('container')
         # container = self.get_container(controller, cid)
         resource = self.get_resource_reference(controller, oid)
-        return {'authority': resource.get_authority()}
+        return {"authority": resource.get_authority()}
 
 
 class QueryZoneRequestSchema(GetApiObjectRequestSchema):
-    name = fields.String(required=True, context='query', description='name of the host to resolve')
+    name = fields.String(required=True, context="query", description="name of the host to resolve")
     # container = fields.String(required=True, context='query', description='dns container id, uuid or name')
 
 
 class QueryZoneResponseSchema(Schema):
-    start_nameserver = fields.String(required=True, example='prova', description='nameserver queried')
-    ip_address = fields.String(required=False, example='prova', description='The ip address related to the fqdn')
-    base_fqdn = fields.String(required=False, example='prova', description='The base fqdn related to the fqdn')
+    start_nameserver = fields.String(required=True, example="prova", description="nameserver queried")
+    ip_address = fields.String(
+        required=False,
+        example="prova",
+        description="The ip address related to the fqdn",
+    )
+    base_fqdn = fields.String(required=False, example="prova", description="The base fqdn related to the fqdn")
 
 
 class QueryZoneResponseSchema(Schema):
@@ -328,17 +337,12 @@ class QueryZoneResponseSchema(Schema):
 
 class QueryZone(DnsZoneApiView):
     definitions = {
-        'QueryZoneRequestSchema': QueryZoneRequestSchema,
-        'QueryZoneResponseSchema': QueryZoneResponseSchema,
+        "QueryZoneRequestSchema": QueryZoneRequestSchema,
+        "QueryZoneResponseSchema": QueryZoneResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(QueryZoneRequestSchema)
     parameters_schema = QueryZoneRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': QueryZoneResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": QueryZoneResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -346,29 +350,28 @@ class QueryZone(DnsZoneApiView):
         Query zone to get ip address or alias related to a fqdn
         """
         # cid = data.get('container')
-        name = data.get('name')
+        name = data.get("name")
         # container = self.get_container(controller, cid)
         resource = self.get_resource_reference(controller, oid)
-        return {'records': resource.query_remote_record(name)}
+        return {"records": resource.query_remote_record(name)}
 
 
 class DnsZoneAPI(DnsAPI):
-    """Dns base platform api routes:
-    """
+    """Dns base platform api routes:"""
+
     @staticmethod
     def register_api(module, **kwargs):
         base = DnsAPI.base
         rules = [
-            ('%s/zones' % base, 'GET', ListZone, {}),
-            ('%s/zones/<oid>' % base, 'GET', GetZone, {}),
-            ('%s/zones' % base, 'POST', CreateZone, {}),
-            ('%s/zones/<oid>' % base, 'PUT', UpdateZone, {}),
-            ('%s/zones/<oid>/import' % base, 'PUT', ImportZoneRecord, {}),
-            ('%s/zones/<oid>' % base, 'DELETE', DeleteZone, {}),
-
-            ('%s/zones/<oid>/nameservers' % base, 'GET', GetZoneNameservers, {}),
-            ('%s/zones/<oid>/authority' % base, 'GET', GetZoneAuthority, {}),
-            ('%s/zones/<oid>/query' % base, 'GET', QueryZone, {}),
+            ("%s/zones" % base, "GET", ListZone, {}),
+            ("%s/zones/<oid>" % base, "GET", GetZone, {}),
+            ("%s/zones" % base, "POST", CreateZone, {}),
+            ("%s/zones/<oid>" % base, "PUT", UpdateZone, {}),
+            ("%s/zones/<oid>/import" % base, "PUT", ImportZoneRecord, {}),
+            ("%s/zones/<oid>" % base, "DELETE", DeleteZone, {}),
+            ("%s/zones/<oid>/nameservers" % base, "GET", GetZoneNameservers, {}),
+            ("%s/zones/<oid>/authority" % base, "GET", GetZoneAuthority, {}),
+            ("%s/zones/<oid>/query" % base, "GET", QueryZone, {}),
         ]
 
         DnsAPI.register_api(module, rules, **kwargs)

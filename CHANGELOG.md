@@ -1,15 +1,35 @@
 # Changelog
 
+## Version 1.15.0 (, 2023)
+
+* Added ...
+  * monitoring threshold
+
+* Fixed ...
+  * Determine core_per_socket given vcpu
+  * load balancer
+  * factoring zabbix management
+  * network quotas update
+  * grafana dashboard in monitoring management
+  * revision
+  * gateway
+
 ## Version 1.14.0 (, 2023)
 
 * Added ...
-
-
+  * extend volume for server
 * Fixed ...
     * fix bug that caused sync of new discovered Openstack.Image objects to fail
-
-
-* Integrated ...
+    * refactoring load balancer
+    * user defined data and backup disks size
+    * Staas in private network
+    * applied customization on windows
+    * veeam refactoring
+    * monitoring fix check enabled
+    * monitoring dbaas
+    * beackup refactoring
+    * fix check if monitoring is enabled too slow
+    * fix vsphere stop (no task)
 
 
 ## Version 1.13.0 (oct 21, 2022)
@@ -29,7 +49,7 @@
 * Fixed ...
     * correct errors in pre_import for ComputeInstance
     * fixed problem with name propagation of ComputeLoggingSpace
-    * fixed problem when create a share using manila. Now search of share type use the share type description 
+    * fixed problem when create a share using manila. Now search of share type use the share type description
       in the place of name
     * set vsphere flavor as sync
 * Integrated ...
@@ -62,7 +82,7 @@
     * fixed ComputeVolume flavor info. Now flavor map exactly physical flavor
     * correct bug in ComputeRule filter
     * fixed zabbute user in postgresql sql stack
-    * fixed compute availability zone expunge when some applied customizations already exist 
+    * fixed compute availability zone expunge when some applied customizations already exist
     * fixed bug in ComputeInstance snapshot
 * Integrated ...
     * integrated customization_spec_name params in vsphere server creation

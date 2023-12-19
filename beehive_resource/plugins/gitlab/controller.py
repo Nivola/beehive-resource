@@ -10,7 +10,7 @@ from beehive_resource.plugins.gitlab.entity.project import GitlabProject
 
 
 def get_task(task_name):
-    return '%s.task.%s' % (__name__, task_name)
+    return "%s.task.%s" % (__name__, task_name)
 
 
 class GitlabContainer(Orchestrator):
@@ -25,17 +25,15 @@ class GitlabContainer(Orchestrator):
             'ssl_verify': False
         }
     """
-    objdef = 'Gitlab'
-    objdesc = 'Gitlab container'
-    version = 'v1.0'
+
+    objdef = "Gitlab"
+    objdesc = "Gitlab container"
+    version = "v1.0"
 
     def __init__(self, *args, **kvargs):
         Orchestrator.__init__(self, *args, **kvargs)
 
-        self.child_classes = [
-            GitlabProject,
-            GitlabGroup
-        ]
+        self.child_classes = [GitlabProject, GitlabGroup]
 
         self.conn = None
         self.token = None
@@ -48,11 +46,11 @@ class GitlabContainer(Orchestrator):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         try:
-            self.__new_connection(timeout=1)
+            self.__new_connection(timeout=30)
             res = True
             # res = self.conn.ping()
         except:
-            self.logger.warning('ping ko', exc_info=True)
+            self.logger.warning("ping ko", exc_info=True)
             res = False
         self.container_ping = res
         return res
@@ -77,22 +75,21 @@ class GitlabContainer(Orchestrator):
         info = super().detail()
         return info
 
-    def __new_connection(self, timeout=5):
-        """Get zabbix connection with new token
-        """
+    def __new_connection(self, timeout=30):
+        """Get zabbix connection with new token"""
         try:
-            uri = self.conn_params.get('uri')
-            token = self.conn_params.get('token')
-            ssl_verify = self.conn_params.get('ssl_verify', False)
+            uri = self.conn_params.get("uri")
+            token = self.conn_params.get("token")
+            ssl_verify = self.conn_params.get("ssl_verify", False)
 
             # decrypt token
             token = self.decrypt_data(token)
 
             # get gitlab manager connection
             gl_auth = {
-                'private_token': token,
-                'ssl_verify': ssl_verify,
-                'timeout': timeout
+                "private_token": token,
+                "ssl_verify": ssl_verify,
+                "timeout": timeout,
             }
             self.conn = Gitlab(url=uri, **gl_auth)
             self.conn.auth()
@@ -115,8 +112,7 @@ class GitlabContainer(Orchestrator):
     #         raise ApiManagerError(ex, code=400)
 
     def get_connection(self):
-        """Get zabbix connection
-        """
+        """Get zabbix connection"""
         self.__new_connection()
 
         Orchestrator.get_connection(self)
@@ -133,7 +129,15 @@ class GitlabContainer(Orchestrator):
         #         raise ApiManagerError(ex, code=400)
 
     @staticmethod
-    def pre_create(controller=None, type=None, name=None, desc=None, active=None, conn=None, **kvargs):
+    def pre_create(
+        controller=None,
+        type=None,
+        name=None,
+        desc=None,
+        active=None,
+        conn=None,
+        **kvargs,
+    ):
         """Check input params
 
         :param ResourceController controller: resource controller instance
@@ -150,14 +154,14 @@ class GitlabContainer(Orchestrator):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         # encrypt password
-        conn['token']= controller.encrypt_data(conn['token'])
+        conn["token"] = controller.encrypt_data(conn["token"])
 
         kvargs = {
-            'type': type,
-            'name': name,
-            'desc': desc,
-            'active': active,
-            'conn': conn,
+            "type": type,
+            "name": name,
+            "desc": desc,
+            "active": active,
+            "conn": conn,
         }
 
         return kvargs

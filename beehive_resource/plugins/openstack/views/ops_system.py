@@ -1,10 +1,13 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive_resource.plugins.openstack.views import OpenstackAPI, OpenstackApiView
-from beehive.common.apimanager import ApiManagerError, SwaggerApiView,\
-    GetApiObjectRequestSchema
+from beehive.common.apimanager import (
+    ApiManagerError,
+    SwaggerApiView,
+    GetApiObjectRequestSchema,
+)
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
 
@@ -23,17 +26,12 @@ class SystemTreeResponseSchema(Schema):
 
 
 class SystemTree(OpenstackApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'SystemTreeResponseSchema': SystemTreeResponseSchema,
+        "SystemTreeResponseSchema": SystemTreeResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': SystemTreeResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": SystemTreeResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -50,17 +48,12 @@ class SystemServicesResponseSchema(Schema):
 
 
 class SystemServices(OpenstackApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'SystemServicesResponseSchema': SystemServicesResponseSchema,
+        "SystemServicesResponseSchema": SystemServicesResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': SystemServicesResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": SystemServicesResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -69,7 +62,7 @@ class SystemServices(OpenstackApiView):
         """
         container = self.get_container(controller, oid)
         resp = container.system.get_services()
-        return {'services': resp}
+        return {"services": resp}
 
 
 class SystemEndpointsResponseSchema(Schema):
@@ -77,17 +70,12 @@ class SystemEndpointsResponseSchema(Schema):
 
 
 class SystemEndpoints(OpenstackApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'SystemEndpointsResponseSchema': SystemEndpointsResponseSchema,
+        "SystemEndpointsResponseSchema": SystemEndpointsResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': SystemEndpointsResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": SystemEndpointsResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -96,11 +84,11 @@ class SystemEndpoints(OpenstackApiView):
         """
         container = self.get_container(controller, oid)
         resp = container.system.get_endpoints()
-        return {'endpoints': resp}
+        return {"endpoints": resp}
 
 
 class SystemComputeRequestSchema(GetApiObjectRequestSchema):
-    entity = fields.String(required=True, description='entity name', context='path')
+    entity = fields.String(required=True, description="entity name", context="path")
 
 
 class SystemComputeResponseSchema(Schema):
@@ -115,18 +103,13 @@ class SystemComputeResponseSchema(Schema):
 
 
 class SystemCompute(OpenstackApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'SystemComputeRequestSchema': SystemComputeRequestSchema,
-        'SystemComputeResponseSchema': SystemComputeResponseSchema
+        "SystemComputeRequestSchema": SystemComputeRequestSchema,
+        "SystemComputeResponseSchema": SystemComputeResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(SystemComputeRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': SystemComputeResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": SystemComputeResponseSchema}})
 
     def get(self, controller, data, oid, entity, *args, **kwargs):
         """
@@ -138,45 +121,45 @@ class SystemCompute(OpenstackApiView):
         container = self.get_container(controller, oid)
 
         # get compute services
-        if entity == 'services':
-            resp = {entity:container.system.get_compute_services()}
+        if entity == "services":
+            resp = {entity: container.system.get_compute_services()}
 
         # get compute zones
-        elif entity == 'zones':
-            resp = {entity:container.system.get_compute_zones()}
+        elif entity == "zones":
+            resp = {entity: container.system.get_compute_zones()}
 
         # get compute hosts
-        elif entity == 'hosts':
-            resp = {entity:container.system.get_compute_hosts()}
+        elif entity == "hosts":
+            resp = {entity: container.system.get_compute_hosts()}
 
         # get compute hosts aggregates
-        elif entity == 'hostaggrs':
-            resp = {entity:container.system.get_compute_host_aggregates()}
+        elif entity == "hostaggrs":
+            resp = {entity: container.system.get_compute_host_aggregates()}
 
         # get compute server_groups
-        elif entity == 'servergroups':
-            resp = {entity:container.system.get_compute_server_groups()}
+        elif entity == "servergroups":
+            resp = {entity: container.system.get_compute_server_groups()}
 
         # get compute hypervisors
-        elif entity == 'hypervisors':
-            resp = {entity:container.system.get_compute_hypervisors()}
+        elif entity == "hypervisors":
+            resp = {entity: container.system.get_compute_hypervisors()}
 
         # get compute hypervisors statistics
-        elif entity == 'hypervisors_stats':
-            resp = {entity:container.system.get_compute_hypervisors_statistics()}
+        elif entity == "hypervisors_stats":
+            resp = {entity: container.system.get_compute_hypervisors_statistics()}
 
         # get compute agents
-        elif entity == 'agents':
-            resp = {entity:container.system.get_compute_agents()}
+        elif entity == "agents":
+            resp = {entity: container.system.get_compute_agents()}
 
         else:
-            raise ApiManagerError('Api request not supported', code=400)
+            raise ApiManagerError("Api request not supported", code=400)
 
         return resp
 
 
 class SystemStorageRequestSchema(GetApiObjectRequestSchema):
-    entity = fields.String(required=True, description='entity name', context='path')
+    entity = fields.String(required=True, description="entity name", context="path")
 
 
 class SystemStorageResponseSchema(Schema):
@@ -184,18 +167,13 @@ class SystemStorageResponseSchema(Schema):
 
 
 class SystemStorage(OpenstackApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'SystemStorageRequestSchema': SystemStorageRequestSchema,
-        'SystemStorageResponseSchema': SystemStorageResponseSchema
+        "SystemStorageRequestSchema": SystemStorageRequestSchema,
+        "SystemStorageResponseSchema": SystemStorageResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(SystemStorageRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': SystemStorageResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": SystemStorageResponseSchema}})
 
     def get(self, controller, data, oid, entity, *args, **kwargs):
         """
@@ -204,16 +182,16 @@ class SystemStorage(OpenstackApiView):
         """
         container = self.get_container(controller, oid)
 
-        if entity == 'services':
+        if entity == "services":
             resp = container.system.get_storage_services()
         else:
-            raise ApiManagerError('Api request not supported', code=400)
+            raise ApiManagerError("Api request not supported", code=400)
 
-        return {'services': resp}
+        return {"services": resp}
 
 
 class SystemNetworkRequestSchema(GetApiObjectRequestSchema):
-    entity = fields.String(required=True, description='entity name', context='path')
+    entity = fields.String(required=True, description="entity name", context="path")
 
 
 class SystemNetworkResponseSchema(Schema):
@@ -222,18 +200,13 @@ class SystemNetworkResponseSchema(Schema):
 
 
 class SystemNetwork(OpenstackApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'SystemNetworkRequestSchema': SystemNetworkRequestSchema,
-        'SystemNetworkResponseSchema': SystemNetworkResponseSchema
+        "SystemNetworkRequestSchema": SystemNetworkRequestSchema,
+        "SystemNetworkResponseSchema": SystemNetworkResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(SystemNetworkRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': SystemNetworkResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": SystemNetworkResponseSchema}})
 
     def get(self, controller, data, oid, entity, *args, **kwargs):
         """
@@ -242,18 +215,18 @@ class SystemNetwork(OpenstackApiView):
         """
         container = self.get_container(controller, oid)
 
-        if entity == 'agents':
+        if entity == "agents":
             resp = container.system.get_network_agents()
-        elif entity == 'service_providers':
+        elif entity == "service_providers":
             resp = container.system.get_network_service_providers()
         else:
-            raise ApiManagerError('Api request not supported', code=400)
+            raise ApiManagerError("Api request not supported", code=400)
 
         return {entity: resp}
 
 
 class SystemHeatRequestSchema(GetApiObjectRequestSchema):
-    entity = fields.String(required=True, description='entity name', context='path')
+    entity = fields.String(required=True, description="entity name", context="path")
 
 
 class SystemHeatResponseSchema(Schema):
@@ -261,18 +234,13 @@ class SystemHeatResponseSchema(Schema):
 
 
 class SystemHeat(OpenstackApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'SystemHeatRequestSchema': SystemHeatRequestSchema,
-        'SystemHeatResponseSchema': SystemHeatResponseSchema
+        "SystemHeatRequestSchema": SystemHeatRequestSchema,
+        "SystemHeatResponseSchema": SystemHeatResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(SystemHeatRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': SystemHeatResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": SystemHeatResponseSchema}})
 
     def get(self, controller, data, oid, entity, *args, **kwargs):
         """
@@ -281,12 +249,12 @@ class SystemHeat(OpenstackApiView):
         """
         container = self.get_container(controller, oid)
 
-        if entity == 'services':
+        if entity == "services":
             resp = container.system.get_heat_services()
         else:
-            raise ApiManagerError('Api request not supported', code=400)
+            raise ApiManagerError("Api request not supported", code=400)
 
-        return {'services': resp}
+        return {"services": resp}
 
 
 class GetProjectDefaultQuotasResponseSchema(Schema):
@@ -294,17 +262,17 @@ class GetProjectDefaultQuotasResponseSchema(Schema):
 
 
 class GetProjectDefaultQuotas(OpenstackApiView):
-    tags = ['openstack']
-    definitions = {
-        'GetProjectDefaultQuotasResponseSchema': GetProjectDefaultQuotasResponseSchema
-    }
+    tags = ["openstack"]
+    definitions = {"GetProjectDefaultQuotasResponseSchema": GetProjectDefaultQuotasResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetProjectDefaultQuotasResponseSchema
+    responses = SwaggerApiView.setResponses(
+        {
+            200: {
+                "description": "success",
+                "schema": GetProjectDefaultQuotasResponseSchema,
+            }
         }
-    })
+    )
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -314,24 +282,29 @@ class GetProjectDefaultQuotas(OpenstackApiView):
         container = self.get_container(controller, oid)
         resp = container.system.get_default_quotas()
 
-        return {'default_quotas': resp}
+        return {"default_quotas": resp}
 
 
 class OpenstackSystemAPI(OpenstackAPI):
-    """Openstack base system api routes:
-    """
+    """Openstack base system api routes:"""
+
     @staticmethod
     def register_api(module, **kwargs):
         base = OpenstackAPI.base
         rules = [
-            ('%s/<oid>/system/tree' % base, 'GET', SystemTree, {}),
-            ('%s/<oid>/system/services' % base, 'GET', SystemServices, {}),
-            ('%s/<oid>/system/endpoints' % base, 'GET', SystemEndpoints, {}),
-            ('%s/<oid>/system/compute/<entity>' % base, 'GET', SystemCompute, {}),
-            ('%s/<oid>/system/storage/<entity>' % base, 'GET', SystemStorage, {}),
-            ('%s/<oid>/system/network/<entity>' % base, 'GET', SystemNetwork, {}),
-            ('%s/<oid>/system/heat/<entity>' % base, 'GET', SystemHeat, {}),
-            ('%s/<oid>/system/project/quotas' % base, 'GET', GetProjectDefaultQuotas, {}),
+            ("%s/<oid>/system/tree" % base, "GET", SystemTree, {}),
+            ("%s/<oid>/system/services" % base, "GET", SystemServices, {}),
+            ("%s/<oid>/system/endpoints" % base, "GET", SystemEndpoints, {}),
+            ("%s/<oid>/system/compute/<entity>" % base, "GET", SystemCompute, {}),
+            ("%s/<oid>/system/storage/<entity>" % base, "GET", SystemStorage, {}),
+            ("%s/<oid>/system/network/<entity>" % base, "GET", SystemNetwork, {}),
+            ("%s/<oid>/system/heat/<entity>" % base, "GET", SystemHeat, {}),
+            (
+                "%s/<oid>/system/project/quotas" % base,
+                "GET",
+                GetProjectDefaultQuotas,
+                {},
+            ),
         ]
 
         OpenstackAPI.register_api(module, rules, **kwargs)

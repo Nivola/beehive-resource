@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive_resource.plugins.openstack.entity.ops_heat import OpenstackHeatTemplate
 from beehive_resource.plugins.openstack.views import OpenstackAPI, OpenstackApiView
@@ -11,13 +11,17 @@ from beehive_resource.plugins.openstack.entity.ops_project import OpenstackProje
 
 
 class OpenstackStackTemplateApiView(OpenstackApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     resclass = OpenstackHeatTemplate
     parentclass = OpenstackProject
 
 
 class GetOpsStackTemplateVersionsRequestSchema(Schema):
-    container = fields.String(required=True, context='query', description='resource container id, uuid or name')
+    container = fields.String(
+        required=True,
+        context="query",
+        description="resource container id, uuid or name",
+    )
 
 
 class GetOpsStackTemplateVersionsResponseSchema(Schema):
@@ -25,26 +29,28 @@ class GetOpsStackTemplateVersionsResponseSchema(Schema):
 
 
 class GetOpsStackTemplateVersions(OpenstackStackTemplateApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'GetOpsStackTemplateVersionsRequestSchema': GetOpsStackTemplateVersionsRequestSchema,
-        'GetOpsStackTemplateVersionsResponseSchema': GetOpsStackTemplateVersionsResponseSchema,
+        "GetOpsStackTemplateVersionsRequestSchema": GetOpsStackTemplateVersionsRequestSchema,
+        "GetOpsStackTemplateVersionsResponseSchema": GetOpsStackTemplateVersionsResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetOpsStackTemplateVersionsRequestSchema)
     parameters_schema = GetOpsStackTemplateVersionsRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetOpsStackTemplateVersionsResponseSchema
+    responses = SwaggerApiView.setResponses(
+        {
+            200: {
+                "description": "success",
+                "schema": GetOpsStackTemplateVersionsResponseSchema,
+            }
         }
-    })
+    )
 
     def get(self, controller, data, *args, **kwargs):
         """
         Get heat template versions
         Get heat template versions
         """
-        container_id = data.get('container')
+        container_id = data.get("container")
         orchestrator = self.get_container(controller, container_id)
         heat = orchestrator.get_heat_resource()
         res = heat.get_template_versions()
@@ -52,8 +58,12 @@ class GetOpsStackTemplateVersions(OpenstackStackTemplateApiView):
 
 
 class GetOpsStackTemplateFunctionsRequestSchema(Schema):
-    container = fields.String(required=True, context='query', description='resource container id, uuid or name')
-    template = fields.String(required=True, context='query', description='template reference from versions')
+    container = fields.String(
+        required=True,
+        context="query",
+        description="resource container id, uuid or name",
+    )
+    template = fields.String(required=True, context="query", description="template reference from versions")
 
 
 class GetOpsStackTemplateFunctionsResponseSchema(Schema):
@@ -61,27 +71,29 @@ class GetOpsStackTemplateFunctionsResponseSchema(Schema):
 
 
 class GetOpsStackTemplateFunctions(OpenstackStackTemplateApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'GetOpsStackTemplateFunctionsRequestSchema': GetOpsStackTemplateFunctionsRequestSchema,
-        'GetOpsStackTemplateFunctionsResponseSchema': GetOpsStackTemplateFunctionsResponseSchema,
+        "GetOpsStackTemplateFunctionsRequestSchema": GetOpsStackTemplateFunctionsRequestSchema,
+        "GetOpsStackTemplateFunctionsResponseSchema": GetOpsStackTemplateFunctionsResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetOpsStackTemplateFunctionsRequestSchema)
     parameters_schema = GetOpsStackTemplateFunctionsRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetOpsStackTemplateFunctionsResponseSchema
+    responses = SwaggerApiView.setResponses(
+        {
+            200: {
+                "description": "success",
+                "schema": GetOpsStackTemplateFunctionsResponseSchema,
+            }
         }
-    })
+    )
 
     def get(self, controller, data, *args, **kwargs):
         """
         Get heat template functions
         Get heat template functions
         """
-        container_id = data.get('container')
-        template = data.get('template')
+        container_id = data.get("container")
+        template = data.get("template")
         orchestrator = self.get_container(controller, container_id)
         heat = orchestrator.get_heat_resource()
         res = heat.get_template_functions(template)
@@ -89,8 +101,8 @@ class GetOpsStackTemplateFunctions(OpenstackStackTemplateApiView):
 
 
 class ValidateTemplateParamsRequestSchema(Schema):
-    container = fields.String(required=True, description='resource container id, uuid or name')
-    template_uri = fields.String(required=True, description='template remote http uri')
+    container = fields.String(required=True, description="resource container id, uuid or name")
+    template_uri = fields.String(required=True, description="template remote http uri")
 
 
 class ValidateTemplateRequestSchema(Schema):
@@ -98,7 +110,7 @@ class ValidateTemplateRequestSchema(Schema):
 
 
 class ValidateTemplateBodyRequestSchema(Schema):
-    body = fields.Nested(ValidateTemplateRequestSchema, context='body')
+    body = fields.Nested(ValidateTemplateRequestSchema, context="body")
 
 
 class ValidateTemplateResponseSchema(Schema):
@@ -106,45 +118,44 @@ class ValidateTemplateResponseSchema(Schema):
 
 
 class ValidateTemplate(OpenstackStackTemplateApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'ValidateTemplateRequestSchema': ValidateTemplateRequestSchema,
-        'ValidateTemplateResponseSchema': ValidateTemplateResponseSchema,
+        "ValidateTemplateRequestSchema": ValidateTemplateRequestSchema,
+        "ValidateTemplateResponseSchema": ValidateTemplateResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(ValidateTemplateBodyRequestSchema)
     parameters_schema = ValidateTemplateRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': ValidateTemplateResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ValidateTemplateResponseSchema}})
 
     def post(self, controller, data, *args, **kwargs):
         """
         Get heat template functions
         Get heat template functions
         """
-        data = data.get('stack_template')
-        container_id = data.get('container')
-        template_uri = data.get('template_uri')
+        data = data.get("stack_template")
+        container_id = data.get("container")
+        template_uri = data.get("template_uri")
         orchestrator = self.get_container(controller, container_id)
         heat = orchestrator.get_heat_resource()
         heat.validate_template(template_uri)
-        return {'validate': True}
+        return {"validate": True}
 
 
 class OpenstackStackTemplateAPI(OpenstackAPI):
-    """Openstack base platform api routes:
-    """
+    """Openstack base platform api routes:"""
 
     @staticmethod
     def register_api(module, **kwargs):
         base = OpenstackAPI.base
         rules = [
-            ('%s/stack-templates' % base, 'GET', GetOpsStackTemplateVersions, {}),
-            ('%s/stack-template-functions' % base, 'GET', GetOpsStackTemplateFunctions, {}),
-            ('%s/stack-template-validate' % base, 'POST', ValidateTemplate, {}),
+            ("%s/stack-templates" % base, "GET", GetOpsStackTemplateVersions, {}),
+            (
+                "%s/stack-template-functions" % base,
+                "GET",
+                GetOpsStackTemplateFunctions,
+                {},
+            ),
+            ("%s/stack-template-validate" % base, "POST", ValidateTemplate, {}),
         ]
 
         OpenstackAPI.register_api(module, rules, **kwargs)

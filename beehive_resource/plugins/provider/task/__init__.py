@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive_resource.plugins.provider.task.vsphere import ProviderVsphere
 from beehive_resource.plugins.provider.task.openstack import ProviderOpenstack
@@ -17,13 +18,10 @@ class ProviderOrchestrator(object):
         :param orchestrator_type: type of orchestrator like vsphere or openstack
         :return: orchestrator helper
         """
-        helpers = {
-            'vsphere': ProviderVsphere,
-            'openstack': ProviderOpenstack
-        }
+        helpers = {"vsphere": ProviderVsphere, "openstack": ProviderOpenstack}
         res = helpers.get(orchestrator_type, None)
         if res is None:
-            raise JobError('Helper for orchestrator %s does not exist' % orchestrator_type)
+            raise JobError("Helper for orchestrator %s does not exist" % orchestrator_type)
 
         return res
 
@@ -32,14 +30,18 @@ class ProviderOrchestrator(object):
 # remove task and facility method
 #
 def group_remove_task(ops, orchestrators):
-    """
-    """
+    """ """
     tasks = []
     for item in orchestrators.values():
-        orchestrator_id = str(item['id'])
+        orchestrator_id = str(item["id"])
         # tasks.append(remove_remote_resource.si(ops, orchestrator_id, item['type']))
-        tasks.append(remove_remote_resource.signature((ops, orchestrator_id, item['type']),
-                                                      immutable=True, queue=task_manager.conf.TASK_DEFAULT_QUEUE))
+        tasks.append(
+            remove_remote_resource.signature(
+                (ops, orchestrator_id, item["type"]),
+                immutable=True,
+                queue=task_manager.conf.TASK_DEFAULT_QUEUE,
+            )
+        )
     return tasks
 
 

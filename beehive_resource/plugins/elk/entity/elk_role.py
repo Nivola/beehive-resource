@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 import logging
 from beecell.simple import id_gen
@@ -10,21 +11,21 @@ logger = logging.getLogger(__name__)
 
 
 class ElkRole(ElkResource):
-    objdef = 'Elk.Role'
-    objuri = 'roles'
-    objname = 'role'
-    objdesc = 'Elk Role'
-    
-    default_tags = ['elk']
-    task_base_path = 'beehive_resource.plugins.elk.task_v2.elk_role.ElkRoleTask.'
-    
+    objdef = "Elk.Role"
+    objuri = "roles"
+    objname = "role"
+    objdesc = "Elk Role"
+
+    default_tags = ["elk"]
+    task_base_path = "beehive_resource.plugins.elk.task_v2.elk_role.ElkRoleTask."
+
     def __init__(self, *args, **kvargs):
         """ """
         ElkResource.__init__(self, *args, **kvargs)
 
         # object uri
         # self.objuri = '/%s/%s/%s' % (self.container.version, self.container.objuri, ElkRole.objuri)
-        
+
     #
     # discover, synchronize
     #
@@ -47,12 +48,12 @@ class ElkRole(ElkResource):
         # add new item to final list
         res = []
         for item in remote_entities:
-            if item['name'] not in res_ext_ids:
+            if item["name"] not in res_ext_ids:
                 level = None
-                name = item['name']
+                name = item["name"]
                 parent_id = None
-                res.append((ElkRole, item['name'], parent_id, ElkRole.objdef, name, level))
-        
+                res.append((ElkRole, item["name"], parent_id, ElkRole.objdef, name, level))
+
         return res
 
     @staticmethod
@@ -67,13 +68,10 @@ class ElkRole(ElkResource):
         items = []
         remote_entities = container.conn_kibana.role.list()
         for item in remote_entities:
-            items.append({
-                'id': item['name'],
-                'name': item['name']
-            })
+            items.append({"id": item["name"], "name": item["name"]})
 
         return items
-    
+
     @staticmethod
     def synchronize(container, entity):
         """Discover method used when synchronize beehive container with remote platform.
@@ -88,19 +86,19 @@ class ElkRole(ElkResource):
         ext_id = entity[1]
         parent_id = entity[2]
         name = entity[4]
-        
-        objid = '%s//%s' % (container.objid, id_gen())
-        
+
+        objid = "%s//%s" % (container.objid, id_gen())
+
         res = {
-            'resource_class': resclass,
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent_id,
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent_id,
+            "tags": resclass.default_tags,
         }
 
         return res
@@ -123,19 +121,19 @@ class ElkRole(ElkResource):
         """
         # get from elk
         remote_entities = container.conn_kibana.role.list()
-        
+
         # create index of remote objs
-        remote_entities_index = {i['name']: i for i in remote_entities}
-        
+        remote_entities_index = {i["name"]: i for i in remote_entities}
+
         for entity in entities:
             try:
                 ext_obj = remote_entities_index.get(entity.ext_id, None)
                 entity.set_physical_entity(ext_obj)
             except:
-                container.logger.warn('', exc_info=1)
+                container.logger.warn("", exc_info=1)
 
         return entities
-    
+
     def post_get(self):
         """Post get function. This function is used in get_entity method.
         Extend this function to extend description info returned after query.
@@ -145,7 +143,7 @@ class ElkRole(ElkResource):
         """
         ext_obj = self.get_remote_role(self.controller, self.ext_id, self.container, self.ext_id)
         self.set_physical_entity(ext_obj)
-        
+
     @staticmethod
     def pre_create(controller, container, *args, **kvargs):
         """Check input params before resource creation. This function is used in container resource_factory method.
@@ -199,11 +197,11 @@ class ElkRole(ElkResource):
         # kvargs['org_ext_id'] = org_ext_id
 
         steps = [
-            ElkRole.task_base_path + 'create_resource_pre_step',
-            ElkRole.task_base_path + 'elk_role_create_physical_step',
-            ElkRole.task_base_path + 'create_resource_post_step',
+            ElkRole.task_base_path + "create_resource_pre_step",
+            ElkRole.task_base_path + "elk_role_create_physical_step",
+            ElkRole.task_base_path + "create_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         # kvargs['sync'] = True # non fa partire i task
 
         return kvargs
@@ -212,16 +210,16 @@ class ElkRole(ElkResource):
         """Pre update function. This function is used in update method.
 
         :param args: custom params
-        :param kvargs: custom params            
-        :return: kvargs            
+        :param kvargs: custom params
+        :return: kvargs
         :raises ApiManagerError:
         """
         steps = [
-            ElkRole.task_base_path + 'update_resource_pre_step',
-            ElkRole.task_base_path + 'elk_role_update_physical_step',
-            ElkRole.task_base_path + 'update_resource_post_step',
+            ElkRole.task_base_path + "update_resource_pre_step",
+            ElkRole.task_base_path + "elk_role_update_physical_step",
+            ElkRole.task_base_path + "update_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
     def pre_delete(self, *args, **kvargs):
@@ -233,18 +231,18 @@ class ElkRole(ElkResource):
         :raises ApiManagerError:
         """
         steps = [
-            ElkRole.task_base_path + 'expunge_resource_pre_step',
-            ElkRole.task_base_path + 'elk_role_delete_physical_step',
-            ElkRole.task_base_path + 'expunge_resource_post_step',
+            ElkRole.task_base_path + "expunge_resource_pre_step",
+            ElkRole.task_base_path + "elk_role_delete_physical_step",
+            ElkRole.task_base_path + "expunge_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         # kvargs['sync'] = True # non fa partire i task
 
         return kvargs
-    
+
     #
     # info
-    #    
+    #
     def info(self):
         """Get info.
 
@@ -262,9 +260,9 @@ class ElkRole(ElkResource):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = ElkResource.detail(self)
-        
+
         if self.ext_obj is not None:
             data = {}
-            info['details'].update(data)
-        
+            info["details"].update(data)
+
         return info

@@ -1,17 +1,29 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from datetime import datetime
 
 import ujson as json
 from beecell.db import QueryError, TransactionError
-from beecell.simple import import_class, id_gen, truncate, dict_get, dict_set, dict_unset
+from beecell.simple import (
+    import_class,
+    id_gen,
+    truncate,
+    dict_get,
+    dict_set,
+    dict_unset,
+)
 from beecell.types.type_string import str2bool
 from beehive.common.task_v2 import prepare_or_run_task, run_async
 from beehive.common.task_v2.canvas import signature
 from beehive.common.apimanager import ApiObject, ApiManagerError
-from beehive_resource.model import ContainerState, ResourceDbManager, ResourceState, ResourceWithLink
+from beehive_resource.model import (
+    ContainerState,
+    ResourceDbManager,
+    ResourceState,
+    ResourceWithLink,
+)
 from beehive.common.data import trace, operation
 from beehive.common.apiclient import BeehiveApiClientError
 from beehive_resource.model import Resource as ModelResource
@@ -26,37 +38,39 @@ logger = getLogger(__name__)
 # container connection
 try:
     import gevent.local
+
     active_container = gevent.local.local()
 except:
     import threading
+
     active_container = threading.local()
 
 active_container.conn = None
 
 
 def get_task(task_name):
-    return '%s.tasks.%s' % (__name__.replace('.container', ''), task_name)
+    return "%s.tasks.%s" % (__name__.replace(".container", ""), task_name)
 
 
 class ResourceContainer(ApiObject):
-    """Resource Container
-    """
-    module = 'ResourceModule'
-    objtype = 'container'
-    objdef = 'Container'
-    objuri = 'containers'
-    objdesc = 'Abstract resource container'
-    category = 'abstract'
-    version = 'v1.0'
+    """Resource Container"""
+
+    module = "ResourceModule"
+    objtype = "container"
+    objdef = "Container"
+    objuri = "containers"
+    objdesc = "Abstract resource container"
+    category = "abstract"
+    version = "v1.0"
 
     expunge_task = None
-    synchronize_task = 'beehive_resource.task_v2.container.resource_container_task'
+    synchronize_task = "beehive_resource.task_v2.container.resource_container_task"
 
     def __init__(self, *args, **kvargs):
         ApiObject.__init__(self, *args, **kvargs)
 
         self.update_object = self.manager.update_container
-        self.expunge_object = self.manager.purge # self.manager.expunge_container
+        self.expunge_object = self.manager.purge  # self.manager.expunge_container
 
         self.connection = None
         self.conn_params = None
@@ -65,11 +79,11 @@ class ResourceContainer(ApiObject):
         self.container_ping = None
 
         # roles
-        self._admin_role_prefix = 'container-admin'
-        self._viewer_role_prefix = 'container-viewer'
+        self._admin_role_prefix = "container-admin"
+        self._viewer_role_prefix = "container-viewer"
 
         # discover
-        self._discover_service = 'discover_%s_%s' % (self.objdef, self.oid)
+        self._discover_service = "discover_%s_%s" % (self.objdef, self.oid)
 
         self.child_classes = []
 
@@ -121,7 +135,7 @@ class ResourceContainer(ApiObject):
 
     def get_connection(self, *args, **kvargs):
         """ """
-        self.logger.info('Get connection for container %s' % self.name)
+        self.logger.info("Get connection for container %s" % self.name)
 
     def ping(self):
         """Ping orchestrator.
@@ -151,8 +165,8 @@ class ResourceContainer(ApiObject):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         res = ApiObject.small_info(self)
-        res['category'] = self.category
-        res['state'] = self.get_base_state()
+        res["category"] = self.category
+        res["state"] = self.get_base_state()
         return res
 
     def info(self):
@@ -167,13 +181,15 @@ class ResourceContainer(ApiObject):
 
         res = ApiObject.info(self)
         count = self.manager.count_resource(container=self.model)
-        res.update({
-            'category': self.category,
-            'state': self.get_base_state(),
-            'conn': json.loads(self.model.connection),
-            'resources': count,
-            'ping': ping
-        })
+        res.update(
+            {
+                "category": self.category,
+                "state": self.get_base_state(),
+                "conn": json.loads(self.model.connection),
+                "resources": count,
+                "ping": ping,
+            }
+        )
         return res
 
     def detail(self):
@@ -187,8 +203,7 @@ class ResourceContainer(ApiObject):
         return info
 
     def query_job(self, job_id, *args, **argv):
-        """Query remote container async job.
-        """
+        """Query remote container async job."""
         raise NotImplementedError()
 
     def init_object(self):
@@ -202,7 +217,7 @@ class ResourceContainer(ApiObject):
         # call only once during db initialization
         try:
             # create container types
-            class_name = self.__class__.__module__ + '.' + self.__class__.__name__
+            class_name = self.__class__.__module__ + "." + self.__class__.__name__
             self.manager.add_container_type(self.category, self.objdef, class_name)
         except TransactionError as ex:
             self.logger.warning(ex)
@@ -225,8 +240,9 @@ class ResourceContainer(ApiObject):
             # resource permissions
             if objid == None:
                 objid = self.objid
-            perms, total = self.api_client.get_permissions('container,resource', self.objdef, objid,
-                                                           cascade=True, **kvargs)
+            perms, total = self.api_client.get_permissions(
+                "container,resource", self.objdef, objid, cascade=True, **kvargs
+            )
 
             return perms, total
         except ApiManagerError as ex:
@@ -242,7 +258,7 @@ class ResourceContainer(ApiObject):
         try:
             # change resource state
             self.manager.update_container_state(self.oid, state)
-            self.logger.info('Set container %s state to: %s' % (self.oid, state))
+            self.logger.info("Set container %s state to: %s" % (self.oid, state))
         except QueryError as ex:
             self.logger.error(ex, exc_info=False)
             raise ApiManagerError(ex, code=ex.code)
@@ -250,7 +266,7 @@ class ResourceContainer(ApiObject):
     #
     # expunge
     #
-    @trace(op='delete')
+    @trace(op="delete")
     def expunge(self, **params):
         """Expunge container using the synchronous function expunge_internal.
 
@@ -259,31 +275,31 @@ class ResourceContainer(ApiObject):
         :raises ApiManagerError: if query empty return error.
         """
         # verify permissions
-        self.verify_permisssions('delete')
+        self.verify_permisssions("delete")
 
         # change resource state
         self.update_state(ContainerState.EXPUNGING)
 
-        force = params.get('force', False)
+        force = params.get("force", False)
 
         # verify resource has no childs
-        params['child_num'] = self.manager.count_resource(container=self.model)
+        params["child_num"] = self.manager.count_resource(container=self.model)
 
         # run an optional pre delete function
         params = self.pre_delete(**params)
-        self.logger.debug('params after pre expunge: %s' % params)
+        self.logger.debug("params after pre expunge: %s" % params)
 
-        if force is False and params['child_num'] > 0:
-            raise ApiManagerError('Container %s has %s childs. It can not be expunged' %
-                                  (self.oid, params['child_num']))
+        if force is False and params["child_num"] > 0:
+            raise ApiManagerError(
+                "Container %s has %s childs. It can not be expunged" % (self.oid, params["child_num"])
+            )
 
         self.expunge_internal(force)
-        return {'uuid': self.uuid}, 200
+        return {"uuid": self.uuid}, 200
 
-    @trace(op='delete')
+    @trace(op="delete")
     def expunge_internal(self, force=False):
-        """Hard delete resource
-        """
+        """Hard delete resource"""
         try:
             # remove childs
             if force is True:
@@ -298,13 +314,13 @@ class ResourceContainer(ApiObject):
             self.manager.expunge_container(oid=self.oid)
 
             # remove object and permissions
-            self.deregister_object(self.objid.split('//'))
-            self.logger.debug('Remove container %s permissions' % self.oid)
+            self.deregister_object(self.objid.split("//"))
+            self.logger.debug("Remove container %s permissions" % self.oid)
 
-            self.logger.info('Expunge container %s: %s' % (self.objdef, self.oid))
+            self.logger.info("Expunge container %s: %s" % (self.objdef, self.oid))
             return None
         except TransactionError as ex:
-            self.update_state(ResourceState.ERROR, error=str(ex))
+            self.update_state(ResourceState.ERROR)
             self.logger.error(ex, exc_info=False)
             raise ApiManagerError(ex, code=ex.code)
 
@@ -318,8 +334,7 @@ class ResourceContainer(ApiObject):
 
         # set  child resources permissions
         for child_class in self.child_classes:
-            child_class(self.controller, self).\
-                    set_role_admin_permissions(role, args)
+            child_class(self.controller, self).set_role_admin_permissions(role, args)
 
     def set_role_viewer_permissions(self, role, args):
         """ """
@@ -328,8 +343,7 @@ class ResourceContainer(ApiObject):
 
         # set  child resources permissions
         for child_class in self.child_classes:
-                    child_class(self.controller, self).\
-                            set_role_viewer_permissions(role, args)
+            child_class(self.controller, self).set_role_viewer_permissions(role, args)
 
     def get_admin_role(self):
         """Get admin role with all the required permissions.
@@ -340,11 +354,11 @@ class ResourceContainer(ApiObject):
         """
         # get role
         try:
-            role_name = '%s_%s' % (self.name, self._admin_role_prefix)
+            role_name = "%s_%s" % (self.name, self._admin_role_prefix)
             res = self.api_client.get_role(role_name)
             return res
         except:
-            self.logger.warning('Role %s was not found' % (role_name), exc_info=False)
+            self.logger.warning("Role %s was not found" % (role_name), exc_info=False)
             return []
 
     def add_admin_role(self):
@@ -355,11 +369,11 @@ class ResourceContainer(ApiObject):
         :raises ApiManagerError: raise :class:`ApiManagerError`
         """
         # add role
-        role_name = '%s_%s' % (self.name, self._admin_role_prefix)
-        self.api_client.add_role(role_name, self.desc + ' role')
+        role_name = "%s_%s" % (self.name, self._admin_role_prefix)
+        self.api_client.add_role(role_name, self.desc + " role")
 
         # set admin permissions to role
-        self.set_role_admin_permissions(role_name, self.objid.split('//'))
+        self.set_role_admin_permissions(role_name, self.objid.split("//"))
 
     def remove_admin_role(self):
         """Remove admin role with all the required permissions.
@@ -369,11 +383,11 @@ class ResourceContainer(ApiObject):
         :raises ApiManagerError: raise :class:`ApiManagerError`
         """
         # remove role
-        name = '%s_%s' % (self.name, self._admin_role_prefix)
+        name = "%s_%s" % (self.name, self._admin_role_prefix)
         try:
             self.api_client.remove_role(name)
         except:
-            self.logger.warning('Role %s does not exist' % name)
+            self.logger.warning("Role %s does not exist" % name)
 
     def get_viewer_role(self):
         """Get viewer role with all the required permissions.
@@ -384,11 +398,11 @@ class ResourceContainer(ApiObject):
         """
         try:
             # get role
-            role_name = '%s_%s' % (self.name, self._viewer_role_prefix)
+            role_name = "%s_%s" % (self.name, self._viewer_role_prefix)
             res = self.api_client.get_role(role_name)
             return res
         except:
-            self.logger.warning('Role %s was not found' % (role_name), exc_info=False)
+            self.logger.warning("Role %s was not found" % (role_name), exc_info=False)
             return []
 
     def add_viewer_role(self):
@@ -399,11 +413,11 @@ class ResourceContainer(ApiObject):
         :raises ApiManagerError: raise :class:`ApiManagerError`
         """
         # add role
-        role_name = '%s_%s' % (self.name, self._viewer_role_prefix)
-        self.api_client.add_role(role_name, self.desc + ' role')
+        role_name = "%s_%s" % (self.name, self._viewer_role_prefix)
+        self.api_client.add_role(role_name, self.desc + " role")
 
         # set viewer permissions to role
-        self.set_role_viewer_permissions(role_name, self.objid.split('//'))
+        self.set_role_viewer_permissions(role_name, self.objid.split("//"))
 
     def remove_viewer_role(self):
         """Remove viewer role with all the required permissions.
@@ -413,11 +427,11 @@ class ResourceContainer(ApiObject):
         :raises ApiManagerError: raise :class:`ApiManagerError`
         """
         # remove role
-        name = '%s_%s' % (self.name, self._viewer_role_prefix)
+        name = "%s_%s" % (self.name, self._viewer_role_prefix)
         try:
             self.api_client.remove_role(name)
         except:
-            self.logger.warning('Role %s does not exist' % name)
+            self.logger.warning("Role %s does not exist" % name)
 
     def get_roles(self):
         """Get all roles.
@@ -451,7 +465,7 @@ class ResourceContainer(ApiObject):
         try:
             # change resource state
             self.manager.update_resource_state(resource, state)
-            self.logger.info('Set resource %s state to: %s' % (resource, state))
+            self.logger.info("Set resource %s state to: %s" % (resource, state))
         except QueryError as ex:
             self.logger.error(ex, exc_info=False)
             raise ApiManagerError(ex, code=ex.code)
@@ -465,13 +479,24 @@ class ResourceContainer(ApiObject):
         try:
             # change resource state
             self.manager.update_resource(oid=resource, active=True)
-            self.logger.info('Activate resource %s' % resource)
+            self.logger.info("Activate resource %s" % resource)
         except QueryError as ex:
             self.logger.error(ex, exc_info=False)
             raise ApiManagerError(ex, code=ex.code)
 
-    def __add_resource(self, objid=None, name=None, resource_class=None, ext_id=None, active=True, desc='', attrib={},
-                       parent=None, *args, **kwargs):
+    def __add_resource(
+        self,
+        objid=None,
+        name=None,
+        resource_class=None,
+        ext_id=None,
+        active=True,
+        desc="",
+        attrib={},
+        parent=None,
+        *args,
+        **kwargs,
+    ):
         """Add resource. This function is used by add_resource.
 
         :param objid: resource object id.
@@ -498,16 +523,25 @@ class ResourceContainer(ApiObject):
             if isinstance(attrib, dict) or isinstance(attrib, list):
                 attrib = json.dumps(attrib)
 
-            model = self.manager.add_resource(objid=objid, name=name, rtype=rtype, container=self.oid, ext_id=ext_id,
-                                              active=active, desc=desc, attribute=attrib, parent_id=parent)
+            model = self.manager.add_resource(
+                objid=objid,
+                name=name,
+                rtype=rtype,
+                container=self.oid,
+                ext_id=ext_id,
+                active=active,
+                desc=desc,
+                attribute=attrib,
+                parent_id=parent,
+            )
         except TransactionError as ex:
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex, code=400)
 
         # create object and permission
-        resource_class(self.controller, oid=model.id).register_object(model.objid.split('//'), desc=desc)
+        resource_class(self.controller, oid=model.id).register_object(model.objid.split("//"), desc=desc)
 
-        self.logger.info('Add resource %s with uuid %s' % (name, model.uuid))
+        self.logger.info("Add resource %s with uuid %s" % (name, model.uuid))
         return model
 
     def add_resource2(self, resource_class, params, *args, **kwargs):
@@ -526,16 +560,40 @@ class ResourceContainer(ApiObject):
         :return: resource uuid
         :raises ApiManagerError: raise :class:`ApiManagerError`
         """
-        model = self.__add_resource(objid=params['objid'], name=params['name'], resource_class=resource_class,
-                                    ext_id=params['ext_id'], active=params['active'], desc=params['desc'],
-                                    attrib=params['attribute'], parent=params.get('parent', None))
-        params.update({'id': model.id, 'uuid': model.uuid})
-        resource = resource_class(self.controller, oid=model.id, objid=params['objid'], name=params['name'],
-                                  desc=params['desc'], active=params['active'], model=model)
+        model = self.__add_resource(
+            objid=params["objid"],
+            name=params["name"],
+            resource_class=resource_class,
+            ext_id=params["ext_id"],
+            active=params["active"],
+            desc=params["desc"],
+            attrib=params["attribute"],
+            parent=params.get("parent", None),
+        )
+        params.update({"id": model.id, "uuid": model.uuid})
+        resource = resource_class(
+            self.controller,
+            oid=model.id,
+            objid=params["objid"],
+            name=params["name"],
+            desc=params["desc"],
+            active=params["active"],
+            model=model,
+        )
         return resource
 
-    def add_resource(self, objid=None, name=None, resource_class=None, ext_id=None, active=True, desc='', attrib={},
-                     parent=None, tags=[]):
+    def add_resource(
+        self,
+        objid=None,
+        name=None,
+        resource_class=None,
+        ext_id=None,
+        active=True,
+        desc="",
+        attrib={},
+        parent=None,
+        tags=[],
+    ):
         """Add resource. This function is used by resource_factory.
 
         :param objid: resource object id.
@@ -562,8 +620,17 @@ class ResourceContainer(ApiObject):
             if isinstance(attrib, dict) or isinstance(attrib, list):
                 attrib = jsonDumps(attrib)
 
-            model = self.manager.add_resource(objid=objid, name=name, rtype=rtype, container=self.oid, ext_id=ext_id,
-                                              active=active, desc=desc, attribute=attrib, parent_id=parent)
+            model = self.manager.add_resource(
+                objid=objid,
+                name=name,
+                rtype=rtype,
+                container=self.oid,
+                ext_id=ext_id,
+                active=active,
+                desc=desc,
+                attribute=attrib,
+                parent_id=parent,
+            )
 
             # for tag in tags:
             #     tag, total = self.manager.get_tags(value=tag)
@@ -573,9 +640,9 @@ class ResourceContainer(ApiObject):
             raise ApiManagerError(ex, code=400)
 
         # create object and permission
-        resource_class(self.controller, oid=model.id).register_object(model.objid.split('//'), desc=desc)
+        resource_class(self.controller, oid=model.id).register_object(model.objid.split("//"), desc=desc)
 
-        self.logger.info('Add resource %s with uuid %s' % (name, model.uuid))
+        self.logger.info("Add resource %s with uuid %s" % (name, model.uuid))
         return model
 
     def update_resource(self, resource, **params):
@@ -591,13 +658,24 @@ class ResourceContainer(ApiObject):
         try:
             # change resource state
             self.manager.update_resource(oid=resource, **params)
-            self.logger.info('Update resource %s with params %s' % (resource, params))
+            self.logger.info("Update resource %s with params %s" % (resource, params))
         except QueryError as ex:
             self.logger.error(ex, exc_info=False)
             raise ApiManagerError(ex, code=ex.code)
 
-    def __pre_create_resource(self, resource_class, name=None, desc='', ext_id=None, active=False, attribute={},
-                              parent=None, tags='', has_quotas=True, **params):
+    def __pre_create_resource(
+        self,
+        resource_class,
+        name=None,
+        desc="",
+        ext_id=None,
+        active=False,
+        attribute={},
+        parent=None,
+        tags="",
+        has_quotas=True,
+        **params,
+    ):
         """pre create resource.
 
         :param resource_class: resource class
@@ -613,51 +691,63 @@ class ResourceContainer(ApiObject):
         :return:
         """
         if parent is not None:
-            params['objid'] = '%s//%s' % (parent.objid, id_gen())
-            params['parent'] = parent.oid
+            params["objid"] = "%s//%s" % (parent.objid, id_gen())
+            params["parent"] = parent.oid
         else:
-            params['objid'] = '%s//%s' % (self.objid, id_gen())
-            params['parent'] = None
+            params["objid"] = "%s//%s" % (self.objid, id_gen())
+            params["parent"] = None
 
         # get class
         if isinstance(resource_class, str):
             resource_class = import_class(resource_class)
 
         if tags is None:
-            tags = ''
+            tags = ""
         other_params = {
-            'alias': '%s.create' % resource_class.__name__,
-            'cid': self.oid,
-            'name': name,
-            'desc': desc,
-            'ext_id': ext_id,
-            'active': active,
-            'attribute': attribute,
-            'tags': tags
+            "alias": "%s.create" % resource_class.__name__,
+            "cid": self.oid,
+            "name": name,
+            "desc": desc,
+            "ext_id": ext_id,
+            "active": active,
+            "attribute": attribute,
+            "tags": tags,
         }
         params.update(other_params)
 
         # pre create function
-        self.logger.debug('Initial params: %s' % params)
+        self.logger.debug("Initial params: %s" % params)
         params = resource_class.pre_create(self.controller, self, **params)
         # sync = params.pop('sync', False)
-        params['attribute']['has_quotas'] = has_quotas
-        self.logger.debug('Pre create after params: %s' % params)
+        params["attribute"]["has_quotas"] = has_quotas
+        self.logger.debug("Pre create after params: %s" % params)
 
         # verify permissions
-        parent_objid = '//'.join(params['objid'].split('//')[:-1])
-        self.logger.debug('Parent objid: %s' % parent_objid)
+        parent_objid = "//".join(params["objid"].split("//")[:-1])
+        self.logger.debug("Parent objid: %s" % parent_objid)
         if operation.authorize is True:
-            self.controller.check_authorization(resource_class.objtype, resource_class.objdef, parent_objid, 'insert')
+            self.controller.check_authorization(resource_class.objtype, resource_class.objdef, parent_objid, "insert")
 
         # create resource in PENDING state
         resource = self.add_resource2(resource_class, params)
 
-        self.logger.debug('create resource: %s' % resource)
+        self.logger.debug("create resource: %s" % resource)
         return resource, params
 
-    def create_resource(self, resource_class, name=None, desc='', ext_id=None, active=False, attribute={},
-                        parent=None, tags='', has_quotas=True, sync=False, **params):
+    def create_resource(
+        self,
+        resource_class,
+        name=None,
+        desc="",
+        ext_id=None,
+        active=False,
+        attribute={},
+        parent=None,
+        tags="",
+        has_quotas=True,
+        sync=False,
+        **params,
+    ):
         """Factory used to create new resource.
 
         :param resource_class: class of resource to create or string representation
@@ -676,13 +766,23 @@ class ResourceContainer(ApiObject):
         :raises ApiManagerError: if query empty return error.
         """
         if sync is True:
-            self.logger.debug('run sync resource creation')
+            self.logger.debug("run sync resource creation")
         else:
-            self.logger.debug('run async resource creation')
+            self.logger.debug("run async resource creation")
 
         # create basic resource
-        resource, params = self.__pre_create_resource(resource_class, name, desc, ext_id, active, attribute, parent,
-                                                      tags, has_quotas, **params)
+        resource, params = self.__pre_create_resource(
+            resource_class,
+            name,
+            desc,
+            ext_id,
+            active,
+            attribute,
+            parent,
+            tags,
+            has_quotas,
+            **params,
+        )
 
         # run resource method that launch task or exec operation sync
         res = resource.do_create(params, sync=sync)
@@ -690,16 +790,27 @@ class ResourceContainer(ApiObject):
         # run final create is method is sync
         if sync is True:
             # resource.finalize_create(**params)
-            res = {'uuid': resource.uuid}, 201
+            res = {"uuid": resource.uuid}, 201
         else:
-            res[0]['uuid'] = resource.uuid
+            res[0]["uuid"] = resource.uuid
 
-        self.logger.debug('end resource creation with result: %s' % res[0])
+        self.logger.debug("end resource creation with result: %s" % res[0])
         return res
 
-    @trace(op='insert')
-    def resource_factory(self, resource_class, name=None, desc='', ext_id=None, active=False, attribute={},
-                         parent=None, tags='', has_quotas=True, **params):
+    @trace(op="insert")
+    def resource_factory(
+        self,
+        resource_class,
+        name=None,
+        desc="",
+        ext_id=None,
+        active=False,
+        attribute={},
+        parent=None,
+        tags="",
+        has_quotas=True,
+        **params,
+    ):
         """Factory used to create new resource.
 
         :param resource_class: class of resource to create or string representation
@@ -721,43 +832,43 @@ class ResourceContainer(ApiObject):
         """
         if parent is not None:
             parent = self.get_simple_resource(parent)
-            params['objid'] = '%s//%s' % (parent.objid, id_gen())
-            params['parent'] = parent.oid
+            params["objid"] = "%s//%s" % (parent.objid, id_gen())
+            params["parent"] = parent.oid
         else:
-            params['objid'] = '%s//%s' % (self.objid, id_gen())
-            params['parent'] = None
+            params["objid"] = "%s//%s" % (self.objid, id_gen())
+            params["parent"] = None
 
         # get class
         if isinstance(resource_class, str):
             resource_class = import_class(resource_class)
 
         if tags is None:
-            tags = ''
+            tags = ""
         other_params = {
-            'alias': '%s.create' % resource_class.__name__,
-            'cid': self.oid,
-            'name': name,
-            'desc': desc,
-            'ext_id': ext_id,
-            'active': active,
-            'attribute': attribute,
-            'tags': tags
+            "alias": "%s.create" % resource_class.__name__,
+            "cid": self.oid,
+            "name": name,
+            "desc": desc,
+            "ext_id": ext_id,
+            "active": active,
+            "attribute": attribute,
+            "tags": tags,
         }
         params.update(other_params)
 
         # pre create function
-        self.logger.debug('Initial params: %s' % params)
+        self.logger.debug("Initial params: %s" % params)
         params = resource_class.pre_create(self.controller, self, **params)
-        sync = params.pop('sync', False)
-        set_as_sync = params.pop('set_as_sync', False)
-        params['attribute']['has_quotas'] = has_quotas
-        self.logger.debug('Pre create after params: %s' % params)
+        sync = params.pop("sync", False)
+        set_as_sync = params.pop("set_as_sync", False)
+        params["attribute"]["has_quotas"] = has_quotas
+        self.logger.debug("Pre create after params: %s" % params)
 
         # verify permissions
-        parent_objid = '//'.join(params['objid'].split('//')[:-1])
-        self.logger.debug('Parent objid: %s' % parent_objid)
+        parent_objid = "//".join(params["objid"].split("//")[:-1])
+        self.logger.debug("Parent objid: %s" % parent_objid)
         if operation.authorize is True:
-            self.controller.check_authorization(resource_class.objtype, resource_class.objdef, parent_objid, 'insert')
+            self.controller.check_authorization(resource_class.objtype, resource_class.objdef, parent_objid, "insert")
 
         # create resource in PENDING state
         resource = self.add_resource2(resource_class, params)
@@ -778,7 +889,7 @@ class ResourceContainer(ApiObject):
         if set_as_sync is False and resource_class.create_task is not None:
             params.update(self.get_user())
             res = prepare_or_run_task(resource, resource_class.create_task, params, sync=sync)
-            resource.logger.info('run create task: %s' % res[0])
+            resource.logger.info("run create task: %s" % res[0])
             return res
 
         # post create resource using sync method
@@ -787,7 +898,7 @@ class ResourceContainer(ApiObject):
 
             resource.set_container(self)
 
-            import_func = getattr(resource, 'do_create', None)
+            import_func = getattr(resource, "do_create", None)
             if import_func is not None:
                 import_func(**params)
 
@@ -795,9 +906,9 @@ class ResourceContainer(ApiObject):
             resource_class.post_create(self.controller, self, **params)
 
             # add tags
-            if tags is not None and tags != '':
+            if tags is not None and tags != "":
                 resource = self.get_resource(model.id)
-                for tag in tags.split(','):
+                for tag in tags.split(","):
                     try:
                         self.controller.add_tag(value=tag)
                     except ApiManagerError as ex:
@@ -810,10 +921,21 @@ class ResourceContainer(ApiObject):
             self.update_resource_state(model.id, ResourceState.ACTIVE)
             self.activate_resource(model.id)
 
-        return {'uuid': model.uuid}, 201
+        return {"uuid": model.uuid}, 201
 
-    def __pre_import_resource(self, resource_class, name=None, desc='', ext_id=None, active=False, attribute={},
-                              parent=None, tags='', has_quotas=True, **params):
+    def __pre_import_resource(
+        self,
+        resource_class,
+        name=None,
+        desc="",
+        ext_id=None,
+        active=False,
+        attribute={},
+        parent=None,
+        tags="",
+        has_quotas=True,
+        **params,
+    ):
         """pre import resource.
 
         :param resource_class: resource class
@@ -830,42 +952,42 @@ class ResourceContainer(ApiObject):
         """
         if parent is not None:
             # parent = self.get_simple_resource(parent)
-            params['objid'] = '%s//%s' % (parent.objid, id_gen())
-            params['parent'] = parent.oid
+            params["objid"] = "%s//%s" % (parent.objid, id_gen())
+            params["parent"] = parent.oid
         else:
-            params['objid'] = '%s//%s' % (self.objid, id_gen())
-            params['parent'] = None
+            params["objid"] = "%s//%s" % (self.objid, id_gen())
+            params["parent"] = None
 
         # get class
         if isinstance(resource_class, str):
             resource_class = import_class(resource_class)
 
         if tags is None:
-            tags = ''
+            tags = ""
         other_params = {
-            'alias': '%s.import' % resource_class.__name__,
-            'cid': self.oid,
-            'name': name,
-            'desc': desc,
-            'ext_id': ext_id,
-            'active': active,
-            'attribute': attribute,
-            'tags': tags
+            "alias": "%s.import" % resource_class.__name__,
+            "cid": self.oid,
+            "name": name,
+            "desc": desc,
+            "ext_id": ext_id,
+            "active": active,
+            "attribute": attribute,
+            "tags": tags,
         }
         params.update(other_params)
 
         # pre import function
-        self.logger.debug('Initial params: %s' % params)
+        self.logger.debug("Initial params: %s" % params)
         params = resource_class.pre_import(self.controller, self, **params)
-        sync = params.pop('sync', False)
-        params['attribute']['has_quotas'] = has_quotas
-        self.logger.debug('Pre import after params: %s' % params)
+        sync = params.pop("sync", False)
+        params["attribute"]["has_quotas"] = has_quotas
+        self.logger.debug("Pre import after params: %s" % params)
 
         # verify permissions
-        parent_objid = '//'.join(params['objid'].split('//')[:-1])
-        self.logger.debug('Parent objid: %s' % parent_objid)
+        parent_objid = "//".join(params["objid"].split("//")[:-1])
+        self.logger.debug("Parent objid: %s" % parent_objid)
         if operation.authorize is True:
-            self.controller.check_authorization(resource_class.objtype, resource_class.objdef, parent_objid, 'insert')
+            self.controller.check_authorization(resource_class.objtype, resource_class.objdef, parent_objid, "insert")
 
         # import resource in PENDING state
         resource = self.add_resource2(resource_class, params)
@@ -881,11 +1003,23 @@ class ResourceContainer(ApiObject):
         #     self.logger.error(ex, exc_info=False)
         #     raise
 
-        self.logger.debug('import resource: %s' % resource)
+        self.logger.debug("import resource: %s" % resource)
         return resource, params
 
-    def import_resource(self, resource_class, name=None, desc='', ext_id=None, active=False, attribute={},
-                        parent=None, tags='', has_quotas=True, sync=False, **params):
+    def import_resource(
+        self,
+        resource_class,
+        name=None,
+        desc="",
+        ext_id=None,
+        active=False,
+        attribute={},
+        parent=None,
+        tags="",
+        has_quotas=True,
+        sync=False,
+        **params,
+    ):
         """Factory used to import new resource.
 
         :param resource_class: class of resource to import or string representation
@@ -904,13 +1038,23 @@ class ResourceContainer(ApiObject):
         :raises ApiManagerError: if query empty return error.
         """
         if sync is True:
-            self.logger.debug('run sync resource creation')
+            self.logger.debug("run sync resource creation")
         else:
-            self.logger.debug('run async resource creation')
+            self.logger.debug("run async resource creation")
 
         # import basic resource
-        resource, params = self.__pre_import_resource(resource_class, name, desc, ext_id, active, attribute, parent,
-                                                      tags, has_quotas, **params)
+        resource, params = self.__pre_import_resource(
+            resource_class,
+            name,
+            desc,
+            ext_id,
+            active,
+            attribute,
+            parent,
+            tags,
+            has_quotas,
+            **params,
+        )
 
         # run resource method that launch task or exec operation sync
         res = resource.do_import(params, sync=sync)
@@ -918,16 +1062,26 @@ class ResourceContainer(ApiObject):
         # run final import is method is sync
         if sync is True:
             # resource.finalize_import(**params)
-            res = {'uuid': resource.uuid}, 201
+            res = {"uuid": resource.uuid}, 201
         else:
-            res[0]['uuid'] = resource.uuid
+            res[0]["uuid"] = resource.uuid
 
-        self.logger.debug('end resource import with result: %s' % res[0])
+        self.logger.debug("end resource import with result: %s" % res[0])
         return res
 
-    @trace(op='insert')
-    def resource_import_factory(self, resource_class, name=None, desc='', ext_id=None, active=False, attribute={},
-                                parent=None, tags='', **params):
+    @trace(op="insert")
+    def resource_import_factory(
+        self,
+        resource_class,
+        name=None,
+        desc="",
+        ext_id=None,
+        active=False,
+        attribute={},
+        parent=None,
+        tags="",
+        **params,
+    ):
         """Factory used to import resource from an existing.
 
         :param resource_class: class of resource to create or string representation
@@ -949,8 +1103,8 @@ class ResourceContainer(ApiObject):
         # get parent
         if parent is not None:
             parent = self.get_resource(parent, run_customize=False)
-            params['objid'] = '%s//%s' % (parent.objid, id_gen())
-            params['parent'] = parent.oid
+            params["objid"] = "%s//%s" % (parent.objid, id_gen())
+            params["parent"] = parent.oid
 
         # get class
         # if isinstance(resource_class, str) or isinstance(resource_class, unicode):
@@ -959,34 +1113,34 @@ class ResourceContainer(ApiObject):
             try:
                 resource_class = import_class(resource_class_name)
             except:
-                raise ApiManagerError('Resource class %s does not exist' % resource_class_name)
+                raise ApiManagerError("Resource class %s does not exist" % resource_class_name)
 
         if tags is None:
-            tags = ''
+            tags = ""
         other_params = {
-            'alias': '%s.import' % resource_class.__name__,
-            'cid': self.oid,
-            'name': name,
-            'desc': desc,
-            'ext_id': ext_id,
-            'active': active,
-            'attribute': attribute,
-            'tags': tags
+            "alias": "%s.import" % resource_class.__name__,
+            "cid": self.oid,
+            "name": name,
+            "desc": desc,
+            "ext_id": ext_id,
+            "active": active,
+            "attribute": attribute,
+            "tags": tags,
         }
         params.update(other_params)
 
         # pre import function
-        self.logger.debug('Initial params: %s' % params)
+        self.logger.debug("Initial params: %s" % params)
         params = resource_class.pre_import(self.controller, self, **params)
-        sync = params.pop('sync', False)
-        set_as_sync = params.pop('set_as_sync', False)
-        self.logger.debug('Pre import after params: %s' % params)
+        sync = params.pop("sync", False)
+        set_as_sync = params.pop("set_as_sync", False)
+        self.logger.debug("Pre import after params: %s" % params)
 
         # verify permissions
-        parent_objid = '//'.join(params['objid'].split('//')[:-1])
-        self.logger.debug('Parent objid: %s' % parent_objid)
+        parent_objid = "//".join(params["objid"].split("//")[:-1])
+        self.logger.debug("Parent objid: %s" % parent_objid)
         if operation.authorize is True:
-            self.controller.check_authorization(resource_class.objtype, resource_class.objdef, parent_objid, 'insert')
+            self.controller.check_authorization(resource_class.objtype, resource_class.objdef, parent_objid, "insert")
 
         # create resource in PENDING state
         resource = self.add_resource2(resource_class, params)
@@ -1006,7 +1160,7 @@ class ResourceContainer(ApiObject):
         if set_as_sync is False and resource_class.import_task is not None:
             params.update(self.get_user())
             res = prepare_or_run_task(resource, resource_class.import_task, params, sync=sync)
-            resource.logger.info('run import task: %s' % res[0])
+            resource.logger.info("run import task: %s" % res[0])
             return res
 
         # post import resource using sync method
@@ -1015,7 +1169,7 @@ class ResourceContainer(ApiObject):
             # resource = self.get_simple_resource(model.id)
             resource.set_container(self)
 
-            import_func = getattr(resource, 'do_import', None)
+            import_func = getattr(resource, "do_import", None)
             if import_func is not None:
                 import_func(**params)
 
@@ -1023,9 +1177,9 @@ class ResourceContainer(ApiObject):
             resource_class.post_import(self.controller, self, **params)
 
             # add tags
-            if tags is not None and tags != '':
+            if tags is not None and tags != "":
                 # resource = self.get_resource(model.id)
-                for tag in tags.split(','):
+                for tag in tags.split(","):
                     try:
                         self.controller.add_tag(value=tag)
                     except ApiManagerError as ex:
@@ -1038,9 +1192,17 @@ class ResourceContainer(ApiObject):
             self.update_resource_state(model.id, ResourceState.ACTIVE)
             self.activate_resource(model.id)
 
-        return {'uuid': model.uuid}, 201
+        return {"uuid": model.uuid}, 201
 
-    def __pre_clone_resource(self, resource_to_clone, name=None, desc='', parent=None, has_quotas=True, **params):
+    def __pre_clone_resource(
+        self,
+        resource_to_clone,
+        name=None,
+        desc="",
+        parent=None,
+        has_quotas=True,
+        **params,
+    ):
         """pre clone resource. TODO:
 
         :param resource_to_clone: resource to clone
@@ -1055,11 +1217,11 @@ class ResourceContainer(ApiObject):
 
         if parent is not None:
             # parent = self.get_simple_resource(parent)
-            params['objid'] = '%s//%s' % (parent.objid, id_gen())
-            params['parent'] = parent.oid
+            params["objid"] = "%s//%s" % (parent.objid, id_gen())
+            params["parent"] = parent.oid
         else:
-            params['objid'] = '%s//%s' % (self.objid, id_gen())
-            params['parent'] = None
+            params["objid"] = "%s//%s" % (self.objid, id_gen())
+            params["parent"] = None
 
         # get class
         if isinstance(resource_class, str):
@@ -1068,28 +1230,28 @@ class ResourceContainer(ApiObject):
         # if tags is None:
         #     tags = ''
         other_params = {
-            'cid': self.oid,
-            'name': name,
-            'desc': desc,
-            'ext_id': resource_to_clone.ext_id,
-            'active': False,
-            'attribute': resource_to_clone.get_attribs(),
+            "cid": self.oid,
+            "name": name,
+            "desc": desc,
+            "ext_id": resource_to_clone.ext_id,
+            "active": False,
+            "attribute": resource_to_clone.get_attribs(),
             # 'tags': tags
         }
         params.update(other_params)
 
         # pre clone function
-        self.logger.debug('Initial params: %s' % params)
+        self.logger.debug("Initial params: %s" % params)
         params = resource_class.pre_clone(self.controller, self, **params)
         # sync = params.pop('sync', False)
-        params['attribute']['has_quotas'] = has_quotas
-        self.logger.debug('Pre clone after params: %s' % params)
+        params["attribute"]["has_quotas"] = has_quotas
+        self.logger.debug("Pre clone after params: %s" % params)
 
         # verify permissions
-        parent_objid = '//'.join(params['objid'].split('//')[:-1])
-        self.logger.debug('Parent objid: %s' % parent_objid)
+        parent_objid = "//".join(params["objid"].split("//")[:-1])
+        self.logger.debug("Parent objid: %s" % parent_objid)
         if operation.authorize is True:
-            self.controller.check_authorization(resource_class.objtype, resource_class.objdef, parent_objid, 'insert')
+            self.controller.check_authorization(resource_class.objtype, resource_class.objdef, parent_objid, "insert")
 
         # clone resource in PENDING state
         resource = self.add_resource2(resource_class, params)
@@ -1105,11 +1267,22 @@ class ResourceContainer(ApiObject):
         #     self.logger.error(ex, exc_info=False)
         #     raise
 
-        self.logger.debug('clone resource: %s' % resource)
+        self.logger.debug("clone resource: %s" % resource)
         return resource, params
 
-    def clone_resource(self, resource_class, name=None, desc='', resource_id=None, attribute={},
-                        parent=None, tags='', has_quotas=True, sync=False, **params):
+    def clone_resource(
+        self,
+        resource_class,
+        name=None,
+        desc="",
+        resource_id=None,
+        attribute={},
+        parent=None,
+        tags="",
+        has_quotas=True,
+        sync=False,
+        **params,
+    ):
         """Factory used to clone new resource. TODO
 
         :param resource_class: class of resource to clone or string representation
@@ -1128,13 +1301,19 @@ class ResourceContainer(ApiObject):
         :raises ApiManagerError: if query empty return error.
         """
         if sync is True:
-            self.logger.debug('run sync resource creation')
+            self.logger.debug("run sync resource creation")
         else:
-            self.logger.debug('run async resource creation')
+            self.logger.debug("run async resource creation")
 
         # clone basic resource
-        resource, params = self.__pre_clone_resource(resource_to_clone, name=None, desc='', parent=None,
-                                                     has_quotas=True, **params)
+        resource, params = self.__pre_clone_resource(
+            resource_to_clone,
+            name=None,
+            desc="",
+            parent=None,
+            has_quotas=True,
+            **params,
+        )
 
         # run resource method that launch task or exec operation sync
         res = resource.do_clone(params, sync=sync)
@@ -1142,11 +1321,11 @@ class ResourceContainer(ApiObject):
         # run final clone is method is sync
         if sync is True:
             # resource.finalize_clone(**params)
-            res = {'uuid': resource.uuid}, 201
+            res = {"uuid": resource.uuid}, 201
         else:
-            res[0]['uuid'] = resource.uuid
+            res[0]["uuid"] = resource.uuid
 
-        self.logger.debug('end resource clone with result: %s' % res[0])
+        self.logger.debug("end resource clone with result: %s" % res[0])
         return res
 
     # @trace(op='insert')
@@ -1253,7 +1432,7 @@ class ResourceContainer(ApiObject):
     #
     #     return {'uuid': model.uuid}, 201
 
-    @trace(op='view')
+    @trace(op="view")
     def get_resources(self, *args, **kvargs):
         """Get resources.
 
@@ -1287,7 +1466,10 @@ class ResourceContainer(ApiObject):
         :return: :py:class:`list` of :class:`Resource`
         :raise ApiManagerError:
         """
-        return self.controller.get_resources(container=self.oid, *args, **kvargs)
+        from beehive_resource.controller import ResourceController
+
+        resourceController: ResourceController = self.controller
+        return resourceController.get_resources(container=self.oid, *args, **kvargs)
 
     def get_resource(self, oid, entity_class=None, *args, **kvargs):
         """Get single resource.
@@ -1299,6 +1481,7 @@ class ResourceContainer(ApiObject):
         :return: Resource instance
         :raise ApiManagerError:
         """
+
         def customize(entity, *args, **kvargs):
             # set physical entity
             entity.set_physical_entity(entity=None)
@@ -1311,16 +1494,22 @@ class ResourceContainer(ApiObject):
 
             # set container
             entity.set_container(self)
-            self.logger.debug('Set container %s' % self)
+            self.logger.debug("Set container %s" % self)
 
             # execute custom post_get
             entity.post_get()
-            self.logger.debug('Do post get')
+            self.logger.debug("Do post get")
 
             return entity
 
-        res = self.controller.get_entity_v2(ModelResource, oid, entity_class=entity_class, customize=customize,
-                                            container_id=self.oid, **kvargs)
+        res = self.controller.get_entity_v2(
+            ModelResource,
+            oid,
+            entity_class=entity_class,
+            customize=customize,
+            container_id=self.oid,
+            **kvargs,
+        )
 
         # set error reason
         if res.model.state == 4:
@@ -1360,10 +1549,17 @@ class ResourceContainer(ApiObject):
         try:
             entity = self.manager.get_resource_by_extid(ext_id, container=self.oid)
             entity_class = import_class(entity.type.objclass)
-            res = entity_class(self.controller, oid=entity.id, objid=entity.objid, name=entity.name,
-                               active=entity.active, desc=entity.desc, model=entity)
+            res = entity_class(
+                self.controller,
+                oid=entity.id,
+                objid=entity.objid,
+                name=entity.name,
+                active=entity.active,
+                desc=entity.desc,
+                model=entity,
+            )
             res.container = self
-            self.logger.info('Get resource by ext_id %s : %s' % (ext_id, res))
+            self.logger.info("Get resource by ext_id %s : %s" % (ext_id, res))
             return res
         except QueryError as ex:
             self.logger.warning(ex)
@@ -1372,7 +1568,16 @@ class ResourceContainer(ApiObject):
     #
     # link
     #
-    def add_link(self, name=None, type=None, start_resource=None, end_resource=None, attributes={}, *args, **kvargs):
+    def add_link(
+        self,
+        name=None,
+        type=None,
+        start_resource=None,
+        end_resource=None,
+        attributes={},
+        *args,
+        **kvargs,
+    ):
         """Add new link.
 
         :param name: link name
@@ -1388,7 +1593,7 @@ class ResourceContainer(ApiObject):
     #
     # tags
     #
-    @trace(op='tag-assign.update')
+    @trace(op="tag-assign.update")
     def add_tag(self, value, *args, **kvargs):
         """Add tag
 
@@ -1398,20 +1603,20 @@ class ResourceContainer(ApiObject):
         :raises ApiManagerError: if query empty return error.
         """
         # check authorization
-        self.verify_permisssions('update')
+        self.verify_permisssions("update")
 
         # get tag
         tag = self.controller.get_tag(value)
 
         try:
             res = self.manager.add_container_tag(self.model, tag.model)
-            self.logger.info('Add tag %s to container %s: %s' % (value, self.name, res))
+            self.logger.info("Add tag %s to container %s: %s" % (value, self.name, res))
             return res
         except TransactionError as ex:
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex, code=400)
 
-    @trace(op='tag-deassign.update')
+    @trace(op="tag-deassign.update")
     def remove_tag(self, value, *args, **kvargs):
         """Remove tag
 
@@ -1421,14 +1626,14 @@ class ResourceContainer(ApiObject):
         :raises ApiManagerError: if query empty return error.
         """
         # check authorization
-        self.verify_permisssions('update')
+        self.verify_permisssions("update")
 
         # get tag
         tag = self.controller.get_tag(value)
 
         try:
             res = self.manager.remove_container_tag(self.model, tag.model)
-            self.logger.info('Remove tag %s from container %s: %s' % (value, self.name, res))
+            self.logger.info("Remove tag %s from container %s: %s" % (value, self.name, res))
             return res
         except TransactionError as ex:
             self.logger.error(ex, exc_info=True)
@@ -1437,7 +1642,7 @@ class ResourceContainer(ApiObject):
     #
     # discover
     #
-    @trace(op='use')
+    @trace(op="use")
     def discover_new_entities(self, restype, ext_id=None):
         """Get resources not registered in beehive.
 
@@ -1460,7 +1665,7 @@ class ResourceContainer(ApiObject):
         :raise ApiManagerError:
         """
         resources = []
-        self.logger.debug('Resource type: %s' % restype)
+        self.logger.debug("Resource type: %s" % restype)
 
         try:
             resources = self.manager.get_resources_by_type(type=restype, container=self.oid)
@@ -1477,17 +1682,17 @@ class ResourceContainer(ApiObject):
             restype = self.manager.get_resource_types(value=restype)[0]
             resclass = import_class(restype.objclass)
 
-            self.logger.debug('------- discover new %s -------' % restype)
+            self.logger.debug("------- discover new %s -------" % restype)
             res.extend(resclass.discover_new(self, ext_id, res_ext_ids))
-            self.logger.debug('------- discover new %s -------' % restype)
+            self.logger.debug("------- discover new %s -------" % restype)
 
-            self.logger.info('Discover new %s entities: %s' % (resclass.__name__, truncate(res)))
+            self.logger.info("Discover new %s entities: %s" % (resclass.__name__, truncate(res)))
             return res
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex, code=400)
 
-    @trace(op='use')
+    @trace(op="use")
     def discover_died_entities(self, restype, died=True, changed=True):
         """Get resources registered in beehive and not already present in remote platform.
 
@@ -1516,7 +1721,7 @@ class ResourceContainer(ApiObject):
 
         :raise ApiManagerError:
         """
-        self.logger.debug('Registered resource type: %s' % restype)
+        self.logger.debug("Registered resource type: %s" % restype)
 
         resources = []
         try:
@@ -1525,48 +1730,62 @@ class ResourceContainer(ApiObject):
             self.logger.warning(ex, exc_info=False)
 
         try:
-            res = {'died': [], 'changed': []}
+            res = {"died": [], "changed": []}
             items = []
 
             restype = self.manager.get_resource_types(value=restype)[0]
             resclass = import_class(restype.objclass)
-            self.logger.debug('------- discover died %s -------' % restype)
+            self.logger.debug("------- discover died %s -------" % restype)
             items = resclass.discover_died(self)
-            self.logger.debug('------- discover died %s -------' % restype)
+            self.logger.debug("------- discover died %s -------" % restype)
 
-            itemidx = {i['id']: i for i in items}
+            itemidx = {i["id"]: i for i in items}
             for r in resources:
-                if r.ext_id is None or r.ext_id == '':
+                if r.ext_id is None or r.ext_id == "":
                     continue
 
                 # append died resources
                 if died is True and r.ext_id not in itemidx.keys():
                     resource_class = import_class(r.type.objclass)
-                    obj = resource_class(self.controller, oid=r.id, objid=r.objid, name=r.name, desc=r.desc,
-                                         active=r.active, model=r)
+                    obj = resource_class(
+                        self.controller,
+                        oid=r.id,
+                        objid=r.objid,
+                        name=r.name,
+                        desc=r.desc,
+                        active=r.active,
+                        model=r,
+                    )
                     obj.container = self
                     obj.ext_id = r.ext_id
-                    res['died'].append(obj)
-                    self.logger.debug('Resource %s does not exist anymore. It can be deleted.' % r.name)
+                    res["died"].append(obj)
+                    self.logger.debug("Resource %s does not exist anymore. It can be deleted." % r.name)
 
                 # append changed resources
                 elif changed is True:
-                    if r.name != itemidx[r.ext_id]['name']:
+                    if r.name != itemidx[r.ext_id]["name"]:
                         item = itemidx[r.ext_id]
                         resource_class = import_class(r.type.objclass)
-                        obj = resource_class(self.controller, oid=r.id, objid=r.objid, name=item['name'], desc=r.desc,
-                                             active=r.active, model=r)
+                        obj = resource_class(
+                            self.controller,
+                            oid=r.id,
+                            objid=r.objid,
+                            name=item["name"],
+                            desc=r.desc,
+                            active=r.active,
+                            model=r,
+                        )
                         obj.container = self
                         obj.ext_id = r.ext_id
-                        res['changed'].append(obj)
-                        self.logger.debug('Resource %s is changed.' % r.name)
+                        res["changed"].append(obj)
+                        self.logger.debug("Resource %s is changed." % r.name)
 
             return res
         except (ApiManagerError, Exception) as ex:
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex, code=400)
 
-    @trace(op='use')
+    @trace(op="use")
     def discover(self, restype, ext_id=None):
         """Discover remote platform entities
 
@@ -1589,29 +1808,44 @@ class ResourceContainer(ApiObject):
         :raise ApiManagerError:
         """
         # check authorization
-        self.verify_permisssions('use')
+        self.verify_permisssions("use")
 
         try:
-            res = {'new': [], 'died': [], 'changed': []}
+            res = {"new": [], "died": [], "changed": []}
             entities = self.discover_new_entities(restype, ext_id=ext_id)
 
             for r in entities:
-                data = {'resclass': '%s.%s' % (r[0].__module__, r[0].__name__),
-                        'id': r[1], 'parent': r[2], 'type': r[3], 'name': r[4]}
-                res['new'].append(data)
+                data = {
+                    "resclass": "%s.%s" % (r[0].__module__, r[0].__name__),
+                    "id": r[1],
+                    "parent": r[2],
+                    "type": r[3],
+                    "name": r[4],
+                }
+                res["new"].append(data)
 
             entities = self.discover_died_entities(restype)
-            for r in entities['died']:
-                data = {'resclass': '%s.%s' % (r.__class__.__module__, r.__class__.__name__),
-                        'id': r.oid, 'parent': r.parent_id, 'type': r.objdef, 'name': r.name}
-                res['died'].append(data)
+            for r in entities["died"]:
+                data = {
+                    "resclass": "%s.%s" % (r.__class__.__module__, r.__class__.__name__),
+                    "id": r.oid,
+                    "parent": r.parent_id,
+                    "type": r.objdef,
+                    "name": r.name,
+                }
+                res["died"].append(data)
 
-            for r in entities['changed']:
-                data = {'resclass': '%s.%s' % (r.__class__.__module__, r.__class__.__name__),
-                        'id': r.oid, 'parent': r.parent_id, 'type': r.objdef, 'name': r.name}
-                res['changed'].append(data)
+            for r in entities["changed"]:
+                data = {
+                    "resclass": "%s.%s" % (r.__class__.__module__, r.__class__.__name__),
+                    "id": r.oid,
+                    "parent": r.parent_id,
+                    "type": r.objdef,
+                    "name": r.name,
+                }
+                res["changed"].append(data)
 
-            self.logger.info('Discover container %s entities: %s' % (self.oid, truncate(res)))
+            self.logger.info("Discover container %s entities: %s" % (self.oid, truncate(res)))
             return res
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
@@ -1620,7 +1854,7 @@ class ResourceContainer(ApiObject):
     #
     # discover task
     #
-    @trace(op='update')
+    @trace(op="update")
     def synchronize_resources(self, params):
         """Synchronize remote platform entities
 
@@ -1634,7 +1868,7 @@ class ResourceContainer(ApiObject):
         :raise ApiManagerError:
         """
         # check authorization
-        self.verify_permisssions('update')
+        self.verify_permisssions("update")
 
         # self.logger.info('+++++ self %s' % (type(self)))
         from beehive_resource.plugins.grafana.controller import GrafanaContainer
@@ -1642,51 +1876,65 @@ class ResourceContainer(ApiObject):
 
         if isinstance(self, GrafanaContainer):
             if self.conn_grafana is None:
-                raise ApiManagerError('Synchronize not implemented for container %s - check connection grafana' % self.oid, code=405)
+                raise ApiManagerError(
+                    "Synchronize not implemented for container %s - check connection grafana" % self.oid,
+                    code=405,
+                )
 
         elif isinstance(self, ElkContainer):
             if self.conn_kibana is None:
-                raise ApiManagerError('Synchronize not implemented for container %s - check connection kibana' % self.oid, code=405)
+                raise ApiManagerError(
+                    "Synchronize not implemented for container %s - check connection kibana" % self.oid,
+                    code=405,
+                )
             if self.conn_elastic is None:
-                raise ApiManagerError('Synchronize not implemented for container %s - check connection elastic' % self.oid, code=405)
+                raise ApiManagerError(
+                    "Synchronize not implemented for container %s - check connection elastic" % self.oid,
+                    code=405,
+                )
 
         elif self.conn is None:
-            raise ApiManagerError('Synchronize not implemented for container %s' % self.oid, code=405)
+            raise ApiManagerError("Synchronize not implemented for container %s" % self.oid, code=405)
 
-        resource_types = params.get('types', None)
+        resource_types = params.get("types", None)
 
         params.update(self.get_user())
-        params['objid'] = str(self.uuid)
-        params['cid'] = self.oid
-        params['alias'] = 'SynchronizeResources'
-        if resource_types is not None and resource_types.find(',') == -1:
-            params['alias'] = 'SynchronizeResources.%s' % resource_types
-        task = signature(self.synchronize_task, [params], app=self.task_manager, queue=self.celery_broker_queue)
+        params["objid"] = str(self.uuid)
+        params["cid"] = self.oid
+        params["alias"] = "SynchronizeResources"
+        if resource_types is not None and resource_types.find(",") == -1:
+            params["alias"] = "SynchronizeResources.%s" % resource_types
+        task = signature(
+            self.synchronize_task,
+            [params],
+            app=self.task_manager,
+            queue=self.celery_broker_queue,
+        )
         job = task.apply_async()
 
-        self.logger.info('Start resource synchronization over container %s with job %s' % (self.oid, job))
+        self.logger.info("Start resource synchronization over container %s with job %s" % (self.oid, job))
         return job.id
 
-    @trace(op='discover-get.use')
+    @trace(op="discover-get.use")
     def get_discover_scheduler(self):
         """Get discover scheduler for the container
 
         :raise ApiManagerError:
         """
         # check authorization
-        self.verify_permisssions('use')
+        self.verify_permisssions("use")
 
         try:
             name = self._discover_service
-            uri = '/v1.0/scheduler/entry/%s/' % name
-            res = self.api_client.admin_request('resource', uri, 'GET', '')
-            self.logger.info('Get discover scheduler for container %s: %s' % (self.name, res))
+            uri = "/v1.0/scheduler/entry/%s/" % name
+            res = self.api_client.admin_request("resource", uri, "GET", "")
+            self.logger.info("Get discover scheduler for container %s: %s" % (self.name, res))
             return res
         except BeehiveApiClientError as ex:
             self.logger.warning(ex, exc_info=False)
             return None
 
-    @trace(op='discover-set.update')
+    @trace(op="discover-set.update")
     def add_discover_scheduler(self, minutes):
         """Add discover scheduler for the container
 
@@ -1694,19 +1942,20 @@ class ResourceContainer(ApiObject):
         :raise ApiManagerError:
         """
         # check authorization
-        self.verify_permisssions('update')
+        self.verify_permisssions("update")
 
         data = {
-            'name': self._discover_service,
-            'task': 'tasks.discover_%s' % self.objdef,
-            'args': [self.oid],
-            'schedule': {'type': 'timedelta', 'minutes': minutes},
-            'options': {'expires': 86400}}
-        res = self.api_client.admin_request('resource', '/v1.0/nrs/scheduler/entries', 'POST', data)
-        self.logger.info('Add discover scheduler for container %s: %s' % (self.name, res))
+            "name": self._discover_service,
+            "task": "tasks.discover_%s" % self.objdef,
+            "args": [self.oid],
+            "schedule": {"type": "timedelta", "minutes": minutes},
+            "options": {"expires": 86400},
+        }
+        res = self.api_client.admin_request("resource", "/v1.0/nrs/scheduler/entries", "POST", data)
+        self.logger.info("Add discover scheduler for container %s: %s" % (self.name, res))
         return res
 
-    @trace(op='discover-unset.update')
+    @trace(op="discover-unset.update")
     def remove_discover_scheduler(self):
         """Remove discover scheduler for container
 
@@ -1714,41 +1963,41 @@ class ResourceContainer(ApiObject):
         :raise ApiManagerError:
         """
         # check authorization
-        self.verify_permisssions('update')
+        self.verify_permisssions("update")
 
-        data = {'name':self._discover_service}
-        res = self.api_client.admin_request('resource', '/v1.0/nrs/scheduler/entries', 'DELETE', data)
-        self.logger.info('Remove discover scheduler for container %s: %s' % (self.name, res))
+        data = {"name": self._discover_service}
+        res = self.api_client.admin_request("resource", "/v1.0/nrs/scheduler/entries", "DELETE", data)
+        self.logger.info("Remove discover scheduler for container %s: %s" % (self.name, res))
         return res
 
 
 class Provider(ResourceContainer):
-    """Infrastructure provider
-    """
-    objdesc = 'Provider'
-    category = 'provider'
+    """Infrastructure provider"""
+
+    objdesc = "Provider"
+    category = "provider"
 
 
 class Orchestrator(ResourceContainer):
-    """Infrastructure orchestrator
-    """
-    objdesc = 'Orchestrator'
-    category = 'orchestrator'
+    """Infrastructure orchestrator"""
+
+    objdesc = "Orchestrator"
+    category = "orchestrator"
 
 
 class Resource(ApiObject):
-    """Basic resource
-    """
-    module = 'ResourceModule'
-    objtype = 'resource'
-    objdef = 'Container.Resource'
-    objuri = 'nrs'
-    objname = 'resource'
-    objdesc = 'Abstract resource'
+    """Basic resource"""
+
+    module = "ResourceModule"
+    objtype = "resource"
+    objdef = "Container.Resource"
+    objuri = "nrs"
+    objname = "resource"
+    objdesc = "Abstract resource"
     objtask_version = None
 
     # cache key
-    cache_key = 'resource.get'
+    cache_key = "resource.get"
 
     # set this to define default tags to apply to resource
     default_tags = []
@@ -1764,7 +2013,7 @@ class Resource(ApiObject):
 
     def __init__(self, *args, **kvargs):
         ApiObject.__init__(self, *args, **kvargs)
-        self.container = None
+        self.container: ResourceContainer = None
         self.ext_id = None
         self.ext_obj = None
         self.parent = None
@@ -1786,13 +2035,13 @@ class Resource(ApiObject):
 
         # configure
         self.set_attribs()
-        self.state = ResourceState.state[9] # unknown
+        self.state = ResourceState.state[9]  # unknown
         if self.model is not None:
             self.parent_id = self.model.parent_id
             self.container_id = self.model.container_id
             self.ext_id = self.model.ext_id
             self.state = self.model.state
-            self.active = self.model.active # aaa nel model in desc c'è la tripletta
+            self.active = self.model.active  # aaa nel model in desc c'è la tripletta
 
     def get_resource_classes(self):
         child_classes = [item.objdef for item in self.child_classes]
@@ -1841,17 +2090,17 @@ class Resource(ApiObject):
         name = entity[4]
         level = entity[5]
 
-        objid = '%s//%s' % (container.objid, id_gen())
+        objid = "%s//%s" % (container.objid, id_gen())
 
         res = {
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent_id,
-            'tags': resclass.default_tags
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent_id,
+            "tags": resclass.default_tags,
         }
         return res
 
@@ -1869,7 +2118,7 @@ class Resource(ApiObject):
         # call only once during db initialization
         try:
             # create resource type
-            class_name = self.__class__.__module__ + '.' + self.__class__.__name__
+            class_name = self.__class__.__module__ + "." + self.__class__.__name__
             self.manager.add_resource_type(self.objdef, class_name)
         except TransactionError as ex:
             self.logger.warning(ex)
@@ -1882,8 +2131,7 @@ class Resource(ApiObject):
         self.parent = parent
 
     def get_parent(self):
-        """Get parent
-        """
+        """Get parent"""
         return self.controller.get_simple_resource(self.parent_id)
 
     def count_child_resources(self):
@@ -1912,7 +2160,7 @@ class Resource(ApiObject):
 
         :return: True or False
         """
-        if self.ext_id is not None and self.ext_id != '':
+        if self.ext_id is not None and self.ext_id != "":
             return True
         return False
 
@@ -1940,7 +2188,7 @@ class Resource(ApiObject):
             res = dict_get(res, key, default=default)
         return res
 
-    def set_configs(self, key=None, value=None):
+    def set_configs(self, key: str = None, value: str = None):
         """Set attributes
 
         :param key: key
@@ -1948,23 +2196,9 @@ class Resource(ApiObject):
         :raises ApiManagerError: if return error.
         """
         try:
-            self.attribs = dict_set(self.attribs, key, value, separator='.')
-            self.update_internal(attribute=self.attribs)
-        except TransactionError as ex:
-            self.logger.error(ex, exc_info=False)
-            raise ApiManagerError(ex, code=ex.code)
-        except Exception as ex:
-            self.logger.error(ex, exc_info=False)
-            raise ApiManagerError(ex, code=400)
-
-    def unset_configs(self, key=None):
-        """Set attributes
-
-        :param key: key
-        :raises ApiManagerError: if return error.
-        """
-        try:
-            self.attribs = dict_unset(self.attribs, key, separator='.')
+            if isinstance(value, str) and value.isdigit():
+                value = int(value)
+            self.attribs = dict_set(self.attribs, key, value, separator=".")
             self.update_internal(attribute=self.attribs)
         except TransactionError as ex:
             self.logger.error(ex, exc_info=False)
@@ -1980,7 +2214,7 @@ class Resource(ApiObject):
         :raises ApiManagerError: if return error.
         """
         try:
-            self.attribs = dict_unset(self.attribs, key, separator='.')
+            self.attribs = dict_unset(self.attribs, key, separator=".")
             self.update_internal(attribute=self.attribs)
         except TransactionError as ex:
             self.logger.error(ex, exc_info=False)
@@ -1989,7 +2223,7 @@ class Resource(ApiObject):
             self.logger.error(ex, exc_info=False)
             raise ApiManagerError(ex, code=400)
 
-    def update_state(self, state, error=''):
+    def update_state(self, state, error=""):
         """Update resource state
 
         :param state: new state
@@ -2001,7 +2235,7 @@ class Resource(ApiObject):
         try:
             # change resource state
             self.manager.update_resource_state(self.oid, state, last_error=error)
-            self.logger.info('Set resource %s state to: %s' % (self.oid, state))
+            self.logger.info("Set resource %s state to: %s" % (self.oid, state))
         except QueryError as ex:
             self.logger.error(ex, exc_info=False)
             raise ApiManagerError(ex, code=ex.code)
@@ -2033,7 +2267,7 @@ class Resource(ApiObject):
         """
         res = self.get_base_state()
         # todo improve check of state. is too slow
-        #if self.state == 2 and self.check() is False:
+        # if self.state == 2 and self.check() is False:
         #    res = ResourceState.state[9]
         return res
 
@@ -2053,14 +2287,14 @@ class Resource(ApiObject):
         self.logger.warn(self.active)
         if self.state == 2 and self.active == 1:
             res = True
-            self.logger.info('Resource %s is active: %s' % (self.oid, res))
+            self.logger.info("Resource %s is active: %s" % (self.oid, res))
         elif self.state == 4 and self.active == 1:
             res = True
-            self.logger.warning('Resource %s is in error but active: %s' % (self.oid, res))
+            self.logger.warning("Resource %s is in error but active: %s" % (self.oid, res))
         else:
             res = False
             # self.logger.error('+++++ TRYFIX is_active - oid: %s - state: %s - active: %s' % (self.oid, self.state, self.active))
-            self.logger.warning('Resource %s is not active: %s - state: %s' % (self.oid, res, self.state))
+            self.logger.warning("Resource %s is not active: %s - state: %s" % (self.oid, res, self.state))
         return res
 
     def check_active(self):
@@ -2069,7 +2303,7 @@ class Resource(ApiObject):
         :return: True if it is active, False otherwise
         """
         if self.is_active() is False:
-            raise ApiManagerError('Resource %s is not active' % self.oid)
+            raise ApiManagerError("Resource %s is not active" % self.oid)
 
     def get_errors(self):
         """Get resource errors.
@@ -2084,17 +2318,16 @@ class Resource(ApiObject):
     # info
     #
     def get_cache(self):
-        """Get cache items
-        """
+        """Get cache items"""
         res = ApiObject.get_cache(self)
-        res.extend(self.cache.get_by_pattern('*.%s' % self.ext_id))
+        res.extend(self.cache.get_by_pattern("*.%s" % self.ext_id))
         return res
 
     def clean_cache(self):
-        """Clean cache
-        """
+        """Clean cache"""
+        # logger.debug("+++++ clean_cache - Resource %s" % self.ext_id)
         ApiObject.clean_cache(self)
-        self.cache.delete_by_pattern('*.%s' % self.ext_id)
+        self.cache.delete_by_pattern("*.%s" % self.ext_id)
 
     def set_cache(self):
         """Cache object required infos.
@@ -2113,7 +2346,7 @@ class Resource(ApiObject):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         res = ApiObject.small_info(self)
-        res['state'] = self.get_base_state()
+        res["state"] = self.get_base_state()
         return res
 
     def info(self):
@@ -2124,10 +2357,10 @@ class Resource(ApiObject):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         res = ApiObject.info(self)
-        res['base_state'] = self.get_base_state()
-        res['state'] = self.get_extended_state()
-        res['runstate'] = self.get_runstate()
-        res['parent'] = self.parent_id
+        res["base_state"] = self.get_base_state()
+        res["state"] = self.get_extended_state()
+        res["runstate"] = self.get_runstate()
+        res["parent"] = self.parent_id
         # if self.parent is not None:
         #     res['parent'] = {'id': self.parent_id,
         #                      'uuid': self.parent.get('uuid', None),
@@ -2136,12 +2369,12 @@ class Resource(ApiObject):
         #     res['parent'] = {'id': self.parent_id,
         #                      'uuid': self.parent_id,
         #                      'name': self.parent_id}
-        res['details'] = {}
-        res['attributes'] = self.attribs
-        res['ext_id'] = self.ext_id
-        res['reuse'] = self.reuse
-        res['reason'] = self.reason
-        res['container'] = self.model.container_id
+        res["details"] = {}
+        res["attributes"] = self.attribs
+        res["ext_id"] = self.ext_id
+        res["reuse"] = self.reuse
+        res["reason"] = self.reason
+        res["container"] = self.model.container_id
         # try:
         #     res['container'] = self.container.small_info()
         # except:
@@ -2156,17 +2389,17 @@ class Resource(ApiObject):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         res = ApiObject.detail(self)
-        res['base_state'] = self.get_base_state()
-        res['state'] = self.get_extended_state()
-        res['runstate'] = self.get_runstate()
-        res['parent'] = self.parent_id
-        res['details'] = {}
-        res['attributes'] = self.attribs
-        res['ext_id'] = self.ext_id
-        res['reuse'] = self.reuse
-        res['reason'] = self.reason
-        res['childs'] = self.count_child_resources()
-        res['container'] = self.model.container_id
+        res["base_state"] = self.get_base_state()
+        res["state"] = self.get_extended_state()
+        res["runstate"] = self.get_runstate()
+        res["parent"] = self.parent_id
+        res["details"] = {}
+        res["attributes"] = self.attribs
+        res["ext_id"] = self.ext_id
+        res["reuse"] = self.reuse
+        res["reason"] = self.reason
+        res["childs"] = self.count_child_resources()
+        res["container"] = self.model.container_id
         return res
 
     def check(self):
@@ -2175,7 +2408,7 @@ class Resource(ApiObject):
         :return: dict with check result. {'check': True, 'msg': None}
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        res = {'check': True, 'msg': None}
+        res = {"check": True, "msg": None}
         return res
 
     def has_quotas(self):
@@ -2184,7 +2417,7 @@ class Resource(ApiObject):
         :return: True or False
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        res = self.get_attribs(key='has_quotas', default=True)
+        res = self.get_attribs(key="has_quotas", default=True)
         return res
 
     def get_quotas(self):
@@ -2194,7 +2427,7 @@ class Resource(ApiObject):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         quotas = {}
-        self.logger.debug2('Get resource %s quotas: %s' % (self.oid, quotas))
+        self.logger.debug2("Get resource %s quotas: %s" % (self.oid, quotas))
         return quotas
 
     def enable_quotas(self):
@@ -2202,7 +2435,7 @@ class Resource(ApiObject):
 
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        res = self.set_configs(key='has_quotas', value=True)
+        res = self.set_configs(key="has_quotas", value=True)
         return res
 
     def disable_quotas(self):
@@ -2210,7 +2443,7 @@ class Resource(ApiObject):
 
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        res = self.set_configs(key='has_quotas', value=False)
+        res = self.set_configs(key="has_quotas", value=False)
         return res
 
     def tree(self, parent=True, link=True):
@@ -2224,9 +2457,9 @@ class Resource(ApiObject):
 
         class Tree(object):
             def __init__(self, name, depth, resource):
-                self.logger = getLogger('beehive_resource.tree')
+                self.logger = getLogger("beehive_resource.tree")
 
-                self.graph = DiGraph(name=name+'-tree')
+                self.graph = DiGraph(name=name + "-tree")
                 self.depth = depth
                 self.edges = []
                 self.resource = resource
@@ -2246,8 +2479,9 @@ class Resource(ApiObject):
                     container_name=node.container.name,
                     attributes=node.attribs,
                     link=link_id,
-                    reuse='reuse=%s' % reuse,
-                    relation=relation)
+                    reuse="reuse=%s" % reuse,
+                    relation=relation,
+                )
 
             def make_parent_tree(self, resource, depth):
                 if depth >= maxdepth:
@@ -2268,14 +2502,18 @@ class Resource(ApiObject):
                     if link is True:
                         self.make_link_tree(child, depth, parent=resource)
 
-            def make_link_tree(self, resource, depth, parent=None):
+            def make_link_tree(self, resource: Resource, depth, parent=None):
                 if depth >= maxdepth:
                     return
 
-                links, total = resource.get_out_links(type='relation%')
+                self.logger.info("resourceLink resource: %s - name: %s" % (resource.oid, resource.name))
+                links, total = resource.get_out_links(type="relation%")
                 for link in links:
+                    resourceLink: ResourceLink = link
+                    self.logger.info("resourceLink link - name: %s" % (resourceLink.name))
+
                     start = resource
-                    end = link.get_end_resource()
+                    end = resourceLink.get_end_resource()
                     node = end
 
                     # if parent is None or node.oid != parent.oid:
@@ -2302,11 +2540,11 @@ class Resource(ApiObject):
                 return json_graph.tree_data(self.graph, root=self.resource.oid)
 
         # get all links with recursive function
-        self.logger.warning('Start resource %s tree creation' % self.oid)
+        self.logger.warning("Start resource %s tree creation" % self.oid)
         treeobj = Tree(self.name, 10, self)
         treeobj.make_graph()
         resp = treeobj.get_tree_data()
-        self.logger.warning('Stop resource %s tree creation' % self.oid)
+        self.logger.warning("Stop resource %s tree creation" % self.oid)
 
         return resp
 
@@ -2343,8 +2581,7 @@ class Resource(ApiObject):
     #
     @staticmethod
     def pre_create(controller, container, *args, **kvargs):
-        """check input params before resource creation.
-        """
+        """check input params before resource creation."""
         return kvargs
 
     def do_create(self, **params):
@@ -2378,15 +2615,14 @@ class Resource(ApiObject):
 
         # change resource state
         self.manager.update_resource(oid=self.oid, active=True)
-        self.logger.info('finalize resource %s creation' % self.oid)
+        self.logger.info("finalize resource %s creation" % self.oid)
 
     #
     # import
     #
     @staticmethod
     def pre_import(controller, container, *args, **kvargs):
-        """check input params before resource import.
-        """
+        """check input params before resource import."""
         return kvargs
 
     def do_import(self, **params):
@@ -2406,15 +2642,14 @@ class Resource(ApiObject):
 
         # change resource state
         self.manager.update_resource(oid=self.oid, active=True)
-        self.logger.info('finalize resource %s import' % self.oid)
+        self.logger.info("finalize resource %s import" % self.oid)
 
     #
     # clone
     #
     @staticmethod
     def pre_clone(controller, container, *args, **kvargs):
-        """check input params before resource clone.
-        """
+        """check input params before resource clone."""
         return kvargs
 
     def do_clone(self, **params):
@@ -2434,37 +2669,36 @@ class Resource(ApiObject):
 
         # change resource state
         self.manager.update_resource(oid=self.oid, active=True)
-        self.logger.info('finalize resource %s clone' % self.oid)
+        self.logger.info("finalize resource %s clone" % self.oid)
 
     #
     # update
     #
     def update_tags(self, params):
         # update tags
-        tags = params.pop('tags', None)
+        tags = params.pop("tags", None)
         if tags is not None:
-            cmd = tags.get('cmd')
-            values = tags.get('values')
+            cmd = tags.get("cmd")
+            values = tags.get("values")
             # add tag
-            if cmd == 'add':
+            if cmd == "add":
                 for value in values:
                     self.add_tag(value)
-            elif cmd == 'remove':
+            elif cmd == "remove":
                 for value in values:
                     self.remove_tag(value)
         return params
 
     def update_quotas(self, params):
         # update quotas get status
-        if params.pop('enable_quotas', True) is True:
+        if params.pop("enable_quotas", True) is True:
             self.enable_quotas()
-        elif params.pop('disable_quotas', True) is True:
+        elif params.pop("disable_quotas", True) is True:
             self.disable_quotas()
         return params
 
     def pre_update(self, *args, **kvargs):
-        """pre update function. This function is used in update method.
-        """
+        """pre update function. This function is used in update method."""
         return kvargs
 
     def do_update(self, **params):
@@ -2485,24 +2719,26 @@ class Resource(ApiObject):
         :raises ApiManagerError: if query empty return error.
         """
         if sync is True:
-            self.logger.debug('run sync resource patch')
+            self.logger.debug("run sync resource patch")
         else:
-            self.logger.debug('run async resource patch')
+            self.logger.debug("run async resource patch")
 
         # verify permissions
-        self.verify_permisssions('update')
+        self.verify_permisssions("update")
 
         # clean cache
         self.clean_cache()
 
         # verify resource status
-        if self.get_base_state() not in ['ACTIVE', 'ERROR', 'UNKNOWN']:
-            raise ApiManagerError('resource %s %s is not in a valid state' % (self.objname, self.oid),
-                                  code=400)
+        if self.get_base_state() not in ["ACTIVE", "ERROR", "UNKNOWN"]:
+            raise ApiManagerError(
+                "resource %s %s is not in a valid state" % (self.objname, self.oid),
+                code=400,
+            )
 
         # run an optional pre patch function
         params = self.pre_update(**params)
-        self.logger.debug('params after pre patch: %s' % params)
+        self.logger.debug("params after pre patch: %s" % params)
 
         # change resource state
         self.update_state(ResourceState.UPDATING)
@@ -2519,11 +2755,11 @@ class Resource(ApiObject):
 
         # run final delete is method is sync
         if sync is True:
-            res = {'uuid': self.uuid}, 201
+            res = {"uuid": self.uuid}, 201
         else:
-            res[0]['uuid'] = self.uuid
+            res[0]["uuid"] = self.uuid
 
-        self.logger.debug('end resource update with result: %s' % res[0])
+        self.logger.debug("end resource update with result: %s" % res[0])
 
         return res
 
@@ -2537,21 +2773,21 @@ class Resource(ApiObject):
             for sync resource {'uuid': resource uuid}
         :raises ApiManagerError: if query empty return error.
         """
-        sync = params.pop('sync', False)
+        sync = params.pop("sync", False)
         # verify permissions
-        self.verify_permisssions('update')
+        self.verify_permisssions("update")
 
         # change resource state
         self.update_state(ResourceState.UPDATING)
 
         # force update with internal update
-        force = params.pop('force', False)
-        self.logger.debug('Force update: %s' % force)
+        force = params.pop("force", False)
+        self.logger.debug("Force update: %s" % force)
 
         # run an optional pre update function
         if force is False:
             params = self.pre_update(**params)
-            self.logger.debug('params after pre_update: %s' % params)
+            self.logger.debug("params after pre_update: %s" % params)
 
         # clean cache
         self.clean_cache()
@@ -2560,23 +2796,23 @@ class Resource(ApiObject):
         if self.update_task is not None and force is False:
             base_params = {
                 # 'alias': '%s.update' % self.name,
-                'alias': '%s.update' % self.__class__.__name__,
-                'cid': self.container.oid,
-                'id': self.oid,
-                'uuid': self.uuid,
-                'objid': self.objid,
-                'ext_id': self.ext_id
+                "alias": "%s.update" % self.__class__.__name__,
+                "cid": self.container.oid,
+                "id": self.oid,
+                "uuid": self.uuid,
+                "objid": self.objid,
+                "ext_id": self.ext_id,
             }
             base_params.update(params)
             params = base_params
             params.update(self.get_user())
             res = prepare_or_run_task(self, self.update_task, params, sync=sync)
-            self.logger.info('Update resource using task %s' % res[0])
+            self.logger.info("Update resource using task %s" % res[0])
             return res
 
         # update resource using sync method
         else:
-            params.pop('tasks', None)
+            params.pop("tasks", None)
 
             # update tags ans quotas
             params = self.update_tags(params)
@@ -2584,9 +2820,9 @@ class Resource(ApiObject):
 
             self.update_internal(**params)
 
-            if 'state' not in params:
+            if "state" not in params:
                 self.update_state(ResourceState.ACTIVE)
-            return {'uuid': self.uuid}, 200
+            return {"uuid": self.uuid}, 200
 
     def update_internal(self, **kvargs):
         """Update resource
@@ -2598,12 +2834,12 @@ class Resource(ApiObject):
         self.clean_cache()
 
         try:
-            kvargs['oid'] = self.oid
+            kvargs["oid"] = self.oid
 
             # self.logger.debug('+++++ TRYFIX - self.manager: %s' % type(self.manager))
             self.manager: ResourceDbManager
             self.manager.update_resource(**kvargs)
-            self.logger.debug('Update %s %s with data %s' % (self.objdef, self.oid, kvargs))
+            self.logger.debug("Update %s %s with data %s" % (self.objdef, self.oid, kvargs))
 
             # session = self.manager.get_session().hash_key
             # if self.objdef == 'Elk.Space':
@@ -2612,8 +2848,6 @@ class Resource(ApiObject):
             #     self.logger.debug('+++++ TRYFIX - session: %s - update_internal - logica - %s %s with data %s' % (session, self.objdef, self.oid, kvargs))
             # if self.objdef == 'Provider.ComputeZone.ComputeLoggingSpace':
             #     self.logger.debug('+++++ TRYFIX - session: %s - update_internal - aggregata - %s %s with data %s' % (session, self.objdef, self.oid, kvargs))
-
-            return self.uuid
         except TransactionError as ex:
             self.update_state(ResourceState.ERROR, error=str(ex))
             self.logger.error(ex, exc_info=False)
@@ -2621,8 +2855,9 @@ class Resource(ApiObject):
 
         # clean cache
         self.clean_cache()
+        return self.uuid
 
-    @trace(op='update')
+    @trace(op="update")
     def set_state(self, state):
         """Set resource state
 
@@ -2630,25 +2865,24 @@ class Resource(ApiObject):
         :return: True
         """
         # verify permissions
-        self.verify_permisssions('update')
+        self.verify_permisssions("update")
 
-        if state == 'ACTIVE':
+        if state == "ACTIVE":
             state = ResourceState.ACTIVE
-        elif state == 'ERROR':
+        elif state == "ERROR":
             state = ResourceState.ERROR
-        elif state == 'DISABLED':
+        elif state == "DISABLED":
             state = ResourceState.DISABLED
         self.update_internal(state=state)
 
-        self.logger.info('Set resource %s state to %s' % (self.oid, state))
+        self.logger.info("Set resource %s state to %s" % (self.oid, state))
         return True
 
     #
     # patch
     #
     def pre_patch(self, *args, **kvargs):
-        """check input params before resource patch.
-        """
+        """check input params before resource patch."""
         return kvargs
 
     def do_patch(self, **params):
@@ -2669,24 +2903,26 @@ class Resource(ApiObject):
         :raises ApiManagerError: if query empty return error.
         """
         if sync is True:
-            self.logger.debug('run sync resource patch')
+            self.logger.debug("run sync resource patch")
         else:
-            self.logger.debug('run async resource patch')
+            self.logger.debug("run async resource patch")
 
         # verify permissions
-        self.verify_permisssions('patch')
+        self.verify_permisssions("patch")
 
         # clean cache
         self.clean_cache()
 
         # verify resource status
-        if self.get_base_state() not in ['ACTIVE', 'ERROR', 'UNKNOWN']:
-            raise ApiManagerError('resource %s %s is not in a valid state' % (self.objname, self.oid),
-                                  code=400)
+        if self.get_base_state() not in ["ACTIVE", "ERROR", "UNKNOWN"]:
+            raise ApiManagerError(
+                "resource %s %s is not in a valid state" % (self.objname, self.oid),
+                code=400,
+            )
 
         # run an optional pre patch function
         params = self.pre_patch(**params)
-        self.logger.debug('params after pre patch: %s' % params)
+        self.logger.debug("params after pre patch: %s" % params)
 
         # change resource state
         self.update_state(ResourceState.UPDATING)
@@ -2696,15 +2932,15 @@ class Resource(ApiObject):
 
         # run final delete is method is sync
         if sync is True:
-            res = {'uuid': self.uuid}, 201
+            res = {"uuid": self.uuid}, 201
         else:
-            res[0]['uuid'] = self.uuid
+            res[0]["uuid"] = self.uuid
 
-        self.logger.debug('end resource patch with result: %s' % res[0])
+        self.logger.debug("end resource patch with result: %s" % res[0])
 
         return res
 
-    @trace(op='patch')
+    @trace(op="patch")
     def patch(self, **params):
         """Patch resource using a celery job or the synchronous function patch_resource.
 
@@ -2715,52 +2951,52 @@ class Resource(ApiObject):
             for sync resource {'uuid': resource uuid}
         :raises ApiManagerError: if query empty return error.
         """
-        sync = params.pop('sync', False)
+        sync = params.pop("sync", False)
         # verify permissions
-        self.verify_permisssions('patch')
+        self.verify_permisssions("patch")
 
         # change resource state
         self.update_state(ResourceState.UPDATING)
 
         # run an optional pre patch function
         params = self.pre_patch(**params)
-        self.logger.debug('params after pre udpate: %s' % params)
+        self.logger.debug("params after pre udpate: %s" % params)
 
         # clean cache
         self.clean_cache()
 
         # force patch with internal patch
-        force = params.pop('force', False)
-        self.logger.debug('Force patch: %s' % force)
+        force = params.pop("force", False)
+        self.logger.debug("Force patch: %s" % force)
 
         # patch resource using async celery task
         if self.patch_task is not None and force is False:
             base_params = {
                 # 'alias': '%s.patch' % self.name,
-                'alias': '%s.patch' % self.__class__.__name__,
-                'cid': self.container.oid,
-                'id': self.oid,
-                'uuid': self.uuid,
-                'objid': self.objid,
-                'ext_id': self.ext_id,
-                'name': self.name
+                "alias": "%s.patch" % self.__class__.__name__,
+                "cid": self.container.oid,
+                "id": self.oid,
+                "uuid": self.uuid,
+                "objid": self.objid,
+                "ext_id": self.ext_id,
+                "name": self.name,
             }
             base_params.update(params)
             params = base_params
             params.update(self.get_user())
             res = prepare_or_run_task(self, self.patch_task, params, sync=sync)
-            self.logger.info('Patch resource using task %s' % res[0])
+            self.logger.info("Patch resource using task %s" % res[0])
             return res
 
         # patch resource using sync method
         else:
-            params.pop('tasks', None)
+            params.pop("tasks", None)
             self.patch_internal(**params)
-            if 'state' not in params:
+            if "state" not in params:
                 self.update_state(ResourceState.ACTIVE)
-            return {'uuid': self.uuid}, 200
+            return {"uuid": self.uuid}, 200
 
-    @trace(op='patch')
+    @trace(op="patch")
     def patch_internal(self, **kvargs):
         """Patch resource
 
@@ -2771,7 +3007,7 @@ class Resource(ApiObject):
         self.clean_cache()
 
         try:
-            self.logger.debug('Patch %s %s with data %s' % (self.objdef, self.oid, kvargs))
+            self.logger.debug("Patch %s %s with data %s" % (self.objdef, self.oid, kvargs))
             return self.uuid
         except TransactionError as ex:
             self.update_state(ResourceState.ERROR, error=str(ex))
@@ -2782,8 +3018,7 @@ class Resource(ApiObject):
     # delete
     #
     def pre_delete(self, *args, **kvargs):
-        """check input params before resource delete.
-        """
+        """check input params before resource delete."""
         return kvargs
 
     def do_delete(self, **params):
@@ -2804,29 +3039,31 @@ class Resource(ApiObject):
         :raises ApiManagerError: if query empty return error.
         """
         if sync is True:
-            self.logger.debug('run sync resource delete')
+            self.logger.debug("run sync resource delete")
         else:
-            self.logger.debug('run async resource delete')
+            self.logger.debug("run async resource delete")
 
         # verify permissions
-        self.verify_permisssions('delete')
+        self.verify_permisssions("delete")
 
         # clean cache
         self.clean_cache()
 
         # verify resource status
-        if self.get_base_state() not in ['ACTIVE', 'ERROR', 'UNKNOWN']:
-            raise ApiManagerError('resource %s %s is not in a valid state' % (self.objname, self.oid),
-                                  code=400)
+        if self.get_base_state() not in ["ACTIVE", "ERROR", "UNKNOWN"]:
+            raise ApiManagerError(
+                "resource %s %s is not in a valid state" % (self.objname, self.oid),
+                code=400,
+            )
 
         # verify resource has no childs
-        params['child_num'] = self.manager.count_resource(parent_id=self.oid)
-        if params['child_num'] > 0:
-            raise ApiManagerError('Resource %s has %s childs. It can not be deleted' % (self.oid, params['child_num']))
+        params["child_num"] = self.manager.count_resource(parent_id=self.oid)
+        if params["child_num"] > 0:
+            raise ApiManagerError("Resource %s has %s childs. It can not be deleted" % (self.oid, params["child_num"]))
 
         # run an optional pre delete function
         params = self.pre_delete(**params)
-        self.logger.debug('params after pre delete: %s' % params)
+        self.logger.debug("params after pre delete: %s" % params)
 
         # change resource state
         self.update_state(ResourceState.EXPUNGING)
@@ -2836,15 +3073,15 @@ class Resource(ApiObject):
 
         # run final delete is method is sync
         if sync is True:
-            res = {'uuid': self.uuid}, 201
+            res = {"uuid": self.uuid}, 201
         else:
-            res[0]['uuid'] = self.uuid
+            res[0]["uuid"] = self.uuid
 
-        self.logger.debug('end resource delete with result: %s' % res[0])
+        self.logger.debug("end resource delete with result: %s" % res[0])
 
         return res
 
-    @trace(op='delete')
+    @trace(op="delete")
     def delete(self, **params):
         """Delete resource using a celery job or the synchronous function delete_resource.
 
@@ -2855,16 +3092,16 @@ class Resource(ApiObject):
             for sync resource {'uuid': resource uuid}
         :raises ApiManagerError: if query empty return error.
         """
-        sync = params.pop('sync', False)
+        sync = params.pop("sync", False)
         # verify permissions
-        self.verify_permisssions('delete')
+        self.verify_permisssions("delete")
 
         # verify resource has no childs
-        params['child_num'] = self.manager.count_resource(parent_id=self.oid)
+        params["child_num"] = self.manager.count_resource(parent_id=self.oid)
 
         # run an optional pre delete function
         params = self.pre_delete(**params)
-        self.logger.debug('params after pre delete: %s' % params)
+        self.logger.debug("params after pre delete: %s" % params)
 
         # clean cache
         self.clean_cache()
@@ -2872,52 +3109,53 @@ class Resource(ApiObject):
         # change resource state
         self.update_state(ResourceState.EXPUNGING)
 
-        if params['child_num'] > 0:
-            raise ApiManagerError('Resource %s has %s childs. It can not be deleted' % (self.oid, params['child_num']))
+        if params["child_num"] > 0:
+            raise ApiManagerError("Resource %s has %s childs. It can not be deleted" % (self.oid, params["child_num"]))
 
         # delete resource using async celery task
         if self.delete_task is not None:
             # setup task params
             ext_id = self.ext_id
-            if ext_id == '' or ext_id == "":
+            if ext_id == "":
                 ext_id = None
-            params.update({
-                # 'alias': '%s.delete' % self.name,
-                'alias': '%s.delete' % self.__class__.__name__,
-                'cid': self.container.oid,
-                'id': self.oid,
-                'uuid': self.uuid,
-                'objid': self.objid,
-                'ext_id': ext_id
-            })
+            params.update(
+                {
+                    # 'alias': '%s.delete' % self.name,
+                    "alias": "%s.delete" % self.__class__.__name__,
+                    "cid": self.container.oid,
+                    "id": self.oid,
+                    "uuid": self.uuid,
+                    "objid": self.objid,
+                    "ext_id": ext_id,
+                }
+            )
             params.update(self.get_user())
             res = prepare_or_run_task(self, self.delete_task, params, sync=sync)
-            self.logger.info('Delete resource using task %s' % res[0])
+            self.logger.info("Delete resource using task %s" % res[0])
             return res
 
         # delete resource using sync method
         else:
-            params.pop('tasks', None)
+            params.pop("tasks", None)
             self.delete_internal()
 
             # run an optional post delete function
             self.post_delete(**params)
 
-            return {'uuid': self.uuid}, 200
+            return {"uuid": self.uuid}, 200
 
-    @trace(op='delete')
+    @trace(op="delete")
     def delete_internal(self):
-        """Soft delete resource
-        """
+        """Soft delete resource"""
         # clean cache
         self.clean_cache()
 
         try:
             # delete resource
-            name = '%s-%s-DELETED' % (self.name, id_gen())
+            name = "%s-%s-DELETED" % (self.name, id_gen())
             self.manager.delete_resource(oid=self.oid, name=name)
 
-            self.logger.debug('Delete resource %s: %s' % (self.objdef, self.oid))
+            self.logger.debug("Delete resource %s: %s" % (self.objdef, self.oid))
             return None
         except TransactionError as ex:
             self.update_state(ResourceState.ERROR, error=str(ex))
@@ -2928,8 +3166,7 @@ class Resource(ApiObject):
     # expunge
     #
     def pre_expunge(self, *args, **kvargs):
-        """check input params before resource expunge.
-        """
+        """check input params before resource expunge."""
         return kvargs
 
     def do_expunge(self, **params):
@@ -2950,29 +3187,35 @@ class Resource(ApiObject):
         :raises ApiManagerError: if query empty return error.
         """
         if sync is True:
-            self.logger.debug('run sync resource expunge')
+            self.logger.debug("run sync resource expunge")
         else:
-            self.logger.debug('run async resource expunge')
+            self.logger.debug("run async resource expunge")
 
         # verify permissions
-        self.verify_permisssions('delete')
+        self.verify_permisssions("delete")
 
         # clean cache
         self.clean_cache()
 
         # verify resource status
-        if str2bool(params.get('force')) is False and self.get_base_state() not in ['ACTIVE', 'ERROR', 'UNKNOWN']:
-            raise ApiManagerError('resource %s %s is not in a valid state' % (self.objname, self.oid),
-                                  code=400)
+        if str2bool(params.get("force")) is False and self.get_base_state() not in [
+            "ACTIVE",
+            "ERROR",
+            "UNKNOWN",
+        ]:
+            raise ApiManagerError(
+                "resource %s %s is not in a valid state" % (self.objname, self.oid),
+                code=400,
+            )
 
         # verify resource has no childs
-        params['child_num'] = self.manager.count_resource(parent_id=self.oid)
-        if params['child_num'] > 0:
-            raise ApiManagerError('Resource %s has %s childs. It can not be expunged' % (self.oid, params['child_num']))
+        params["child_num"] = self.manager.count_resource(parent_id=self.oid)
+        if params["child_num"] > 0:
+            raise ApiManagerError("Resource %s has %s childs. It can not be expunged" % (self.oid, params["child_num"]))
 
         # run an optional pre expunge function
         params = self.pre_expunge(**params)
-        self.logger.debug('params after pre expunge: %s' % params)
+        self.logger.debug("params after pre expunge: %s" % params)
 
         # change resource state
         self.update_state(ResourceState.EXPUNGING)
@@ -2983,15 +3226,15 @@ class Resource(ApiObject):
 
         # run final expunge is method is sync
         if sync is True:
-            res = {'uuid': self.uuid}, 201
+            res = {"uuid": self.uuid}, 201
         else:
-            res[0]['uuid'] = self.uuid
+            res[0]["uuid"] = self.uuid
 
-        self.logger.debug('end resource expunge with result: %s' % res[0])
+        self.logger.debug("end resource expunge with result: %s" % res[0])
 
         return res
 
-    @trace(op='delete')
+    @trace(op="delete")
     def expunge(self, **params):
         """Expunge resource using a celery job or the synchronous function expunge_internal.
 
@@ -3002,16 +3245,16 @@ class Resource(ApiObject):
             for sync resource {'uuid': resource uuid}
         :raises ApiManagerError: if query empty return error.
         """
-        sync = params.pop('sync', False)
+        sync = params.pop("sync", False)
         # verify permissions
-        self.verify_permisssions('delete')
+        self.verify_permisssions("delete")
 
         # verify resource has no childs
-        params['child_num'] = self.manager.count_resource(parent_id=self.oid)
+        params["child_num"] = self.manager.count_resource(parent_id=self.oid)
 
         # run an optional pre delete function
         params = self.pre_delete(**params)
-        self.logger.debug('params after pre expunge: %s' % params)
+        self.logger.debug("params after pre expunge: %s" % params)
 
         # clean cache
         self.clean_cache()
@@ -3019,43 +3262,44 @@ class Resource(ApiObject):
         # change resource state
         self.update_state(ResourceState.EXPUNGING)
 
-        if params['child_num'] > 0:
-            raise ApiManagerError('Resource %s has %s childs. It can not be expunged' % (self.oid, params['child_num']))
+        if params["child_num"] > 0:
+            raise ApiManagerError("Resource %s has %s childs. It can not be expunged" % (self.oid, params["child_num"]))
 
         # delete resource using async celery task
         if self.expunge_task is not None:
             # setup task params
             ext_id = self.ext_id
-            if ext_id == '' or ext_id == "":
+            if ext_id == "":
                 ext_id = None
-            params.update({
-                # 'alias': '%s.expunge' % self.name,
-                'alias': '%s.expunge' % self.__class__.__name__,
-                'cid': self.container.oid,
-                'id': self.oid,
-                'uuid': self.uuid,
-                'objid': self.objid,
-                'ext_id': ext_id
-            })
+            params.update(
+                {
+                    # 'alias': '%s.expunge' % self.name,
+                    "alias": "%s.expunge" % self.__class__.__name__,
+                    "cid": self.container.oid,
+                    "id": self.oid,
+                    "uuid": self.uuid,
+                    "objid": self.objid,
+                    "ext_id": ext_id,
+                }
+            )
             params.update(self.get_user())
             res = prepare_or_run_task(self, self.expunge_task, params, sync=sync)
-            self.logger.info('Expunge resource using task %s' % res[0])
+            self.logger.info("Expunge resource using task %s" % res[0])
             return res
 
         # delete resource using sync method
         else:
-            params.pop('tasks', None)
+            params.pop("tasks", None)
             self.expunge_internal()
 
             # run an optional post delete function
             self.post_delete(**params)
 
-            return {'uuid': self.uuid}, 200
+            return {"uuid": self.uuid}, 200
 
-    @trace(op='delete')
+    @trace(op="delete")
     def expunge_internal(self):
-        """Hard delete resource
-        """
+        """Hard delete resource"""
         # clean cache
         self.clean_cache()
 
@@ -3063,16 +3307,22 @@ class Resource(ApiObject):
         try:
             links = self.manager.get_resource_links_internal(self.oid)
         except QueryError as ex:
-            self.logger.warning('No links found for resource %s' % self.oid)
+            self.logger.warning("No links found for resource %s" % self.oid)
             links = []
 
         # remove links
         for link in links:
             # prepare resource
-            obj = ResourceLink(self.controller, oid=link.id, objid=link.objid, name=link.name, model=link)
+            obj: ResourceLink = ResourceLink(
+                self.controller,
+                oid=link.id,
+                objid=link.objid,
+                name=link.name,
+                model=link,
+            )
 
             obj.expunge()
-        self.logger.debug('Remove resource %s links: %s' % (self.name, links))
+        self.logger.debug("Remove resource %s links: %s" % (self.name, links))
 
         try:
             # remove resource
@@ -3080,10 +3330,10 @@ class Resource(ApiObject):
 
             if self.register is True:
                 # remove object and permissions
-                self.deregister_object(self.objid.split('//'))
-                self.logger.debug('Remove resource %s permissions' % self.oid)
+                self.deregister_object(self.objid.split("//"))
+                self.logger.debug("Remove resource %s permissions" % self.oid)
 
-            self.logger.debug('Expunge resource %s: %s' % (self.objdef, self.oid))
+            self.logger.debug("Expunge resource %s: %s" % (self.objdef, self.oid))
             return None
         except TransactionError as ex:
             self.update_state(ResourceState.ERROR, error=str(ex))
@@ -3093,7 +3343,7 @@ class Resource(ApiObject):
     #
     # actions
     #
-    def action(self, name, steps, log='Run action', check=None, *args, **kvargs):
+    def action(self, name, steps, log="Run action", check=None, *args, **kvargs):
         """Execute an action
 
         :param name: action name
@@ -3109,10 +3359,11 @@ class Resource(ApiObject):
             for sync resource {'uuid': resource uuid}
         :raises ApiManagerError: if query empty return error.
         """
-        sync = kvargs.pop('sync', False)
+        sync = kvargs.pop("sync", False)
+        self.logger.debug("action - name: %s - sync: %s" % (name, sync))  # aaa
 
         # verify permissions
-        self.verify_permisssions('update')
+        self.verify_permisssions("update")
 
         # check state is ACTIVE
         # move in action_resource_pre_step
@@ -3125,32 +3376,34 @@ class Resource(ApiObject):
         self.clean_cache()
 
         # steps list
-        run_steps = ['beehive_resource.task_v2.core.AbstractResourceTask.action_resource_pre_step']
+        run_steps = ["beehive_resource.task_v2.core.AbstractResourceTask.action_resource_pre_step"]
         run_steps.extend(steps)
-        run_steps.append('beehive_resource.task_v2.core.AbstractResourceTask.action_resource_post_step')
+        run_steps.append("beehive_resource.task_v2.core.AbstractResourceTask.action_resource_post_step")
 
         # manage params
-        kvargs.update({
-            # 'alias': '%s.%s' % (self.name, name),
-            'alias': '%s.%s' % (self.__class__.__name__, name),
-            'cid': self.container.oid,
-            'id': self.oid,
-            'objid': self.objid,
-            'name': self.name,
-            'ext_id': self.ext_id,
-            'parent': self.parent_id,
-            'action_name': name,
-            'steps': run_steps
-        })
+        kvargs.update(
+            {
+                # 'alias': '%s.%s' % (self.name, name),
+                "alias": "%s.%s" % (self.__class__.__name__, name),
+                "cid": self.container.oid,
+                "id": self.oid,
+                "objid": self.objid,
+                "name": self.name,
+                "ext_id": self.ext_id,
+                "parent": self.parent_id,
+                "action_name": name,
+                "steps": run_steps,
+            }
+        )
         kvargs.update(self.get_user())
         res = prepare_or_run_task(self, self.action_task, kvargs, sync=sync)
-        self.logger.info('%s %s using task %s' % (log, self.oid, res[0]))
+        self.logger.info("%s %s using task %s" % (log, self.oid, res[0]))
         return res
 
     #
     # child resources
     #
-    @trace(op='view')
+    @trace(op="view")
     def get_resources(self, *args, **kvargs):
         """Get child resources.
 
@@ -3184,13 +3437,22 @@ class Resource(ApiObject):
         :return: :py:class:`list` of :class:`Resource`
         :raise ApiManagerError:
         """
-        parents = {self.oid: {'id': self.oid, 'name': self.name, 'uuid': self.uuid}}
+        parents = {self.oid: {"id": self.oid, "name": self.name, "uuid": self.uuid}}
         res, total = self.container.get_resources(parent=self.oid, parents=parents, *args, **kvargs)
 
         return res, total
 
-    def resource_factory(self, resource_class, name, desc='', ext_id=None, active=True, attribute={}, tags='',
-                         **params):
+    def resource_factory(
+        self,
+        resource_class,
+        name,
+        desc="",
+        ext_id=None,
+        active=True,
+        attribute={},
+        tags="",
+        **params,
+    ):
         """Factory used to create new resource.
 
         :param resource_class: class of resource to create or string representation
@@ -3207,8 +3469,17 @@ class Resource(ApiObject):
         :raises ApiManagerError: if query empty return error.
         :raises ApiManagerError: if query empty return error.
         """
-        return self.container.resource_factory(resource_class, name, desc, ext_id, active, attribute, self.oid,
-                                               tags, **params)
+        return self.container.resource_factory(
+            resource_class,
+            name,
+            desc,
+            ext_id,
+            active,
+            attribute,
+            self.oid,
+            tags,
+            **params,
+        )
 
     #
     # tags
@@ -3222,14 +3493,14 @@ class Resource(ApiObject):
         :raises ApiManagerError: if query empty return error.
         """
         # check authorization
-        self.verify_permisssions('update')
+        self.verify_permisssions("update")
 
         # get tag
         tag = self.controller.get_tag(value)
 
         try:
             res = self.manager.add_resource_tag(self.model, tag.model)
-            self.logger.info('Add tag %s to resource %s: %s' % (value, self.name, res))
+            self.logger.info("Add tag %s to resource %s: %s" % (value, self.name, res))
             return res
         except TransactionError as ex:
             self.logger.error(ex, exc_info=False)
@@ -3244,14 +3515,14 @@ class Resource(ApiObject):
         :raises ApiManagerError: if query empty return error.
         """
         # check authorization
-        self.verify_permisssions('update')
+        self.verify_permisssions("update")
 
         # get tag
         tag = self.controller.get_tag(value)
 
         try:
             res = self.manager.remove_resource_tag(self.model, tag.model)
-            self.logger.info('Remove tag %s from resource %s: %s' % (value, self.name, res))
+            self.logger.info("Remove tag %s from resource %s: %s" % (value, self.name, res))
             return res
         except TransactionError as ex:
             self.logger.error(ex, exc_info=True)
@@ -3272,13 +3543,13 @@ class Resource(ApiObject):
             res1 = self.manager.is_linked(self.oid, resource_id)
             res2 = self.manager.is_linked(resource_id, self.oid)
             res = res1 or res2
-            self.logger.info('Check resource %s is linked to resource %s: %s' % (self.oid, resource_id, res))
+            self.logger.info("Check resource %s is linked to resource %s: %s" % (self.oid, resource_id, res))
             return res
         except QueryError as ex:
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex, code=400)
 
-    @trace(op='view')
+    @trace(op="view")
     def get_links(self, *args, **kvargs):
         """Get links.
 
@@ -3293,7 +3564,7 @@ class Resource(ApiObject):
         """
         return self.controller.get_links(resource=self.oid, *args, **kvargs)
 
-    @trace(op='view')
+    @trace(op="view")
     def get_out_links(self, *args, **kvargs):
         """Get links from resource.
 
@@ -3311,7 +3582,7 @@ class Resource(ApiObject):
         """
         return self.controller.get_links(start_resource=self.oid, *args, **kvargs)
 
-    @trace(op='view')
+    @trace(op="view")
     def get_links_with_cache(self, link_type=None, *args, **kvargs):
         """Get resource links using also cache info. Permissions are not verified. Use this method for internal usage
 
@@ -3324,15 +3595,30 @@ class Resource(ApiObject):
         for link in links:
             if link_type is not None and link.type != link_type:
                 continue
-            obj = ResourceLink(self.controller, oid=link.id, objid=link.objid, name=link.name,
-                               active=link.active, desc=link.desc, model=link)
+            obj = ResourceLink(
+                self.controller,
+                oid=link.id,
+                objid=link.objid,
+                name=link.name,
+                active=link.active,
+                desc=link.desc,
+                model=link,
+            )
             res.append(obj)
 
-        self.logger.info('Get resource %s links with cache: %s' % (self.oid, truncate(res)))
+        self.logger.info("Get resource %s links with cache: %s" % (self.oid, truncate(res)))
         return res
 
-    @trace(op='view')
-    def get_linked_resources(self, link_type=None, link_type_filter=None, container=None, type=None, *args, **kvargs):
+    @trace(op="view")
+    def get_linked_resources(
+        self,
+        link_type=None,
+        link_type_filter=None,
+        container=None,
+        type=None,
+        *args,
+        **kvargs,
+    ):
         """Get linked resources
 
         :param type: resource type [optional]
@@ -3349,6 +3635,7 @@ class Resource(ApiObject):
         :return: :py:class:`list` of :py:class:`ResourceLink`
         :raise ApiManagerError:
         """
+
         def get_entities(*args, **kvargs):
             # get filter field
             # container = kvargs.pop('container', None)
@@ -3358,23 +3645,29 @@ class Resource(ApiObject):
                 container_id = self.controller.get_container(container).oid
             if type is not None:
                 types = self.manager.get_resource_types(filter=type)
-                kvargs['types'] = [t.id for t in types]
+                kvargs["types"] = [t.id for t in types]
 
-            res, total = self.manager.get_linked_resources(resource=self.oid, link_type=link_type,
-                                                           link_type_filter=link_type_filter,
-                                                           container_id=container_id, *args, **kvargs)
+            res, total = self.manager.get_linked_resources(
+                resource=self.oid,
+                link_type=link_type,
+                link_type_filter=link_type_filter,
+                container_id=container_id,
+                *args,
+                **kvargs,
+            )
 
             return res, total
 
         def customize(entities, *args, **kvargs):
             return self.controller.customize_resource(entities, *args, **kvargs)
 
-        res, total = self.controller.get_paginated_entities('resource', get_entities, customize=customize,
-                                                            *args, **kvargs)
-        self.logger.info('Get linked resources: %s' % res)
+        res, total = self.controller.get_paginated_entities(
+            "resource", get_entities, customize=customize, *args, **kvargs
+        )
+        self.logger.info("Get linked resources: %s" % res)
         return res, total
 
-    @trace(op='view')
+    @trace(op="view")
     def get_linked_resources_with_cache(self, link_type=None, *args, **kvargs):
         """Get linked resources using also cache info. Permissions are not verified. Use this method for internal
         usage
@@ -3387,17 +3680,24 @@ class Resource(ApiObject):
         entities = self.manager.get_linked_resources_with_cache(ResourceWithLink, self.oid, link_type=link_type)
         for entity in entities:
             objclass = import_class(entity.type.objclass)
-            obj = objclass(self.controller, oid=entity.id, objid=entity.objid, name=entity.name, active=entity.active,
-                           desc=entity.desc, model=entity)
+            obj = objclass(
+                self.controller,
+                oid=entity.id,
+                objid=entity.objid,
+                name=entity.name,
+                active=entity.active,
+                desc=entity.desc,
+                model=entity,
+            )
             obj.link_attr = entity.link_attr
             obj.link_type = entity.link_type
             obj.link_creation = entity.link_creation
             res.append(obj)
 
-        self.logger.info('Get resource %s linked resources: %s' % (self.oid, truncate(res)))
+        self.logger.info("Get resource %s linked resources: %s" % (self.oid, truncate(res)))
         return res
 
-    @trace(op='insert')
+    @trace(op="insert")
     def add_link(self, name=None, type=None, end_resource=None, attributes=None):
         """Add resource links
 
@@ -3422,7 +3722,7 @@ class Resource(ApiObject):
             # add object and permission
             ResourceLink(self.controller, oid=link.id).register_object([objid], desc=name)
 
-            self.logger.info('Add new link %s to resource %s' % (name, self.oid))
+            self.logger.info("Add new link %s to resource %s" % (name, self.oid))
             return link.uuid
         except TransactionError as ex:
             self.logger.error(ex, exc_info=False)
@@ -3431,7 +3731,7 @@ class Resource(ApiObject):
             self.logger.error(ex, exc_info=False)
             raise ApiManagerError(ex, code=400)
 
-    @trace(op='delete')
+    @trace(op="delete")
     def del_link(self, end_resource):
         """Delete a link that terminate on the end_resource
 
@@ -3443,31 +3743,29 @@ class Resource(ApiObject):
             link.expunge()
         return True
 
-    def resource(self, method, uri, data=''):
+    def resource(self, method, uri, data=""):
         """Interact with resource using api exposed by resource module
 
         :param method: http method
         :param data: http POST, PUT data
         """
-        if data != '':
+        if data != "":
             data = json.dumps(data)
-        res = self.api_client.admin_request('resource', uri, method, data)
+        res = self.api_client.admin_request("resource", uri, method, data)
         return res
 
     #
     # internal resource tagging
     #
     def create_default_tag(self):
-        """Create default cloud domain tag
-        """
+        """Create default cloud domain tag"""
         # create tag
         self.container.controller.add_tag(self.tag_name)
         # assign tag to itself
         self.add_tag(self.tag_name)
 
     def remove_default_tag(self):
-        """Remove default cloud domain tag
-        """
+        """Remove default cloud domain tag"""
         try:
             # deassign tag from itself
             self.remove_tag(self.tag_name)
@@ -3477,14 +3775,14 @@ class Resource(ApiObject):
             tag.remove()
         except:
             self.logger.warning(exc_info=False)
-            self.logger.warning('Resource tag %s does not exist' % self.tag_name)
+            self.logger.warning("Resource tag %s does not exist" % self.tag_name)
 
     def assign_tag_to_resources(self, resources):
         """Assign internal tag to child resources
 
         :param resources: list of resource id
         """
-        self.logger.info('Assign tag %s to resources %s' % (self.tag_name, resources))
+        self.logger.info("Assign tag %s to resources %s" % (self.tag_name, resources))
         for item in resources:
             resource = self.controller.get_simple_resource(int(item))
             resource.add_tag(self.tag_name)
@@ -3494,7 +3792,7 @@ class Resource(ApiObject):
 
         :param resources: list of resource id
         """
-        self.logger.info('Deassign tag %s from resources %s' % (self.tag_name, resources))
+        self.logger.info("Deassign tag %s from resources %s" % (self.tag_name, resources))
         for item in resources:
             resource = self.controller.get_simple_resource(int(item))
             resource.remove_tag(self.tag_name)
@@ -3518,7 +3816,7 @@ class Resource(ApiObject):
             self.logger.warning(exc_info=False)
             resources = []
 
-        self.logger.info('Get %s %s child resources: %s' % (self.objdef, self.oid, truncate(resources)))
+        self.logger.info("Get %s %s child resources: %s" % (self.objdef, self.oid, truncate(resources)))
         return resources
 
     #
@@ -3533,20 +3831,20 @@ class Resource(ApiObject):
 
 
 class AsyncResource(Resource):
-    """Basic async resource
-    """
-    objtask_version = 'v2'
+    """Basic async resource"""
 
-    task_path = 'beehive_resource.task_v2.core.AbstractResourceTask.'
+    objtask_version = "v2"
 
-    create_task = 'beehive_resource.task_v2.core.resource_add_task'
+    task_path = "beehive_resource.task_v2.core.AbstractResourceTask."
+
+    create_task = "beehive_resource.task_v2.core.resource_add_task"
     # clone_task = 'beehive_resource.task_v2.core.resource_clone_task'
-    import_task = 'beehive_resource.task_v2.core.resource_import_task'
-    update_task = 'beehive_resource.task_v2.core.resource_update_task'
-    patch_task = 'beehive_resource.task_v2.core.resource_patch_task'
-    delete_task = 'beehive_resource.task_v2.core.resource_delete_task'
-    expunge_task = 'beehive_resource.task_v2.core.resource_expunge_task'
-    action_task = 'beehive_resource.task_v2.core.resource_action_task'
+    import_task = "beehive_resource.task_v2.core.resource_import_task"
+    update_task = "beehive_resource.task_v2.core.resource_update_task"
+    patch_task = "beehive_resource.task_v2.core.resource_patch_task"
+    delete_task = "beehive_resource.task_v2.core.resource_delete_task"
+    expunge_task = "beehive_resource.task_v2.core.resource_expunge_task"
+    action_task = "beehive_resource.task_v2.core.resource_action_task"
 
     @staticmethod
     def pre_create(controller, container, *args, **kvargs):
@@ -3569,10 +3867,10 @@ class AsyncResource(Resource):
         :raises ApiManagerError:
         """
         steps = [
-            AsyncResource.task_path + 'create_resource_pre_step',
-            AsyncResource.task_path + 'create_resource_post_step'
+            AsyncResource.task_path + "create_resource_pre_step",
+            AsyncResource.task_path + "create_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
     def pre_update(self, *args, **kvargs):
@@ -3584,10 +3882,10 @@ class AsyncResource(Resource):
         :raises ApiManagerError:
         """
         steps = [
-            self.task_path + 'update_resource_pre_step',
-            self.task_path + 'update_resource_post_step'
+            self.task_path + "update_resource_pre_step",
+            self.task_path + "update_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
     def pre_delete(self, *args, **kvargs):
@@ -3599,46 +3897,46 @@ class AsyncResource(Resource):
         :raises ApiManagerError:
         """
         steps = [
-            self.task_path + 'expunge_resource_pre_step',
-            self.task_path + 'expunge_resource_post_step'
+            self.task_path + "expunge_resource_pre_step",
+            self.task_path + "expunge_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
 
 class AsyncResourceV3(Resource):
-    """Basic async resource with async internal methods
-    """
-    objtask_version = 'v3'
+    """Basic async resource with async internal methods"""
+
+    objtask_version = "v3"
 
 
 class CustomResource(Resource):
-    """Custom resource
-    """
-    objdef = 'Container.CustomResource'
-    objuri = 'custom-resources'
-    objname = 'costomresources'
-    objdesc = 'Custom resource'
+    """Custom resource"""
+
+    objdef = "Container.CustomResource"
+    objuri = "custom-resources"
+    objname = "costomresources"
+    objdesc = "Custom resource"
 
 
 class ResourceTag(ApiObject):
-    """Resource tag
-    """
-    objtype = 'resource'
-    objdef = 'ResourceTag'
-    objuri = 'resourcetags'
-    objdesc = 'Resource tag'
+    """Resource tag"""
+
+    objtype = "resource"
+    objdef = "ResourceTag"
+    objuri = "resourcetags"
+    objdesc = "Resource tag"
 
     def __init__(self, *args, **kvargs):
         ApiObject.__init__(self, *args, **kvargs)
 
         self.update_object = self.manager.update_tag
-        self.expunge_object = self.manager.purge # self.manager.delete_tag
+        self.expunge_object = self.manager.purge  # self.manager.delete_tag
 
         if self.model is not None:
-            self.resources = self.model.__dict__.get('resources', None)
-            self.containers = self.model.__dict__.get('containers', None)
-            self.links = self.model.__dict__.get('links', None)
+            self.resources = self.model.__dict__.get("resources", None)
+            self.containers = self.model.__dict__.get("containers", None)
+            self.links = self.model.__dict__.get("links", None)
 
     def info(self):
         """Get tag info
@@ -3649,11 +3947,13 @@ class ResourceTag(ApiObject):
         """
         info = ApiObject.info(self)
         if self.resources is not None:
-            info.update({
-                'resources': self.resources,
-                'containers': self.containers,
-                'links': self.links
-            })
+            info.update(
+                {
+                    "resources": self.resources,
+                    "containers": self.containers,
+                    "links": self.links,
+                }
+            )
         return info
 
     def detail(self):
@@ -3667,18 +3967,18 @@ class ResourceTag(ApiObject):
         cont = []
 
         info = ApiObject.info(self)
-        info['resources'] = res
-        info['containers'] = cont
+        info["resources"] = res
+        info["containers"] = cont
         return info
 
 
 class ResourceLink(ApiObject):
-    """
-    """
-    objtype = 'resource'
-    objdef = 'ResourceLink'
-    objuri = 'resourcelinks'
-    objdesc = 'Resource link'
+    """ """
+
+    objtype = "resource"
+    objdef = "ResourceLink"
+    objuri = "resourcelinks"
+    objdesc = "Resource link"
 
     def __init__(self, *args, **kvargs):
         ApiObject.__init__(self, *args, **kvargs)
@@ -3722,7 +4022,7 @@ class ResourceLink(ApiObject):
 
     def get_reuse(self):
         """Get resource reuse value"""
-        return self.attribs.get('reuse', False)
+        return self.attribs.get("reuse", False)
 
     def small_info(self):
         """Get resource small infos.
@@ -3747,11 +4047,11 @@ class ResourceLink(ApiObject):
         # start_resource = self.controller.get_simple_resource(self.model.start_resource_id)
         # end_resource = self.controller.get_simple_resource(self.model.end_resource_id)
 
-        info['details'] = {
-            'attributes': self.attribs,
-            'type': self.model.type,
-            'start_resource': self.model.start_resource_id,
-            'end_resource': self.model.end_resource_id
+        info["details"] = {
+            "attributes": self.attribs,
+            "type": self.model.type,
+            "start_resource": self.model.start_resource_id,
+            "end_resource": self.model.end_resource_id
             # 'start_resource': start_resource.small_info(),
             # 'end_resource': end_resource.small_info()
         }
@@ -3771,11 +4071,11 @@ class ResourceLink(ApiObject):
         start_resource = self.controller.get_simple_resource(self.model.start_resource_id)
         end_resource = self.controller.get_simple_resource(self.model.end_resource_id)
 
-        info['details'] = {
-            'attributes': self.attribs,
-            'type': self.model.type,
-            'start_resource': start_resource.small_info(),
-            'end_resource': end_resource.small_info()
+        info["details"] = {
+            "attributes": self.attribs,
+            "type": self.model.type,
+            "start_resource": start_resource.small_info(),
+            "end_resource": end_resource.small_info(),
         }
 
         return info
@@ -3824,22 +4124,22 @@ class ResourceLink(ApiObject):
         :raise ApiManagerError:
         """
         # get resources
-        start_resource = kvargs.pop('start_resource', None)
+        start_resource = kvargs.pop("start_resource", None)
         if start_resource is not None:
-            kvargs['start_resource_id'] = self.controller.get_simple_resource(start_resource).oid
-        end_resource = kvargs.pop('end_resource', None)
+            kvargs["start_resource_id"] = self.controller.get_simple_resource(start_resource).oid
+        end_resource = kvargs.pop("end_resource", None)
         if end_resource is not None:
-            kvargs['end_resource_id'] = self.controller.get_simple_resource(end_resource).oid
-        attributes = kvargs.pop('attributes', None)
+            kvargs["end_resource_id"] = self.controller.get_simple_resource(end_resource).oid
+        attributes = kvargs.pop("attributes", None)
         if attributes is not None:
-            kvargs['attributes'] = json.dumps(attributes)
+            kvargs["attributes"] = json.dumps(attributes)
 
         return kvargs
 
     #
     # tags
     #
-    @trace(op='tag-assign.update')
+    @trace(op="tag-assign.update")
     def add_tag(self, value, *rags, **kvargs):
         """Add tag
 
@@ -3849,20 +4149,20 @@ class ResourceLink(ApiObject):
         :raises ApiManagerError: if query empty return error.
         """
         # check authorization
-        self.verify_permisssions('update')
+        self.verify_permisssions("update")
 
         # get tag
         tag = self.controller.get_tag(value)
 
         try:
             res = self.manager.add_link_tag(self.model, tag.model)
-            self.logger.info('Add tag %s to link %s: %s' % (value, self.name, res))
+            self.logger.info("Add tag %s to link %s: %s" % (value, self.name, res))
             return res
         except TransactionError as ex:
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex, code=400)
 
-    @trace(op='tag-deassign.update')
+    @trace(op="tag-deassign.update")
     def remove_tag(self, value, *rags, **kvargs):
         """Remove tag
 
@@ -3872,14 +4172,14 @@ class ResourceLink(ApiObject):
         :raises ApiManagerError: if query empty return error.
         """
         # check authorization
-        self.verify_permisssions('update')
+        self.verify_permisssions("update")
 
         # get tag
         tag = self.controller.get_tag(value)
 
         try:
             res = self.manager.remove_link_tag(self.model, tag.model)
-            self.logger.info('Remove tag %s from link %s: %s' % (value, self.name, res))
+            self.logger.info("Remove tag %s from link %s: %s" % (value, self.name, res))
             return res
         except TransactionError as ex:
             self.logger.error(ex, exc_info=True)

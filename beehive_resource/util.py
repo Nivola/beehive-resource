@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 from functools import wraps
 from logging import getLogger
 
@@ -11,8 +11,8 @@ logger = getLogger(__name__)
 
 
 def create_resource():
-    """use this decorator with method used to create a resource.
-    """
+    """use this decorator with method used to create a resource."""
+
     def wrapper(fn):
         @wraps(fn)
         def create_resource_decorated(*args, **kwargs):
@@ -25,15 +25,17 @@ def create_resource():
 
             # finalize creation
             inst.finalize_create(**params)
-            logger.debug('run method %s: %s' % (fn.__name__, res))
+            logger.debug("run method %s: %s" % (fn.__name__, res))
             return res
+
         return create_resource_decorated
+
     return wrapper
 
 
 def import_resource():
-    """use this decorator with method used to import a resource.
-    """
+    """use this decorator with method used to import a resource."""
+
     def wrapper(fn):
         @wraps(fn)
         def import_resource_decorated(*args, **kwargs):
@@ -46,15 +48,17 @@ def import_resource():
 
             # finalize creation
             inst.finalize_import(**params)
-            logger.debug('run method %s: %s' % (fn.__name__, res))
+            logger.debug("run method %s: %s" % (fn.__name__, res))
             return res
+
         return import_resource_decorated
+
     return wrapper
 
 
 def clone_resource():
-    """use this decorator with method used to clone a resource.
-    """
+    """use this decorator with method used to clone a resource."""
+
     def wrapper(fn):
         @wraps(fn)
         def clone_resource_decorated(*args, **kwargs):
@@ -67,15 +71,17 @@ def clone_resource():
 
             # finalize creation
             inst.finalize_clone(**params)
-            logger.debug('run method %s: %s' % (fn.__name__, res))
+            logger.debug("run method %s: %s" % (fn.__name__, res))
             return res
+
         return clone_resource_decorated
+
     return wrapper
 
 
 def patch_resource():
-    """use this decorator with method used to patch a resource.
-    """
+    """use this decorator with method used to patch a resource."""
+
     def wrapper(fn):
         @wraps(fn)
         def patch_resource_decorated(*args, **kwargs):
@@ -93,15 +99,17 @@ def patch_resource():
             # run an optional post update function
             inst.post_patch(**params)
 
-            logger.debug('run method %s: %s' % (fn.__name__, res))
+            logger.debug("run method %s: %s" % (fn.__name__, res))
             return res
+
         return patch_resource_decorated
+
     return wrapper
 
 
 def update_resource():
-    """use this decorator with method used to update a resource.
-    """
+    """use this decorator with method used to update a resource."""
+
     def wrapper(fn):
         @wraps(fn)
         def create_update_decorated(*args, **kwargs):
@@ -126,15 +134,17 @@ def update_resource():
             # run an optional post update function
             inst.post_update(**params)
 
-            logger.debug('run method %s: %s' % (fn.__name__, res))
+            logger.debug("run method %s: %s" % (fn.__name__, res))
             return res
+
         return create_update_decorated
+
     return wrapper
 
 
 def delete_resource():
-    """use this decorator with method used to delete a resource.
-    """
+    """use this decorator with method used to delete a resource."""
+
     def wrapper(fn):
         @wraps(fn)
         def create_delete_decorated(*args, **kwargs):
@@ -151,15 +161,17 @@ def delete_resource():
             # run an optional post delete function
             inst.post_delete(**params)
 
-            logger.debug('run method %s: %s' % (fn.__name__, res))
+            logger.debug("run method %s: %s" % (fn.__name__, res))
             return res
+
         return create_delete_decorated
+
     return wrapper
 
 
 def expunge_resource():
-    """use this decorator with method used to expunge a resource.
-    """
+    """use this decorator with method used to expunge a resource."""
+
     def wrapper(fn):
         @wraps(fn)
         def create_expunge_decorated(*args, **kwargs):
@@ -169,7 +181,7 @@ def expunge_resource():
 
             # run function
             res = None
-            if str2bool(params.get('deep')) is True:
+            if str2bool(params.get("deep")) is True:
                 res = fn(inst, **params)
 
             # expunge resource
@@ -178,7 +190,9 @@ def expunge_resource():
             # run an optional post delete function
             inst.post_expunge(**params)
 
-            logger.debug('run method %s: %s' % (fn.__name__, res))
+            logger.debug("run method %s: %s" % (fn.__name__, res))
             return res
+
         return create_expunge_decorated
+
     return wrapper

@@ -1,9 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive_resource.container import Resource
-from beehive_resource.plugins.openstack.entity.ops_volume_type import OpenstackVolumeType
+from beehive_resource.plugins.openstack.entity.ops_volume_type import (
+    OpenstackVolumeType,
+)
 from beehive_resource.plugins.provider.entity.aggregate import ComputeProviderResource
 from beehive_resource.plugins.provider.entity.site import Site
 from beehive_resource.plugins.provider.entity.zone import AvailabilityZoneChildResource
@@ -11,13 +14,13 @@ from beehive_resource.plugins.vsphere.entity.vs_volumetype import VsphereVolumeT
 
 
 class ComputeVolumeFlavor(ComputeProviderResource):
-    """Compute volume volumeflavor
-    """
-    objdef = 'Provider.ComputeZone.ComputeVolumeFlavor'
-    objuri = '%s/volumeflavors/%s'
-    objname = 'volumeflavor'
-    objdesc = 'Provider ComputeVolumeFlavor'
-    task_path = 'beehive_resource.plugins.provider.task_v2.volumeflavor.VolumeFlavorTask.'
+    """Compute volume volumeflavor"""
+
+    objdef = "Provider.ComputeZone.ComputeVolumeFlavor"
+    objuri = "%s/volumeflavors/%s"
+    objname = "volumeflavor"
+    objdesc = "Provider ComputeVolumeFlavor"
+    task_path = "beehive_resource.plugins.provider.task_v2.volumeflavor.VolumeFlavorTask."
 
     def __init__(self, *args, **kvargs):
         ComputeProviderResource.__init__(self, *args, **kvargs)
@@ -82,67 +85,73 @@ class ComputeVolumeFlavor(ComputeProviderResource):
         from beehive_resource.plugins.provider.entity.zone import AvailabilityZone
 
         # get zone
-        compute_zone = container.get_resource(kvargs.get('parent'), run_customize=False)
+        compute_zone = container.get_resource(kvargs.get("parent"), run_customize=False)
         # set attributes
         attrib = {
-            'configs': {
-                'disk_iops': kvargs.get('disk_iops'),
+            "configs": {
+                "disk_iops": kvargs.get("disk_iops"),
             }
         }
-        kvargs['attribute'] = attrib
-        kvargs['orchestrator_tag'] = kvargs.get('orchestrator_tag', 'default')
-        orchestrator_tag = kvargs['orchestrator_tag']
+        kvargs["attribute"] = attrib
+        kvargs["orchestrator_tag"] = kvargs.get("orchestrator_tag", "default")
+        orchestrator_tag = kvargs["orchestrator_tag"]
 
         # import existing volumeflavors
-        if 'volume_types' in kvargs:
+        if "volume_types" in kvargs:
             # check volumeflavors to import
             volume_types = {}
-            for volume_type in kvargs.get('volume_types'):
-                orchestrator = controller.get_container(volume_type.pop('orchestrator'), connect=False)
-                volume_type['orchestrator_id'] = orchestrator.oid
-                volume_type['site_id'] = controller.get_simple_resource(
-                    volume_type.pop('availability_zone'), entity_class=Site, ).oid
-                zones, tot = compute_zone.get_linked_resources(link_type='relation.%s' % volume_type['site_id'],
-                                                               entity_class=AvailabilityZone,
-                                                               objdef=AvailabilityZone.objdef,
-                                                               run_customize=False)
-                volume_type['availability_zone_id'] = zones[0].oid
-                if volume_type['orchestrator_type'] == 'vsphere':
-                    volume_type['volume_type_id'] = orchestrator.get_simple_resource(
-                        volume_type['volume_type_id'],  entity_class=VsphereVolumeType).oid
-                elif volume_type['orchestrator_type'] == 'openstack':
-                    volume_type['volume_type_id'] = orchestrator.get_simple_resource(
-                        volume_type['volume_type_id'], entity_class=OpenstackVolumeType).oid
+            for volume_type in kvargs.get("volume_types"):
+                orchestrator = controller.get_container(volume_type.pop("orchestrator"), connect=False)
+                volume_type["orchestrator_id"] = orchestrator.oid
+                volume_type["site_id"] = controller.get_simple_resource(
+                    volume_type.pop("availability_zone"),
+                    entity_class=Site,
+                ).oid
+                zones, tot = compute_zone.get_linked_resources(
+                    link_type="relation.%s" % volume_type["site_id"],
+                    entity_class=AvailabilityZone,
+                    objdef=AvailabilityZone.objdef,
+                    run_customize=False,
+                )
+                volume_type["availability_zone_id"] = zones[0].oid
+                if volume_type["orchestrator_type"] == "vsphere":
+                    volume_type["volume_type_id"] = orchestrator.get_simple_resource(
+                        volume_type["volume_type_id"], entity_class=VsphereVolumeType
+                    ).oid
+                elif volume_type["orchestrator_type"] == "openstack":
+                    volume_type["volume_type_id"] = orchestrator.get_simple_resource(
+                        volume_type["volume_type_id"], entity_class=OpenstackVolumeType
+                    ).oid
                 try:
-                    volume_types[volume_type['site_id']].append(volume_type)
+                    volume_types[volume_type["site_id"]].append(volume_type)
                 except:
-                    volume_types[volume_type['site_id']] = [volume_type]
+                    volume_types[volume_type["site_id"]] = [volume_type]
 
             # create import job workflow
             steps = []
             for site_id, volume_types in volume_types.items():
                 substep = {
-                    'step': ComputeVolumeFlavor.task_path + 'import_zone_volumeflavor_step',
-                    'args': [site_id, volume_types]
+                    "step": ComputeVolumeFlavor.task_path + "import_zone_volumeflavor_step",
+                    "args": [site_id, volume_types],
                 }
                 steps.append(substep)
-            kvargs['steps'] = ComputeProviderResource.group_create_step(steps)
+            kvargs["steps"] = ComputeProviderResource.group_create_step(steps)
 
         # create new volumeflavors
         else:
             # get availability zones ACTIVE
-            multi_avz = kvargs.get('multi_avz')
+            multi_avz = kvargs.get("multi_avz")
             availability_zones = ComputeProviderResource.get_active_availability_zones(compute_zone, multi_avz)
 
             # create job workflow
             steps = []
             for availability_zone in availability_zones:
                 substep = {
-                    'step': ComputeVolumeFlavor.task_path + 'create_zone_volumeflavor_step',
-                    'args': [availability_zone.oid]
+                    "step": ComputeVolumeFlavor.task_path + "create_zone_volumeflavor_step",
+                    "args": [availability_zone.oid],
                 }
                 steps.append(substep)
-            kvargs['steps'] = ComputeProviderResource.group_create_step(steps)
+            kvargs["steps"] = ComputeProviderResource.group_create_step(steps)
 
         return kvargs
 
@@ -173,64 +182,72 @@ class ComputeVolumeFlavor(ComputeProviderResource):
         compute_zone = self.get_parent()
         # set attributes
         attrib = {
-            'configs': {
-                'disk_iops': kvargs.get('disk_iops'),
+            "configs": {
+                "disk_iops": kvargs.get("disk_iops"),
             }
         }
-        kvargs['attribute'] = attrib
-        kvargs['orchestrator_tag'] = kvargs.get('orchestrator_tag', 'default')
+        kvargs["attribute"] = attrib
+        kvargs["orchestrator_tag"] = kvargs.get("orchestrator_tag", "default")
 
         # check volumeflavors to import
         volume_types = {}
-        for volume_type in kvargs.get('volume_types'):
-            orchestrator = self.controller.get_container(volume_type.pop('orchestrator'), connect=False)
-            volume_type['orchestrator_id'] = orchestrator.oid
-            volume_type['site_id'] = self.controller.get_simple_resource(
-                volume_type.pop('availability_zone'), entity_class=Site, ).oid
-            zones, tot = compute_zone.get_linked_resources(link_type='relation.%s' % volume_type['site_id'],
-                                                           entity_class=AvailabilityZone,
-                                                           objdef=AvailabilityZone.objdef,
-                                                           run_customize=False)
-            zone_volumeflavors, tot = self.get_linked_resources(link_type='relation.%s' % volume_type['site_id'],
-                                                                entity_class=VolumeFlavor,
-                                                                objdef=VolumeFlavor.objdef,
-                                                                run_customize=False)
+        for volume_type in kvargs.get("volume_types"):
+            orchestrator = self.controller.get_container(volume_type.pop("orchestrator"), connect=False)
+            volume_type["orchestrator_id"] = orchestrator.oid
+            volume_type["site_id"] = self.controller.get_simple_resource(
+                volume_type.pop("availability_zone"),
+                entity_class=Site,
+            ).oid
+            zones, tot = compute_zone.get_linked_resources(
+                link_type="relation.%s" % volume_type["site_id"],
+                entity_class=AvailabilityZone,
+                objdef=AvailabilityZone.objdef,
+                run_customize=False,
+            )
+            zone_volumeflavors, tot = self.get_linked_resources(
+                link_type="relation.%s" % volume_type["site_id"],
+                entity_class=VolumeFlavor,
+                objdef=VolumeFlavor.objdef,
+                run_customize=False,
+            )
 
             # bypass if flavor already linked
             if tot == 0:
-                volume_type['availability_zone_id'] = zones[0].oid
-                if volume_type['orchestrator_type'] == 'vsphere':
-                    volume_type['volume_type_id'] = orchestrator.get_simple_resource(
-                        volume_type['volume_type_id'],  entity_class=VsphereVolumeType).oid
-                elif volume_type['orchestrator_type'] == 'openstack':
-                    volume_type['volume_type_id'] = orchestrator.get_simple_resource(
-                        volume_type['volume_type_id'], entity_class=OpenstackVolumeType).oid
+                volume_type["availability_zone_id"] = zones[0].oid
+                if volume_type["orchestrator_type"] == "vsphere":
+                    volume_type["volume_type_id"] = orchestrator.get_simple_resource(
+                        volume_type["volume_type_id"], entity_class=VsphereVolumeType
+                    ).oid
+                elif volume_type["orchestrator_type"] == "openstack":
+                    volume_type["volume_type_id"] = orchestrator.get_simple_resource(
+                        volume_type["volume_type_id"], entity_class=OpenstackVolumeType
+                    ).oid
                 try:
-                    volume_types[volume_type['site_id']].append(volume_type)
+                    volume_types[volume_type["site_id"]].append(volume_type)
                 except:
-                    volume_types[volume_type['site_id']] = [volume_type]
+                    volume_types[volume_type["site_id"]] = [volume_type]
 
         # create import job workflow
         steps = []
         for site_id, volume_types in volume_types.items():
             substep = {
-                'step': ComputeVolumeFlavor.task_path + 'import_zone_volumeflavor_step',
-                'args': [site_id, volume_types]
+                "step": ComputeVolumeFlavor.task_path + "import_zone_volumeflavor_step",
+                "args": [site_id, volume_types],
             }
             steps.append(substep)
-        kvargs['steps'] = ComputeProviderResource.group_create_step(steps)
+        kvargs["steps"] = ComputeProviderResource.group_create_step(steps)
 
         return kvargs
 
 
 class VolumeFlavor(AvailabilityZoneChildResource):
-    """Availability Zone VolumeFlavor
-    """
-    objdef = 'Provider.Region.Site.AvailabilityZone.VolumeFlavor'
-    objuri = '%s/volumeflavors/%s'
-    objname = 'volumeflavor'
-    objdesc = 'Provider Availability Zone VolumeFlavor'
-    task_path = 'beehive_resource.plugins.provider.task_v2.volumeflavor.VolumeFlavorTask.'
+    """Availability Zone VolumeFlavor"""
+
+    objdef = "Provider.Region.Site.AvailabilityZone.VolumeFlavor"
+    objuri = "%s/volumeflavors/%s"
+    objname = "volumeflavor"
+    objdesc = "Provider Availability Zone VolumeFlavor"
+    task_path = "beehive_resource.plugins.provider.task_v2.volumeflavor.VolumeFlavorTask."
 
     def __init__(self, *args, **kvargs):
         AvailabilityZoneChildResource.__init__(self, *args, **kvargs)
@@ -262,9 +279,9 @@ class VolumeFlavor(AvailabilityZoneChildResource):
         :param kvargs.volume_types.x.volume_type_id: volumetype id
         :return: kvargs
         :raise ApiManagerError:
-        
-        Ex. 
-        
+
+        Ex.
+
             {
                 ...
                 'orchestrators':{
@@ -275,13 +292,13 @@ class VolumeFlavor(AvailabilityZoneChildResource):
                     },
                     ...
                 }
-            }        
+            }
         """
-        orchestrator_tag = kvargs.get('orchestrator_tag', 'default')
-        volume_types = kvargs.get('volume_types', None)
+        orchestrator_tag = kvargs.get("orchestrator_tag", "default")
+        volume_types = kvargs.get("volume_types", None)
 
         # get zone
-        zone = container.get_resource(kvargs.get('parent'), run_customize=False)
+        zone = container.get_resource(kvargs.get("parent"), run_customize=False)
 
         # select remote orchestrators
         orchestrator_idx = zone.get_orchestrators_by_tag(orchestrator_tag)
@@ -290,23 +307,23 @@ class VolumeFlavor(AvailabilityZoneChildResource):
         # assign volumeflavor to orchestrator
         if volume_types is not None:
             for t in volume_types:
-                orchestrator_id = t.get('orchestrator_id')
+                orchestrator_id = t.get("orchestrator_id")
                 # remove template if container not in subset selected via tag
                 if str(orchestrator_id) in orchestrator_ids:
-                    orchestrator_idx[str(orchestrator_id)]['volume_type'] = {'id': t.get('volume_type_id', None)}
+                    orchestrator_idx[str(orchestrator_id)]["volume_type"] = {"id": t.get("volume_type_id", None)}
 
             # create job workflow
             steps = []
             for item in orchestrator_idx.values():
                 substep = {
-                    'step': VolumeFlavor.task_path + 'volumetype_import_orchestrator_resource_step',
-                    'args': [item]
+                    "step": VolumeFlavor.task_path + "volumetype_import_orchestrator_resource_step",
+                    "args": [item],
                 }
                 steps.append(substep)
 
-            kvargs['steps'] = AvailabilityZoneChildResource.group_create_step(steps)
-        
-        kvargs['sync'] = True
+            kvargs["steps"] = AvailabilityZoneChildResource.group_create_step(steps)
+
+        kvargs["sync"] = True
         return kvargs
 
     def pre_update(self, *args, **kvargs):
@@ -330,8 +347,8 @@ class VolumeFlavor(AvailabilityZoneChildResource):
         :return: kvargs
         :raise ApiManagerError:
         """
-        orchestrator_tag = kvargs.get('orchestrator_tag', 'default')
-        volume_types = kvargs.get('volume_types')
+        orchestrator_tag = kvargs.get("orchestrator_tag", "default")
+        volume_types = kvargs.get("volume_types")
 
         # get zone
         zone = self.get_parent()
@@ -342,20 +359,20 @@ class VolumeFlavor(AvailabilityZoneChildResource):
 
         # assign volume_types to orchestrator
         for t in volume_types:
-            orchestrator_id = t.get('orchestrator_id')
+            orchestrator_id = t.get("orchestrator_id")
             # remove template if container not in subset selected via tag
             if str(orchestrator_id) in orchestrator_ids:
-                orchestrator_idx[str(orchestrator_id)]['volume_type'] = {'id': t.get('volume_type_id', None)}
+                orchestrator_idx[str(orchestrator_id)]["volume_type"] = {"id": t.get("volume_type_id", None)}
 
         # create job workflow
         steps = []
         for item in orchestrator_idx.values():
             substep = {
-                'step': VolumeFlavor.task_path + 'volumetype_import_orchestrator_resource_step',
-                'args': [item]
+                "step": VolumeFlavor.task_path + "volumetype_import_orchestrator_resource_step",
+                "args": [item],
             }
             steps.append(substep)
 
-        kvargs['steps'] = AvailabilityZoneChildResource.group_update_step(steps)
-        kvargs['sync'] = True
+        kvargs["steps"] = AvailabilityZoneChildResource.group_update_step(steps)
+        kvargs["sync"] = True
         return kvargs

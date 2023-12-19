@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from .nsx_dfw import *
 from .nsx_dlr import *
@@ -13,4 +13,5 @@ from .vs_dvpg import *
 from .vs_resource_pool import *
 from .vs_server import *
 from .vs_stack import *
+
 # from .vs_volume import *

@@ -13,9 +13,9 @@ logger = getLogger(__name__)
 
 
 class ZabbixTemplateTask(AbstractResourceTask):
-    """Template task
-    """
-    name = 'zbx_template_task'
+    """Template task"""
+
+    name = "zbx_template_task"
     entity_class = ZabbixTemplate
 
     @staticmethod
@@ -28,24 +28,24 @@ class ZabbixTemplateTask(AbstractResourceTask):
         :param dict params: step params
         :return: oid, params
         """
-        cid = params.get('cid')
-        oid = params.get('id')
-        name = params.get('name')
-        description = params.get('description')
-        groups = params.get('groups')
-        task.progress(step_id, msg='Get configuration params')
+        cid = params.get("cid")
+        oid = params.get("id")
+        name = params.get("name")
+        description = params.get("description")
+        groups = params.get("groups")
+        task.progress(step_id, msg="Get configuration params")
 
         # create template
         container = task.get_container(cid)
         conn = container.conn
         inst = conn.template.create(name, groups, description=description)  # ex. of response: {'templateids':['10086']}
-        inst_id = inst['templateids'][0]
-        task.progress(step_id, msg='Create template %s' % inst_id)
+        inst_id = inst["templateids"][0]
+        task.progress(step_id, msg="Create template %s" % inst_id)
 
         # save current data in shared area
-        params['ext_id'] = inst_id
-        params['attrib'] = {}
-        task.progress(step_id, msg='Update shared area')
+        params["ext_id"] = inst_id
+        params["attrib"] = {}
+        task.progress(step_id, msg="Update shared area")
 
         return oid, params
 
@@ -59,8 +59,8 @@ class ZabbixTemplateTask(AbstractResourceTask):
         :param dict params: step params
         :return: oid, params
         """
-        cid = params.get('cid')
-        oid = params.get('id')
+        cid = params.get("cid")
+        oid = params.get("id")
 
         container = task.get_container(cid)
         conn = container.conn
@@ -72,9 +72,9 @@ class ZabbixTemplateTask(AbstractResourceTask):
                 conn.template.get(resource.ext_id)
                 # delete template
                 conn.template.delete(resource.ext_id)
-                task.progress(step_id, msg='Delete template %s' % resource.ext_id)
+                task.progress(step_id, msg="Delete template %s" % resource.ext_id)
             except:
-                task.progress(step_id, msg='Template %s does not exist anymore' % resource.ext_id)
+                task.progress(step_id, msg="Template %s does not exist anymore" % resource.ext_id)
 
         return oid, params
 

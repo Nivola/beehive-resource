@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beecell.simple import id_gen
 import logging
@@ -14,12 +14,12 @@ logger = logging.getLogger(__name__)
 
 
 class OntapNetappVolume(OntapNetappResource):
-    objdef = 'OntapNetapp.Volume'
-    objuri = 'volumes'
-    objname = 'volume'
-    objdesc = 'OntapNetapp Volume'
+    objdef = "OntapNetapp.Volume"
+    objuri = "volumes"
+    objname = "volume"
+    objdesc = "OntapNetapp Volume"
 
-    default_tags = ['ontap', 'storage']
+    default_tags = ["ontap", "storage"]
     # task_base_path = 'beehive_resource.plugins.ontap_netapp.task_v2.ontap_volume.OntapNetappVolumeTask.'
 
     def __init__(self, *args, **kvargs):
@@ -92,18 +92,18 @@ class OntapNetappVolume(OntapNetappResource):
         name = entity[4]
         status = entity[6]
 
-        objid = '%s//%s' % (container.objid, id_gen())
+        objid = "%s//%s" % (container.objid, id_gen())
 
         res = {
-            'resource_class': resclass,
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent_id,
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent_id,
+            "tags": resclass.default_tags,
         }
 
         return res
@@ -162,14 +162,14 @@ class OntapNetappVolume(OntapNetappResource):
         :return: kvargs
         :raise ApiManagerError:
         """
-        netapp_volume_id = kvargs.get('ontap_volume_id')
+        netapp_volume_id = kvargs.get("ontap_volume_id")
         netapp_volume = OntapNetappVolume.get_remote_volume(controller, netapp_volume_id, container, netapp_volume_id)
         if netapp_volume == {}:
-            raise ApiManagerError('ontap netapp volume %s was not found' % netapp_volume_id)
-        kvargs['ext_id'] = netapp_volume_id
+            raise ApiManagerError("ontap netapp volume %s was not found" % netapp_volume_id)
+        kvargs["ext_id"] = netapp_volume_id
 
         # get svm
-        netapp_svm_id = dict_get(netapp_volume, 'svm.uuid')
+        netapp_svm_id = dict_get(netapp_volume, "svm.uuid")
         # netapp_svm = container.client.svm.get(netapp_svm_id)
 
         # check netapp svm resource exists
@@ -178,28 +178,26 @@ class OntapNetappVolume(OntapNetappResource):
         # create netapp svm resource
         if svm_resource is None:
             netapp_svm = OntapNetappVolume.get_remote_svm(controller, netapp_svm_id, container, netapp_svm_id)
-            name = netapp_svm.get('name')
+            name = netapp_svm.get("name")
             svm_conf = {
-                'name': name,
-                'desc': name,
-                'ext_id': netapp_svm_id,
-                'parent': None,
+                "name": name,
+                "desc": name,
+                "ext_id": netapp_svm_id,
+                "parent": None,
             }
             resource_uuid, code = container.resource_factory(OntapNetappSvm, **svm_conf)
-            svm_resource = controller.get_simple_resource(resource_uuid.get('uuid'))
+            svm_resource = controller.get_simple_resource(resource_uuid.get("uuid"))
 
-        kvargs['attribute']['svm'] = svm_resource.oid
+        kvargs["attribute"]["svm"] = svm_resource.oid
 
         return kvargs
 
     def pre_update(self, *args, **kvargs):
-        """Pre update function. This function is used in update method.
-        """
+        """Pre update function. This function is used in update method."""
         return kvargs
 
     def pre_delete(self, *args, **kvargs):
-        """Pre delete function. This function is used in delete method.
-        """
+        """Pre delete function. This function is used in delete method."""
         return kvargs
 
     #
@@ -214,14 +212,14 @@ class OntapNetappVolume(OntapNetappResource):
         """
         info = OntapNetappResource.info(self)
 
-        info['details'] = self.ext_obj
-        info['size'] = self.get_size()
+        info["details"] = self.ext_obj
+        info["size"] = self.get_size()
         if self.svm:
-            info['svm'] = self.svm.small_info()
+            info["svm"] = self.svm.small_info()
         if self.snapmirror:
-            info['snapmirror'] = self.has_snapmirror()
-        info['export_locations'] = self.get_export_locations()
-        info['share_proto'] = self.get_share_proto()
+            info["snapmirror"] = self.has_snapmirror()
+        info["export_locations"] = self.get_export_locations()
+        info["share_proto"] = self.get_share_proto()
         return info
 
     def detail(self):
@@ -232,56 +230,56 @@ class OntapNetappVolume(OntapNetappResource):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = OntapNetappResource.detail(self)
-        info['size'] = self.get_size()
+        info["size"] = self.get_size()
         if self.svm:
-            info['svm'] = self.svm.small_info()
+            info["svm"] = self.svm.small_info()
         if self.snapmirror:
-            info['snapmirror'] = self.has_snapmirror()
-        info['export_locations'] = self.get_export_locations()
-        info['share_proto'] = self.get_share_proto()
+            info["snapmirror"] = self.has_snapmirror()
+        info["export_locations"] = self.get_export_locations()
+        info["share_proto"] = self.get_share_proto()
         return info
 
     def get_size(self):
         res = 0
         if self.ext_obj is not None:
-            res = round(dict_get(self.ext_obj, 'space.size')/1073741824, 3)
+            res = round(dict_get(self.ext_obj, "space.size") / 1073741824, 3)
         return res
 
     def get_svm(self):
         """get volume svm"""
-        svm_resource_id = self.get_attribs('svm')
+        svm_resource_id = self.get_attribs("svm")
         self.svm = self.controller.get_resource(svm_resource_id)
 
     def get_share_proto(self):
         """get principal share protocol"""
         res = None
         if self.ext_obj is not None:
-            nas_security_style = dict_get(self.ext_obj, 'nas.security_style')
-            if nas_security_style == 'unix':
-                res = 'nfs'
-            elif nas_security_style == 'ntfs':
-                res = 'cifs'
+            nas_security_style = dict_get(self.ext_obj, "nas.security_style")
+            if nas_security_style == "unix":
+                res = "nfs"
+            elif nas_security_style == "ntfs":
+                res = "cifs"
 
-        self.logger.debug('get volume %s share protocol: %s' % (self.oid, res))
+        self.logger.debug("get volume %s share protocol: %s" % (self.oid, res))
         return res
 
     def get_export_locations(self):
         """get share export lcoations"""
         res = []
         if self.ext_obj is not None and self.svm is not None:
-            nas_security_style = dict_get(self.ext_obj, 'nas.security_style')
+            nas_security_style = dict_get(self.ext_obj, "nas.security_style")
             for ip_interface in self.svm.get_ip_interfaces():
-                if nas_security_style == 'unix':
-                    nas_path = dict_get(self.ext_obj, 'nas.path')
-                    export_location = '%s:%s' % (ip_interface.get('ip'), nas_path)
+                if nas_security_style == "unix":
+                    nas_path = dict_get(self.ext_obj, "nas.path")
+                    export_location = "%s:%s" % (ip_interface.get("ip"), nas_path)
                     res.append(export_location)
-                elif nas_security_style == 'ntfs':
-                    nas_path = dict_get(self.ext_obj, 'nas.path', default='')
-                    nas_path = nas_path.replace('/', '\\')
-                    export_location = '\\\\%s%s' % (ip_interface.get('ip'), nas_path)
+                elif nas_security_style == "ntfs":
+                    nas_path = dict_get(self.ext_obj, "nas.path", default="")
+                    nas_path = nas_path.replace("/", "\\")
+                    export_location = "\\\\%s%s" % (ip_interface.get("ip"), nas_path)
                     res.append(export_location)
 
-        self.logger.debug('get volume %s export locations: %s' % (self.oid, res))
+        self.logger.debug("get volume %s export locations: %s" % (self.oid, res))
         return res
 
     def grant_list(self):
@@ -308,55 +306,58 @@ class OntapNetappVolume(OntapNetappResource):
                 }
             ]
         """
-        self.verify_permisssions('use')
+        self.verify_permisssions("use")
         res = []
         if self.ext_obj is not None and self.svm is not None:
-            security_style = dict_get(self.ext_obj, 'nas.security_style')
-            if security_style == 'ntfs':
+            security_style = dict_get(self.ext_obj, "nas.security_style")
+            if security_style == "ntfs":
                 shares = self.get_remote_cifs_shares(self.controller, self.ext_id, self.container, self.ext_id)
                 for share in shares:
-                    for rule in share.pop('acls', []):
-                        if rule.get('permission', None) != 'full_control':
-                            access_level = 'ro'
+                    for rule in share.pop("acls", []):
+                        if rule.get("permission", None) != "full_control":
+                            access_level = "ro"
                         else:
-                            access_level = 'rw'
+                            access_level = "rw"
                         acl = {
-                            'access_key': None,
-                            'created_at': None,
-                            'updated_at': None,
-                            'access_type': 'ip',
-                            'access_to': dict_get(rule, 'user_or_group'),
-                            'access_level': access_level,
-                            'state': 'active',
-                            'id': None}
+                            "access_key": None,
+                            "created_at": None,
+                            "updated_at": None,
+                            "access_type": "ip",
+                            "access_to": dict_get(rule, "user_or_group"),
+                            "access_level": access_level,
+                            "state": "active",
+                            "id": None,
+                        }
                         res.append(acl)
-            elif security_style == 'unix':
-                export_policy = dict_get(self.ext_obj, 'nas.export_policy')
+            elif security_style == "unix":
+                export_policy = dict_get(self.ext_obj, "nas.export_policy")
                 if export_policy is not None:
-                    policy_id = export_policy.get('id')
-                    export_policy = self.get_remote_nfs_export_policy(self.controller, policy_id, self.container,
-                                                                      policy_id)
-                    for rule in export_policy.pop('rules', []):
-                        if rule.get('rw_rule', None) != 'never':
-                            access_level = 'ro'
+                    policy_id = export_policy.get("id")
+                    export_policy = self.get_remote_nfs_export_policy(
+                        self.controller, policy_id, self.container, policy_id
+                    )
+                    for rule in export_policy.pop("rules", []):
+                        if rule.get("rw_rule", None) != "never":
+                            access_level = "ro"
                         else:
-                            access_level = 'rw'
+                            access_level = "rw"
                         acl = {
-                            'access_key': None,
-                            'created_at': None,
-                            'updated_at': None,
-                            'access_type': 'ip',
-                            'access_to': dict_get(rule, 'clients.0.match'),
-                            'access_level': access_level,
-                            'state': 'active',
-                            'id': rule.get('index')}
+                            "access_key": None,
+                            "created_at": None,
+                            "updated_at": None,
+                            "access_type": "ip",
+                            "access_to": dict_get(rule, "clients.0.match"),
+                            "access_level": access_level,
+                            "state": "active",
+                            "id": rule.get("index"),
+                        }
                         res.append(acl)
         return res
 
     def get_snapmirror(self):
         """get volume snapmirror config"""
-        if self.ext_obj is not None and dict_get(self.ext_obj, 'snapmirror.is_protected', default=False) is True:
-            ext_id = '%s:%s' % (self.svm.name, self.ext_obj.get('name'))
+        if self.ext_obj is not None and dict_get(self.ext_obj, "snapmirror.is_protected", default=False) is True:
+            ext_id = "%s:%s" % (self.svm.name, self.ext_obj.get("name"))
             snapmirror_info = self.get_remote_snapmirror(self.controller, self.ext_id, self.container, ext_id)
 
             # # get destination container
@@ -368,7 +369,7 @@ class OntapNetappVolume(OntapNetappResource):
 
             # get destination volume
             try:
-                svm, volume = dict_get(snapmirror_info, 'destination.path').split(':')
+                svm, volume = dict_get(snapmirror_info, "destination.path").split(":")
                 volume = self.controller.get_resource(volume)
                 volume_info = volume.small_info()
             except:
@@ -378,17 +379,17 @@ class OntapNetappVolume(OntapNetappResource):
                 # 'source': {
                 #     'path': dict_get(snapmirror_info, 'source.path')
                 # },
-                'dest': {
+                "dest": {
                     # 'container': container.info(),
-                    'volume': volume_info
+                    "volume": volume_info
                     # 'path': dict_get(snapmirror_info, 'destination.path'),
                 },
-                'id': dict_get(snapmirror_info, 'uuid'),
-                'policy': dict_get(snapmirror_info, 'policy'),
+                "id": dict_get(snapmirror_info, "uuid"),
+                "policy": dict_get(snapmirror_info, "policy"),
             }
 
     def has_snapmirror(self):
         """check if snapmirror is configured"""
-        if self.ext_obj is not None and dict_get(self.ext_obj, 'snapmirror.is_protected', default=False) is True:
+        if self.ext_obj is not None and dict_get(self.ext_obj, "snapmirror.is_protected", default=False) is True:
             return True
         return False

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from celery.utils.log import get_task_logger
 
@@ -32,30 +33,33 @@ def task_vpc_assign_network(self, options, network_id):
     """
     self.set_operation()
     params = self.get_shared_data()
-    
+
     # input params
-    cid = params.get('cid')
-    oid = params.get('id')
-    self.update('PROGRESS', msg='Set configuration params')
+    cid = params.get("cid")
+    oid = params.get("id")
+    self.update("PROGRESS", msg="Set configuration params")
 
     # get provider
     self.get_session()
     resource = self.get_resource(oid)
     network = self.get_resource(network_id)
-    self.update('PROGRESS', msg='Get vpc %s resource' % oid)
+    self.update("PROGRESS", msg="Get vpc %s resource" % oid)
 
     # link network to vpc
     self.get_session()
     if isinstance(network, SiteNetwork):
         site_id = network.parent_id
-        attributes = {'reuse': True}
+        attributes = {"reuse": True}
     if isinstance(network, PrivateNetwork):
         site_id = network.get_site().oid
         attributes = {}
 
-    resource.add_link('%s-%s-network-link' % (oid, network_id), 'relation.%s' % site_id, network_id,
-                      attributes=attributes)
-    self.update('PROGRESS', msg='Link network %s to vpc %s' % (network_id, oid))
+    resource.add_link(
+        "%s-%s-network-link" % (oid, network_id),
+        "relation.%s" % site_id,
+        network_id,
+        attributes=attributes,
+    )
+    self.update("PROGRESS", msg="Link network %s to vpc %s" % (network_id, oid))
 
     return oid
-

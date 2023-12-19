@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beecell.simple import id_gen
 from beehive.common.task_v2 import task_step
@@ -9,8 +10,8 @@ from beehive_resource.task_v2 import AbstractResourceTask, task_manager
 
 
 class AbstractProviderResourceTask(AbstractResourceTask):
-    """AbstractProviderResource task
-    """
+    """AbstractProviderResource task"""
+
     def __init__(self, *args, **kwargs):
         super(AbstractProviderResourceTask, self).__init__(*args, **kwargs)
 
@@ -24,23 +25,30 @@ class AbstractProviderResourceTask(AbstractResourceTask):
         :param resource: resource reference
         :return: orchestrator helper
         """
-        from beehive_resource.plugins.provider.task_v2.openstack import ProviderOpenstack
+        from beehive_resource.plugins.provider.task_v2.openstack import (
+            ProviderOpenstack,
+        )
         from beehive_resource.plugins.provider.task_v2.vsphere import ProviderVsphere
         from beehive_resource.plugins.provider.task_v2.ontap import ProviderNetappOntap
         from beehive_resource.plugins.provider.task_v2.awx import ProviderAwx
         from beehive_resource.plugins.provider.task_v2.elk import ProviderElk
         from beehive_resource.plugins.provider.task_v2.grafana import ProviderGrafana
+        from beehive_resource.plugins.provider.task_v2.zabbix import ProviderZabbix
+        from beehive_resource.plugins.provider.task_v2.veeam import ProviderVeeam
+
         helpers = {
-            'vsphere': ProviderVsphere,
-            'openstack': ProviderOpenstack,
-            'ontap': ProviderNetappOntap,
-            'awx': ProviderAwx,
-            'elk': ProviderElk,
-            'grafana': ProviderGrafana
+            "vsphere": ProviderVsphere,
+            "openstack": ProviderOpenstack,
+            "ontap": ProviderNetappOntap,
+            "awx": ProviderAwx,
+            "elk": ProviderElk,
+            "grafana": ProviderGrafana,
+            "zabbix": ProviderZabbix,
+            "veeam": ProviderVeeam,
         }
         helper = helpers.get(orchestrator_type, None)
         if helper is None:
-            raise TaskError('Helper for orchestrator %s does not exist' % orchestrator_type)
+            raise TaskError("Helper for orchestrator %s does not exist" % orchestrator_type)
 
         res = helper(task, step_id, orchestrator, resource)
         return res
@@ -55,14 +63,14 @@ class AbstractProviderResourceTask(AbstractResourceTask):
         :param dict params: step params
         :return: True, params
         """
-        resource = params.get('id')
+        resource = params.get("id")
 
         # get all child resources
-        childs = task.get_orm_linked_resources(resource, link_type='relation', container_id=orchestrator_id)
-        logger.debug('+++++ remove_physical_resource_step - childs: {}'.format(childs))
+        childs = task.get_orm_linked_resources(resource, link_type="relation", container_id=orchestrator_id)
+        logger.debug("+++++ remove_physical_resource_step - childs: {}".format(childs))
 
-        helper = task.get_orchestrator(orchestrator_type, task, step_id, {'id': orchestrator_id}, resource)
-        logger.debug('+++++ remove_physical_resource_step - helper: {}'.format(type(helper)))
+        helper = task.get_orchestrator(orchestrator_type, task, step_id, {"id": orchestrator_id}, resource)
+        logger.debug("+++++ remove_physical_resource_step - helper: {}".format(type(helper)))
         resp = helper.remove_resource(childs)
         # task.progress(step_id, msg='Remove remote resource %s' % resource)
 
@@ -78,15 +86,15 @@ class AbstractProviderResourceTask(AbstractResourceTask):
         :param dict params: step params
         :return: True, params
         """
-        oid = params.get('id')
-        action = params.get('action')
-        action_params = params.get('action_params')
+        oid = params.get("id")
+        action = params.get("action")
+        action_params = params.get("action_params")
         resource = task.get_resource(oid)
         if action_params is None:
             action_params = {}
         prepared_task, code = resource.action(action, sync=True, **action_params)
         run_sync_task(prepared_task, task, step_id)
-        task.progress(step_id, msg='run sync scheduled action %s' % action)
+        task.progress(step_id, msg="run sync scheduled action %s" % action)
 
         return True, params
 
@@ -115,32 +123,32 @@ class AbstractProviderResourceTask(AbstractResourceTask):
         awx_job_template = template
 
         # get container from orchestrator
-        awx_container = task.get_container(orchestrator['id'])
+        awx_container = task.get_container(orchestrator["id"])
 
         # set awx_job_template params
         awx_job_template_params = {
-            'name': awx_job_template.get('name'),
-            'desc': awx_job_template.get('desc'),
-            'add': {
-                'organization': orchestrator['config'].get('organization'),
-                'inventory': awx_job_template.get('inventory'),
-                'project': awx_job_template.get('project'),
-                'playbook': awx_job_template.get('playbook'),
-                'verbosity': awx_job_template.get('verbosity'),
+            "name": awx_job_template.get("name"),
+            "desc": awx_job_template.get("desc"),
+            "add": {
+                "organization": orchestrator["config"].get("organization"),
+                "inventory": awx_job_template.get("inventory"),
+                "project": awx_job_template.get("project"),
+                "playbook": awx_job_template.get("playbook"),
+                "verbosity": awx_job_template.get("verbosity"),
             },
-            'launch': {
-                'ssh_cred_id': awx_job_template.get('ssh_cred_id'),
-                'extra_vars': awx_job_template.get('extra_vars'),
+            "launch": {
+                "ssh_cred_id": awx_job_template.get("ssh_cred_id"),
+                "extra_vars": awx_job_template.get("extra_vars"),
             },
-            'attribute': {},
-            'sync': True
+            "attribute": {},
+            "sync": True,
         }
 
         # create awx_job_template
         prepared_task, code = awx_container.resource_factory(AwxJobTemplate, **awx_job_template_params)
-        job_template_id = prepared_task['uuid']
+        job_template_id = prepared_task["uuid"]
         run_sync_task(prepared_task, task, step_id)
-        task.progress(step_id, msg='Create and run awx job template %s' % job_template_id)
+        task.progress(step_id, msg="Create and run awx job template %s" % job_template_id)
 
         return job_template_id, params
 
@@ -160,8 +168,9 @@ class ProviderResourceAddTask(AbstractProviderResourceTask):
     :param attribute: attribute
     :param tags: list of tags to add
     """
+
     abstract = False
-    name = 'provider_resource_add_task'
+    name = "provider_resource_add_task"
     entity_class = Resource
 
 
@@ -194,8 +203,9 @@ class ProviderResourceImportTask(AbstractProviderResourceTask):
     :param objid: resource objid
     :param ext_id: physical id
     """
+
     abstract = False
-    name = 'provider_resource_import_task'
+    name = "provider_resource_import_task"
     entity_class = Resource
 
 
@@ -208,8 +218,9 @@ class ProviderResourceUpdateTask(AbstractProviderResourceTask):
     :param objid: resource objid
     :param ext_id: physical id
     """
+
     abstract = False
-    name = 'provider_resource_update_task'
+    name = "provider_resource_update_task"
     entity_class = Resource
 
 
@@ -222,8 +233,9 @@ class ProviderResourcePatchTask(AbstractProviderResourceTask):
     :param objid: resource objid
     :param ext_id: physical id
     """
+
     abstract = False
-    name = 'provider_resource_patch_task'
+    name = "provider_resource_patch_task"
     entity_class = Resource
 
 
@@ -235,8 +247,9 @@ class ProviderResourceDeleteTask(AbstractProviderResourceTask):
     :param uuid: return resource id, params
     :param objid: resource objid
     """
+
     abstract = False
-    name = 'provider_resource_delete_task'
+    name = "provider_resource_delete_task"
     entity_class = Resource
 
 
@@ -248,22 +261,23 @@ class ProviderResourceExpungeTask(AbstractProviderResourceTask):
     :param uuid: return resource id, params
     :param objid: resource objid
     """
+
     abstract = False
-    name = 'provider_resource_expunge_task'
+    name = "provider_resource_expunge_task"
     entity_class = Resource
 
 
 class ProviderResourceActionTask(AbstractProviderResourceTask):
-    """ResourceAction task
-    """
+    """ResourceAction task"""
+
     abstract = False
-    name = 'provider_resource_action_task'
+    name = "provider_resource_action_task"
     entity_class = Resource
 
 
 class ProviderResourceScheduledActionTask(AbstractProviderResourceTask):
     abstract = False
-    name = 'provider_resource_scheduled_action_task'
+    name = "provider_resource_scheduled_action_task"
     entity_class = Resource
 
 
@@ -288,11 +302,11 @@ class AbstractProviderHelper(object):
         :param resource: resource reference
         :param controller: resource controller [optional]
         """
-        self.logger = getLogger(self.__class__.__module__ + '.' + self.__class__.__name__)
+        self.logger = getLogger(self.__class__.__module__ + "." + self.__class__.__name__)
 
         self.task = task
         self.step = step
-        self.cid = orchestrator.get('id', None)
+        self.cid = orchestrator.get("id", None)
         self.orchestrator = orchestrator
         if task is not None:
             self.controller = task.controller
@@ -342,12 +356,12 @@ class AbstractProviderHelper(object):
             return self.controller.get_simple_resource(oid)
 
     def create_resource(self, *args, **kvargs):
-        kvargs['sync'] = True
+        kvargs["sync"] = True
         prepared_task, code = self.container.resource_factory(*args, **kvargs)
-        self.progress('start creating resource %s %s' % (args[0], kvargs['name']))
+        self.progress("start creating resource %s %s" % (args[0], kvargs["name"]))
         return prepared_task
 
-    def run_sync_task(self, prepared_task, msg=''):
+    def run_sync_task(self, prepared_task, msg=""):
         res = run_sync_task(prepared_task, self.task, self.step)
         self.progress(msg)
         return res
@@ -357,12 +371,12 @@ class AbstractProviderHelper(object):
         if attrib is None:
             attrib = {}
         if prepared_task is not None:
-            resource_to_link = self.get_simple_resource(prepared_task['uuid'])
+            resource_to_link = self.get_simple_resource(prepared_task["uuid"])
             oid = resource_to_link.oid
         else:
             oid = resource_to_link.oid
-        self.resource.add_link('%s-%s-link' % (id_gen(), oid), 'relation', oid, attributes=attrib)
-        self.progress('setup link to resource %s' % oid)
+        self.resource.add_link("%s-%s-link" % (id_gen(), oid), "relation", oid, attributes=attrib)
+        self.progress("setup link to resource %s" % oid)
         return resource_to_link
 
 

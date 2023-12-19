@@ -1,26 +1,26 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beecell.simple import id_gen
 from beehive_resource.plugins.vsphere.entity import NsxResource
 
 
 class NsxDlr(NsxResource):
-    objdef = 'Vsphere.Nsx.NsxDlr'
-    objuri = 'nsx_dlrs'
-    objname = 'nsx_dlr'
-    objdesc = 'Vsphere Nsx distributed logical router'
-    
-    default_tags = ['vsphere', 'network']
-    task_path = 'beehive_resource.plugins.vsphere.task_v2.nsx_edge.NsxDlrTask.'
-    
+    objdef = "Vsphere.Nsx.NsxDlr"
+    objuri = "nsx_dlrs"
+    objname = "nsx_dlr"
+    objdesc = "Vsphere Nsx distributed logical router"
+
+    default_tags = ["vsphere", "network"]
+    task_path = "beehive_resource.plugins.vsphere.task_v2.nsx_edge.NsxDlrTask."
+
     def __init__(self, *args, **kvargs):
         """ """
         NsxResource.__init__(self, *args, **kvargs)
-        
+
         # child classes
-        self.child_classes = []        
+        self.child_classes = []
 
     #
     # discover, synchronize
@@ -38,10 +38,10 @@ class NsxDlr(NsxResource):
         """
         items = []
 
-        nsx_manager_id = container.conn.system.nsx.summary_info()['hostName']
+        nsx_manager_id = container.conn.system.nsx.summary_info()["hostName"]
         dlrs = container.conn.network.nsx.dlr.list()
         for dlr in dlrs:
-            items.append((dlr['objectId'], dlr['name'], nsx_manager_id, None))
+            items.append((dlr["objectId"], dlr["name"], nsx_manager_id, None))
 
         # add new item to final list
         res = []
@@ -50,7 +50,16 @@ class NsxDlr(NsxResource):
                 parent_id = item[2]
                 parent_class = item[3]
                 resclass = NsxDlr
-                res.append((resclass, item[0], parent_id, resclass.objdef, item[1], parent_class))
+                res.append(
+                    (
+                        resclass,
+                        item[0],
+                        parent_id,
+                        resclass.objdef,
+                        item[1],
+                        parent_class,
+                    )
+                )
 
         return res
 
@@ -66,13 +75,15 @@ class NsxDlr(NsxResource):
         items = []
         dlrs = container.conn.network.nsx.dlr.list()
         for dlr in dlrs:
-            items.append({
-                'id': dlr['objectId'],
-                'name': dlr['name'],
-            })
+            items.append(
+                {
+                    "id": dlr["objectId"],
+                    "name": dlr["name"],
+                }
+            )
 
         return items
-    
+
     @staticmethod
     def synchronize(container, entity):
         """Discover method used when synchronize beehive container with remote platform.
@@ -83,27 +94,27 @@ class NsxDlr(NsxResource):
             'attrib': .., 'parent': .., 'tags': .. }
         :raises ApiManagerError:
         """
-        resclass  = entity[0]
+        resclass = entity[0]
         ext_id = entity[1]
         parent_id = entity[2]
         name = entity[4]
         parent_class = entity[5]
-        
+
         parent = container.get_resource_by_extid(parent_id)
         parent_id = parent.oid
-        
-        objid = '%s//%s' % (parent.objid, id_gen())
-        
+
+        objid = "%s//%s" % (parent.objid, id_gen())
+
         res = {
-            'resource_class': resclass,
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent_id,
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent_id,
+            "tags": resclass.default_tags,
         }
         return res
 
@@ -126,16 +137,16 @@ class NsxDlr(NsxResource):
         remote_entities = container.conn.network.nsx.dlr.list()
 
         # create index of remote objs
-        remote_entities_index = {i['id']: i for i in remote_entities}
+        remote_entities_index = {i["id"]: i for i in remote_entities}
 
         for entity in entities:
             try:
                 ext_obj = remote_entities_index.get(entity.ext_id, None)
                 entity.set_physical_entity(ext_obj)
             except:
-                container.logger.warn('', exc_info=1)
+                container.logger.warn("", exc_info=1)
         return entities
-    
+
     def post_get(self):
         """Post get function. This function is used in get_entity method.
         Extend this function to extend description info returned after query.
@@ -148,7 +159,7 @@ class NsxDlr(NsxResource):
             self.set_physical_entity(ext_obj)
         except:
             pass
-    
+
     @staticmethod
     def pre_create(controller, container, *args, **kvargs):
         """Check input params before resource creation. This function is used  in container resource_factory method.
@@ -172,15 +183,12 @@ class NsxDlr(NsxResource):
         """
         # get parent manager
         manager = container.get_nsx_manager()
-        objid = '%s//%s' % (manager.objid, id_gen())
+        objid = "%s//%s" % (manager.objid, id_gen())
 
-        kvargs.update({
-            'objid': objid,
-            'parent': manager.oid
-        })  
-        
+        kvargs.update({"objid": objid, "parent": manager.oid})
+
         return kvargs
-    
+
     def pre_update(self, *args, **kvargs):
         """Pre update function. This function is used in update method.
 
@@ -190,12 +198,12 @@ class NsxDlr(NsxResource):
         :raises ApiManagerError:
         """
         steps = [
-            NsxDlr.task_path + 'update_resource_pre_step',
-            NsxDlr.task_path + 'update_resource_post_step'
+            NsxDlr.task_path + "update_resource_pre_step",
+            NsxDlr.task_path + "update_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
-    
+
     def pre_delete(self, *args, **kvargs):
         """Pre delete function. This function is used in delete method.
 
@@ -205,20 +213,20 @@ class NsxDlr(NsxResource):
         :raises ApiManagerError:
         """
         steps = [
-            NsxDlr.task_path + 'expunge_resource_pre_step',
-            NsxDlr.task_path + 'expunge_resource_post_step'
+            NsxDlr.task_path + "expunge_resource_pre_step",
+            NsxDlr.task_path + "expunge_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
-    
+
     #
     # info
-    #    
+    #
     def info(self):
         """Get info.
-        
+
         :return: Dictionary with capabilities.
-        :rtype: dict        
+        :rtype: dict
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = NsxResource.info(self)
@@ -226,18 +234,18 @@ class NsxDlr(NsxResource):
 
     def detail(self):
         """Get details.
-        
+
         :return: Dictionary with resource details.
-        :rtype: dict        
+        :rtype: dict
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         # verify permissions
         info = NsxResource.detail(self)
         try:
             if self.ext_obj is not None:
-                details = info['details']
+                details = info["details"]
                 details.update(self.container.conn.network.nsx.edge.info(self.ext_obj))
         except Exception as ex:
             self.logger.warn(ex)
-        
+
         return info

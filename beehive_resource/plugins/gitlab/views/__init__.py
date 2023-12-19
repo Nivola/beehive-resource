@@ -12,4 +12,4 @@ class GitlabApiView(ResourceApiView):
 
 
 class GitlabAPI(ApiView):
-    base = 'nrs/gitlab'
+    base = "nrs/gitlab"

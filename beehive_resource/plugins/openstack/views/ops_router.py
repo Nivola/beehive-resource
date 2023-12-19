@@ -1,19 +1,24 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive_resource.plugins.openstack.entity.ops_router import OpenstackRouter
 from beehive_resource.plugins.openstack.views import OpenstackAPI, OpenstackApiView
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
-from beehive.common.apimanager import PaginatedResponseSchema, SwaggerApiView, GetApiObjectRequestSchema,\
-    CrudApiObjectJobResponseSchema,  CrudApiJobResponseSchema
+from beehive.common.apimanager import (
+    PaginatedResponseSchema,
+    SwaggerApiView,
+    GetApiObjectRequestSchema,
+    CrudApiObjectJobResponseSchema,
+    CrudApiJobResponseSchema,
+)
 from beehive_resource.view import ResourceResponseSchema, ListResourcesRequestSchema
 from beehive_resource.plugins.openstack.entity.ops_project import OpenstackProject
 
 
 class OpenstackRouterApiView(OpenstackApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     resclass = OpenstackRouter
     parentclass = OpenstackProject
 
@@ -32,16 +37,11 @@ class ListRoutersResponseSchema(PaginatedResponseSchema):
 
 class ListRouters(OpenstackRouterApiView):
     definitions = {
-        'ListRoutersResponseSchema': ListRoutersResponseSchema,
+        "ListRoutersResponseSchema": ListRoutersResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(ListRoutersRequestSchema)
     parameters_schema = ListRoutersRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': ListRoutersResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListRoutersResponseSchema}})
 
     def get(self, controller, data, *args, **kwargs):
         """
@@ -57,15 +57,10 @@ class GetRouterResponseSchema(Schema):
 
 class GetRouter(OpenstackRouterApiView):
     definitions = {
-        'GetRouterResponseSchema': GetRouterResponseSchema,
+        "GetRouterResponseSchema": GetRouterResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetRouterResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetRouterResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -76,31 +71,44 @@ class GetRouter(OpenstackRouterApiView):
 
 
 class CreateRouterRouteRequestSchema(Schema):
-    destination = fields.String(example='0.0.0.0/0', required=True, description='destination')
-    nexthop = fields.String(example='123.45.67.89', required=True, description='nexthop')
+    destination = fields.String(example="0.0.0.0/0", required=True, description="destination")
+    nexthop = fields.String(example="123.45.67.89", required=True, description="nexthop")
 
 
 class CreateRouterExtNetIpRequestSchema(Schema):
-    subnet_id = fields.String(required=True, example='12', description='subnet id or uuid')
-    ip = fields.String(required=False, example='10.102.34.8', description='ip address')
+    subnet_id = fields.String(required=True, example="12", description="subnet id or uuid")
+    ip = fields.String(required=False, example="10.102.34.8", description="ip address")
 
 
 class CreateRouterExtNetRequestSchema(Schema):
-    network_id = fields.String(required=True, example='12', description='External network id or uuid')
-    external_fixed_ips = fields.Nested(CreateRouterExtNetIpRequestSchema, many=True, description='router external_ips',
-                                       allow_none=True)
+    network_id = fields.String(required=True, example="12", description="External network id or uuid")
+    external_fixed_ips = fields.Nested(
+        CreateRouterExtNetIpRequestSchema,
+        many=True,
+        description="router external_ips",
+        allow_none=True,
+    )
 
 
 class CreateRouterParamRequestSchema(Schema):
-    container = fields.String(required=True, example='12', description='container id, uuid or name')
-    name = fields.String(required=True, example='test', description='router name')
-    desc = fields.String(example='test', description='router description')
-    project = fields.String(required=True, example='1639', description='parent tenant/project id or uuid')
-    tags = fields.String(default='', example='tag1,tag2', description='Comma separated list of tags')
-    external_gateway_info = fields.Nested(CreateRouterExtNetRequestSchema, required=True,
-                                          description='External network refernce', allow_none=True)
-    routes = fields.Nested(CreateRouterRouteRequestSchema, required=False, many=True, allow_none=True,
-                           description='A list of host route dictionaries for the router')
+    container = fields.String(required=True, example="12", description="container id, uuid or name")
+    name = fields.String(required=True, example="test", description="router name")
+    desc = fields.String(example="test", description="router description")
+    project = fields.String(required=True, example="1639", description="parent tenant/project id or uuid")
+    tags = fields.String(default="", example="tag1,tag2", description="Comma separated list of tags")
+    external_gateway_info = fields.Nested(
+        CreateRouterExtNetRequestSchema,
+        required=True,
+        description="External network refernce",
+        allow_none=True,
+    )
+    routes = fields.Nested(
+        CreateRouterRouteRequestSchema,
+        required=False,
+        many=True,
+        allow_none=True,
+        description="A list of host route dictionaries for the router",
+    )
 
 
 class CreateRouterRequestSchema(Schema):
@@ -108,23 +116,18 @@ class CreateRouterRequestSchema(Schema):
 
 
 class CreateRouterBodyRequestSchema(Schema):
-    body = fields.Nested(CreateRouterRequestSchema, context='body')
+    body = fields.Nested(CreateRouterRequestSchema, context="body")
 
 
 class CreateRouter(OpenstackRouterApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'CreateRouterRequestSchema': CreateRouterRequestSchema,
-        'CrudApiObjectJobResponseSchema': CrudApiObjectJobResponseSchema
+        "CreateRouterRequestSchema": CreateRouterRequestSchema,
+        "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(CreateRouterBodyRequestSchema)
     parameters_schema = CreateRouterRequestSchema
-    responses = SwaggerApiView.setResponses({
-        202: {
-            'description': 'success',
-            'schema': CrudApiObjectJobResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def post(self, controller, data, *args, **kwargs):
         """
@@ -135,16 +138,21 @@ class CreateRouter(OpenstackRouterApiView):
 
 
 class UpdateRouterRoutesRequestSchema(Schema):
-    nexthop = fields.String(required=True, example='10.109.78.2', description='nexthop')
-    destination = fields.String(required=True, example='102.109.178.23/24', description='destination')
+    nexthop = fields.String(required=True, example="10.109.78.2", description="nexthop")
+    destination = fields.String(required=True, example="102.109.178.23/24", description="destination")
 
 
 class UpdateRouterParamRequestSchema(Schema):
-    name = fields.String(default='test')
-    desc = fields.String(default='test')
+    name = fields.String(default="test")
+    desc = fields.String(default="test")
     enabled = fields.Boolean(default=True)
-    routes = fields.Nested(UpdateRouterRoutesRequestSchema, many=True,
-                           required=False, description='List of custom routes', allow_none=True)
+    routes = fields.Nested(
+        UpdateRouterRoutesRequestSchema,
+        many=True,
+        required=False,
+        description="List of custom routes",
+        allow_none=True,
+    )
 
 
 class UpdateRouterRequestSchema(Schema):
@@ -152,22 +160,17 @@ class UpdateRouterRequestSchema(Schema):
 
 
 class UpdateRouterBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateRouterRequestSchema, context='body')
+    body = fields.Nested(UpdateRouterRequestSchema, context="body")
 
 
 class UpdateRouter(OpenstackRouterApiView):
     definitions = {
-        'UpdateRouterRequestSchema': UpdateRouterRequestSchema,
-        'CrudApiObjectJobResponseSchema': CrudApiObjectJobResponseSchema
+        "UpdateRouterRequestSchema": UpdateRouterRequestSchema,
+        "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(UpdateRouterBodyRequestSchema)
     parameters_schema = UpdateRouterRequestSchema
-    responses = SwaggerApiView.setResponses({
-        202: {
-            'description': 'success',
-            'schema': CrudApiObjectJobResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def put(self, controller, data, oid, *args, **kwargs):
         """
@@ -178,16 +181,9 @@ class UpdateRouter(OpenstackRouterApiView):
 
 
 class DeleteRouter(OpenstackRouterApiView):
-    definitions = {
-        'CrudApiObjectJobResponseSchema': CrudApiObjectJobResponseSchema
-    }
+    definitions = {"CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        202: {
-            'description': 'success',
-            'schema': CrudApiObjectJobResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def delete(self, controller, data, oid, *args, **kwargs):
         return self.expunge_resource(controller, oid)
@@ -199,15 +195,10 @@ class ListRouterPortsResponseSchema(Schema):
 
 class ListRouterPorts(OpenstackRouterApiView):
     definitions = {
-        'ListRouterPortsResponseSchema': ListRouterPortsResponseSchema,
+        "ListRouterPortsResponseSchema": ListRouterPortsResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': ListRouterPortsResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListRouterPortsResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -217,13 +208,12 @@ class ListRouterPorts(OpenstackRouterApiView):
         obj = self.get_resource_reference(controller, oid)
         data = obj.get_ports()
         res = [d.info() for d in data]
-        resp = {'router_ports':res,
-                'count':len(res)}
+        resp = {"router_ports": res, "count": len(res)}
         return resp
 
 
 class CreateRouterPortParamRequestSchema(Schema):
-    subnet_id = fields.String(required=True, example='123', description='subnet id, uuid')
+    subnet_id = fields.String(required=True, example="123", description="subnet id, uuid")
 
 
 class CreateRouterPortRequestSchema(Schema):
@@ -231,22 +221,17 @@ class CreateRouterPortRequestSchema(Schema):
 
 
 class CreateRouterPortBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(CreateRouterPortRequestSchema, context='body')
+    body = fields.Nested(CreateRouterPortRequestSchema, context="body")
 
 
 class CreateRouterPort(OpenstackRouterApiView):
     definitions = {
-        'CreateRouterPortRequestSchema': CreateRouterPortRequestSchema,
-        'CrudApiJobResponseSchema': CrudApiJobResponseSchema
+        "CreateRouterPortRequestSchema": CreateRouterPortRequestSchema,
+        "CrudApiJobResponseSchema": CrudApiJobResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(CreateRouterPortBodyRequestSchema)
     parameters_schema = CreateRouterPortRequestSchema
-    responses = SwaggerApiView.setResponses({
-        202: {
-            'description': 'success',
-            'schema': CrudApiObjectJobResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def post(self, controller, data, oid, *args, **kwargs):
         """
@@ -254,12 +239,12 @@ class CreateRouterPort(OpenstackRouterApiView):
         Add router port
         """
         router = self.get_resource_reference(controller, oid)
-        task = router.create_port(data.get('router_port'))
+        task = router.create_port(data.get("router_port"))
         return task
 
 
 class DeleteRouterPortParamRequestSchema(Schema):
-    subnet_id = fields.String(required=True, example='123', description='subnet id, uuid')
+    subnet_id = fields.String(required=True, example="123", description="subnet id, uuid")
 
 
 class DeleteRouterPortRequestSchema(Schema):
@@ -267,22 +252,17 @@ class DeleteRouterPortRequestSchema(Schema):
 
 
 class DeleteRouterPortBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(DeleteRouterPortRequestSchema, context='body')
+    body = fields.Nested(DeleteRouterPortRequestSchema, context="body")
 
 
 class DeleteRouterPort(OpenstackRouterApiView):
     definitions = {
-        'DeleteRouterPortRequestSchema': DeleteRouterPortRequestSchema,
-        'CrudApiJobResponseSchema': CrudApiJobResponseSchema
+        "DeleteRouterPortRequestSchema": DeleteRouterPortRequestSchema,
+        "CrudApiJobResponseSchema": CrudApiJobResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(DeleteRouterPortBodyRequestSchema)
     parameters_schema = DeleteRouterPortRequestSchema
-    responses = SwaggerApiView.setResponses({
-        202: {
-            'description': 'success',
-            'schema': CrudApiObjectJobResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def delete(self, controller, data, oid, *args, **kwargs):
         """
@@ -290,25 +270,25 @@ class DeleteRouterPort(OpenstackRouterApiView):
         Delete router port
         """
         router = self.get_resource_reference(controller, oid)
-        task = router.delete_port(data.get('router_port'))
+        task = router.delete_port(data.get("router_port"))
         return task
 
 
 class OpenstackRouterAPI(OpenstackAPI):
-    """Openstack base platform api routes:
-    """
+    """Openstack base platform api routes:"""
+
     @staticmethod
     def register_api(module, **kwargs):
         base = OpenstackAPI.base
         rules = [
-            ('%s/routers' % base, 'GET', ListRouters, {}),
-            ('%s/routers/<oid>' % base, 'GET', GetRouter, {}),
-            ('%s/routers' % base, 'POST', CreateRouter, {}),
-            ('%s/routers/<oid>' % base, 'PUT', UpdateRouter, {}),
-            ('%s/routers/<oid>' % base, 'DELETE', DeleteRouter, {}),
-            ('%s/routers/<oid>/ports' % base, 'GET', ListRouterPorts, {}),
-            ('%s/routers/<oid>/ports' % base, 'POST', CreateRouterPort, {}),
-            ('%s/routers/<oid>/ports' % base, 'DELETE', DeleteRouterPort, {}),
+            ("%s/routers" % base, "GET", ListRouters, {}),
+            ("%s/routers/<oid>" % base, "GET", GetRouter, {}),
+            ("%s/routers" % base, "POST", CreateRouter, {}),
+            ("%s/routers/<oid>" % base, "PUT", UpdateRouter, {}),
+            ("%s/routers/<oid>" % base, "DELETE", DeleteRouter, {}),
+            ("%s/routers/<oid>/ports" % base, "GET", ListRouterPorts, {}),
+            ("%s/routers/<oid>/ports" % base, "POST", CreateRouterPort, {}),
+            ("%s/routers/<oid>/ports" % base, "DELETE", DeleteRouterPort, {}),
         ]
 
         OpenstackAPI.register_api(module, rules, **kwargs)

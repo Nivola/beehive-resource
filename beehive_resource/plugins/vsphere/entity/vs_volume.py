@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive_resource.plugins.vsphere.entity import VsphereResource
 from beehive_resource.plugins.vsphere.entity.vs_volumetype import VsphereVolumeType
@@ -9,13 +9,13 @@ from beehive.common.data import trace
 
 
 class VsphereVolume(VsphereResource):
-    objdef = 'Vsphere.DataCenter.Folder.volume'
-    objuri = 'volumes'
-    objname = 'volume'
-    objdesc = 'Vsphere volumes'
+    objdef = "Vsphere.DataCenter.Folder.volume"
+    objuri = "volumes"
+    objname = "volume"
+    objdesc = "Vsphere volumes"
 
-    default_tags = ['vsphere', 'volume']
-    task_path = 'beehive_resource.plugins.vsphere.task_v2.vs_volume.VolumeTask.'
+    default_tags = ["vsphere", "volume"]
+    task_path = "beehive_resource.plugins.vsphere.task_v2.vs_volume.VolumeTask."
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -71,15 +71,15 @@ class VsphereVolume(VsphereResource):
         objid = None
 
         res = {
-            'resource_class': resclass,
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent_id,
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent_id,
+            "tags": resclass.default_tags,
         }
         return res
 
@@ -143,36 +143,36 @@ class VsphereVolume(VsphereResource):
         """
         from .vs_server import VsphereServer
 
-        volume_type = container.get_simple_resource(kvargs.get('volume_type'), entity_class=VsphereVolumeType)
+        volume_type = container.get_simple_resource(kvargs.get("volume_type"), entity_class=VsphereVolumeType)
         bootable = False
 
         # get image
-        if kvargs.get('imageRef', None) is not None:
-            obj = container.get_simple_resource(kvargs.get('imageRef'), entity_class=VsphereServer)
-            kvargs['image'] = obj.uuid
+        if kvargs.get("imageRef", None) is not None:
+            obj = container.get_simple_resource(kvargs.get("imageRef"), entity_class=VsphereServer)
+            kvargs["image"] = obj.uuid
             bootable = True
 
         # get source_volid
-        if kvargs.get('source_volid', None) is not None:
-            obj = container.get_simple_resource(kvargs.get('source_volid'), entity_class=VsphereVolume)
-            kvargs['volume'] = obj.uuid
+        if kvargs.get("source_volid", None) is not None:
+            obj = container.get_simple_resource(kvargs.get("source_volid"), entity_class=VsphereVolume)
+            kvargs["volume"] = obj.uuid
             bootable = obj.is_bootable()
 
-        kvargs['attribute'] = {
-            'size': kvargs.pop('size'),
-            'volume_type': volume_type.uuid,
-            'metadata': kvargs.pop('metadata', {}),
-            'source_volume': kvargs.pop('volume', None),
-            'source_image': kvargs.pop('image', None),
-            'bootable': bootable,
-            'encrypted': False
+        kvargs["attribute"] = {
+            "size": kvargs.pop("size"),
+            "volume_type": volume_type.uuid,
+            "metadata": kvargs.pop("metadata", {}),
+            "source_volume": kvargs.pop("volume", None),
+            "source_image": kvargs.pop("image", None),
+            "bootable": bootable,
+            "encrypted": False,
         }
 
         steps = [
-            VsphereVolume.task_path + 'create_resource_pre_step',
-            VsphereVolume.task_path + 'create_resource_post_step'
+            VsphereVolume.task_path + "create_resource_pre_step",
+            VsphereVolume.task_path + "create_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
     def pre_update(self, *args, **kvargs):
@@ -185,9 +185,9 @@ class VsphereVolume(VsphereResource):
         """
         kvargs = VsphereResource.pre_update(self, *args, **kvargs)
 
-        kvargs['attribute'] = {
-            'size': kvargs.pop('size', None),
-            'metadata': kvargs.pop('metadata', None),
+        kvargs["attribute"] = {
+            "size": kvargs.pop("size", None),
+            "metadata": kvargs.pop("metadata", None),
         }
 
         return kvargs
@@ -203,10 +203,10 @@ class VsphereVolume(VsphereResource):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = VsphereResource.info(self)
-        info['details'] = self.get_attribs()
-        info['details']['status'] = 'available'
-        if self.ext_id is not None and self.ext_id != '':
-            info['details']['status'] = 'in-use'
+        info["details"] = self.get_attribs()
+        info["details"]["status"] = "available"
+        if self.ext_id is not None and self.ext_id != "":
+            info["details"]["status"] = "in-use"
         return info
 
     def detail(self):
@@ -217,10 +217,10 @@ class VsphereVolume(VsphereResource):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = VsphereResource.detail(self)
-        info['details'] = self.get_attribs()
-        info['details']['status'] = 'available'
-        if self.ext_id is not None and self.ext_id != '':
-            info['details']['status'] = 'in-use'
+        info["details"] = self.get_attribs()
+        info["details"]["status"] = "available"
+        if self.ext_id is not None and self.ext_id != "":
+            info["details"]["status"] = "in-use"
         return info
 
     def get_size(self):
@@ -228,40 +228,40 @@ class VsphereVolume(VsphereResource):
 
         :return: volume size
         """
-        return int(self.get_attribs('size'))
+        return int(self.get_attribs("size"))
 
     def is_bootable(self):
         """Get bootable attribute
 
         :return: volume bootable
         """
-        return str2bool(self.get_attribs('bootable'))
+        return str2bool(self.get_attribs("bootable"))
 
     def get_disk_index(self):
         """Get disk index
 
         :return: disk index
         """
-        return self.name.split('-')[-1]
+        return self.name.split("-")[-1]
 
     def is_encrypted(self):
         """Get encrypted attribute
 
         :return: volume encrypted
         """
-        return str2bool(self.get_attribs('encrypted'))
+        return str2bool(self.get_attribs("encrypted"))
 
     def get_volume_type(self):
         """Get volume type
 
         :return: volume type
         """
-        return self.container.get_resource(self.get_attribs('volume_type'))
+        return self.container.get_resource(self.get_attribs("volume_type"))
 
     #
     # snapshot
     #
-    @trace(op='use')
+    @trace(op="use")
     def exist_snapshot(self, snapshot_id):
         """Check volume snapshot exists
 
@@ -271,7 +271,7 @@ class VsphereVolume(VsphereResource):
         """
         return False
 
-    @trace(op='use')
+    @trace(op="use")
     def list_snapshots(self):
         """List volume snapshots
 
@@ -279,9 +279,9 @@ class VsphereVolume(VsphereResource):
         :raise ApiManagerError:
         """
         # verify permissions
-        self.verify_permisssions('use')
+        self.verify_permisssions("use")
 
         res = []
 
-        self.logger.debug('Get vsphere volume %s snapshot: %s' % (self.uuid, res))
+        self.logger.debug("Get vsphere volume %s snapshot: %s" % (self.uuid, res))
         return res

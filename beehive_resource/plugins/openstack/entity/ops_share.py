@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beecell.simple import truncate, get_value, id_gen
 from beehive.common.apimanager import ApiManagerError
@@ -9,25 +9,25 @@ from beehive.common.data import trace
 
 
 class OpenstackShare(OpenstackResource):
-    objdef = 'Openstack.Domain.Project.Share'
-    objuri = 'shares'
-    objname = 'share'
-    objdesc = 'Openstack shares'
-    
-    default_tags = ['openstack']
-    task_path = 'beehive_resource.plugins.openstack.task_v2.ops_share.ShareTask.'
-    
+    objdef = "Openstack.Domain.Project.Share"
+    objuri = "shares"
+    objname = "share"
+    objdesc = "Openstack shares"
+
+    default_tags = ["openstack"]
+    task_path = "beehive_resource.plugins.openstack.task_v2.ops_share.ShareTask."
+
     def __init__(self, *args, **kvargs):
         """ """
         OpenstackResource.__init__(self, *args, **kvargs)
-        
+
         # child classes
         self.child_classes = []
 
         self.share_network = None
         self.share_server = None
         self.export_locations = []
-        
+
     #
     # discover, synchronize
     #
@@ -50,27 +50,36 @@ class OpenstackShare(OpenstackResource):
         # add new item to final list
         res = []
         for item in items:
-            if item['id'] not in res_ext_ids:
-                level = None        
-                name = item['name']
-                parent_id = item['project_id']
-                if str(parent_id) == '':
+            if item["id"] not in res_ext_ids:
+                level = None
+                name = item["name"]
+                parent_id = item["project_id"]
+                if str(parent_id) == "":
                     parent_id = None
-                    
-                res.append((OpenstackShare, item['id'], parent_id, OpenstackShare.objdef, name, level))
-        
-        return res    
-    
+
+                res.append(
+                    (
+                        OpenstackShare,
+                        item["id"],
+                        parent_id,
+                        OpenstackShare.objdef,
+                        name,
+                        level,
+                    )
+                )
+
+        return res
+
     @staticmethod
     def discover_died(container):
         """Discover method used when check if resource already exists in remote platform or was been modified.
-        
+
         :param container.conn: client used to comunicate with remote platform
         :return: list of remote entities
         :raise ApiManagerError:
         """
         return container.conn.manila.share.list()
-    
+
     @staticmethod
     def synchronize(container, entity):
         """Discover method used when synchronize beehive container with remote platform.
@@ -85,30 +94,30 @@ class OpenstackShare(OpenstackResource):
         ext_id = entity[1]
         parent_id = entity[2]
         name = entity[4]
-        level = entity[5]     
-        
+        level = entity[5]
+
         # get parent project
         if parent_id is not None:
             parent = container.get_resource_by_extid(parent_id)
-            objid = '%s//%s' % (parent.objid, id_gen())
+            objid = "%s//%s" % (parent.objid, id_gen())
             parent_id = parent.oid
         else:
-            objid = '%s//none//none//%s' % (container.objid, id_gen())
+            objid = "%s//none//none//%s" % (container.objid, id_gen())
             parent_id = None
-        
+
         res = {
-            'resource_class': resclass,
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent_id,
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent_id,
+            "tags": resclass.default_tags,
         }
         return res
-    
+
     #
     # internal list, get, create, update, delete
     #
@@ -128,12 +137,12 @@ class OpenstackShare(OpenstackResource):
         container = controller.get_container(container_id)
 
         remote_entities = container.conn.manila.share.list()
-        
+
         # create index of remote objs
-        ext_ids = [i['id'] for i in remote_entities]
-        
+        ext_ids = [i["id"] for i in remote_entities]
+
         return ext_ids
-    
+
     @staticmethod
     def customize_list(controller, entities, container, *args, **kvargs):
         """Post list function. Extend this function to execute some operation
@@ -153,12 +162,13 @@ class OpenstackShare(OpenstackResource):
                 entity.set_physical_entity(ext_obj)
 
                 # get share export locations
-                entity.export_locations = OpenstackShare.get_remote_share_export_locations(controller, entity.ext_id,
-                                                                                           container, entity.ext_id)
+                entity.export_locations = OpenstackShare.get_remote_share_export_locations(
+                    controller, entity.ext_id, container, entity.ext_id
+                )
             except:
-                container.logger.warn('')
+                container.logger.warn("")
         return entities
-    
+
     def post_get(self):
         """Post get function. This function is used in get_entity method.
         Extend this function to extend description info returned after query.
@@ -174,17 +184,17 @@ class OpenstackShare(OpenstackResource):
             self.export_locations = self.container.conn.manila.share.list_export_locations(self.ext_id)
 
             # get share network
-            share_network_id = self.ext_obj.get('share_network_id', None)
+            share_network_id = self.ext_obj.get("share_network_id", None)
             if share_network_id is not None:
                 self.share_network = self.container.conn.manila.network.get(share_network_id)
 
             # get share server
-            share_server_id = self.ext_obj.get('share_server_id', None)
+            share_server_id = self.ext_obj.get("share_server_id", None)
             if share_server_id is not None:
                 self.share_server = self.container.conn.manila.server.get(share_server_id)
         except:
             pass
-    
+
     @staticmethod
     def pre_create(controller, container, *args, **kvargs):
         """Check input params before resource creation. This function is used in container resource_factory method.
@@ -221,83 +231,86 @@ class OpenstackShare(OpenstackResource):
         from .ops_network import OpenstackNetwork
         from .ops_subnet import OpenstackSubnet
 
-        parent = kvargs['parent']
+        parent = kvargs["parent"]
 
         # get availability_zone
-        availability_zone = get_value(kvargs, 'availability_zone', None)
-        zones = {z['zoneName'] for z in container.system.get_compute_zones()}
+        availability_zone = get_value(kvargs, "availability_zone", None)
+        zones = {z["zoneName"] for z in container.system.get_compute_zones()}
         if availability_zone not in zones:
-            raise ApiManagerError('Openstack availability_zone %s does not exist' % availability_zone, code=404)
-        kvargs['availability_zone'] = availability_zone
+            raise ApiManagerError(
+                "Openstack availability_zone %s does not exist" % availability_zone,
+                code=404,
+            )
+        kvargs["availability_zone"] = availability_zone
 
         # check network and subnet
-        network = kvargs.pop('network', None)
-        subnet = kvargs.pop('subnet', None)
+        network = kvargs.pop("network", None)
+        subnet = kvargs.pop("subnet", None)
         if network is not None and subnet is not None:
             network = container.get_simple_resource(network, entity_class=OpenstackNetwork)
             subnet = container.get_simple_resource(subnet, entity_class=OpenstackSubnet)
-            kvargs['network'] = network.ext_id
-            kvargs['subnet'] = subnet.ext_id
+            kvargs["network"] = network.ext_id
+            kvargs["subnet"] = subnet.ext_id
 
         params = {
             # 'parent_ext_id': project.ext_id,
-            'desc': 'Share %s' % kvargs['name'],
-            'is_public': False
+            "desc": "Share %s" % kvargs["name"],
+            "is_public": False,
         }
 
         # set additional params
         kvargs.update(params)
-        
+
         steps = [
-            OpenstackShare.task_path + 'create_resource_pre_step',
-            OpenstackShare.task_path + 'share_create_physical_step',
-            OpenstackShare.task_path + 'create_resource_post_step'
+            OpenstackShare.task_path + "create_resource_pre_step",
+            OpenstackShare.task_path + "share_create_physical_step",
+            OpenstackShare.task_path + "create_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
     def pre_update(self, *args, **kvargs):
         """Pre update function. This function is used in update method.
 
         :param list args: custom params
-        :param dict kvargs: custom params            
+        :param dict kvargs: custom params
         :param kvargs.cid: container id
         :param kvargs.id: resource id
         :param kvargs.uuid: resource uuid
         :param kvargs.objid: resource objid
-        :param kvargs.ext_id: resource remote id            
+        :param kvargs.ext_id: resource remote id
         :return: kvargs
-        :raise ApiManagerError: 
+        :raise ApiManagerError:
         """
         steps = [
-            OpenstackShare.task_path + 'update_resource_pre_step',
-            OpenstackShare.task_path + 'share_update_physical_step',
-            OpenstackShare.task_path + 'update_resource_post_step'
+            OpenstackShare.task_path + "update_resource_pre_step",
+            OpenstackShare.task_path + "share_update_physical_step",
+            OpenstackShare.task_path + "update_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
     def pre_delete(self, *args, **kvargs):
         """Pre delete function. This function is used in delete method.
 
         :param list args: custom params
-        :param dict kvargs: custom params 
+        :param dict kvargs: custom params
         :param kvargs.cid: container id
         :param kvargs.id: resource id
         :param kvargs.uuid: resource uuid
         :param kvargs.objid: resource objid
-        :param kvargs.ext_id: resource remote id                        
+        :param kvargs.ext_id: resource remote id
         :return: kvargs
-        :raise ApiManagerError: 
+        :raise ApiManagerError:
         """
-        kvargs['parent'] = self.parent_id
+        kvargs["parent"] = self.parent_id
 
         steps = [
-            OpenstackShare.task_path + 'expunge_resource_pre_step',
-            OpenstackShare.task_path + 'share_expunge_physical_step',
-            OpenstackShare.task_path + 'expunge_resource_post_step'
+            OpenstackShare.task_path + "expunge_resource_pre_step",
+            OpenstackShare.task_path + "share_expunge_physical_step",
+            OpenstackShare.task_path + "expunge_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
     #
@@ -305,52 +318,52 @@ class OpenstackShare(OpenstackResource):
     #
     def info(self):
         """Get infos.
-        
+
         :return: like :class:`Resource`
-        :raise ApiManagerError: 
+        :raise ApiManagerError:
         """
         info = OpenstackResource.info(self)
 
         if self.ext_obj is not None:
             data = {}
-            data['status'] = self.ext_obj.get('status', None)
-            data['size'] = self.ext_obj.get('size', None)
-            data['share_type'] = self.ext_obj.get('share_type', None)
-            data['availability_zone'] = self.ext_obj.get('availability_zone', None)
-            data['created_at'] = self.ext_obj.get('created_at', None)
-            data['export_locations'] = self.export_locations
-            data['share_proto'] = self.ext_obj.get('share_proto', None)
-            data['share_network_id'] = self.ext_obj.get('share_network_id', None)
-            data['snapshot_id'] = self.ext_obj.get('snapshot_id', None)
-            data['host'] = self.ext_obj.get('host', None)
-            data['is_public'] = self.ext_obj.get('is_public', None)
-            info['details'].update(data)
-            
+            data["status"] = self.ext_obj.get("status", None)
+            data["size"] = self.ext_obj.get("size", None)
+            data["share_type"] = self.ext_obj.get("share_type", None)
+            data["availability_zone"] = self.ext_obj.get("availability_zone", None)
+            data["created_at"] = self.ext_obj.get("created_at", None)
+            data["export_locations"] = self.export_locations
+            data["share_proto"] = self.ext_obj.get("share_proto", None)
+            data["share_network_id"] = self.ext_obj.get("share_network_id", None)
+            data["snapshot_id"] = self.ext_obj.get("snapshot_id", None)
+            data["host"] = self.ext_obj.get("host", None)
+            data["is_public"] = self.ext_obj.get("is_public", None)
+            info["details"].update(data)
+
         return info
-    
+
     def detail(self):
         """Get details.
-        
+
         :return: like :class:`Resource`
-        :raise ApiManagerError: 
+        :raise ApiManagerError:
         """
         info = OpenstackResource.detail(self)
-        
+
         if self.ext_obj is not None:
             data = {}
-            data['status'] = self.ext_obj.get('status', None)
-            data['size'] = self.ext_obj.get('size', None)
-            data['share_type'] = self.ext_obj.get('share_type', None)
-            data['availability_zone'] = self.ext_obj.get('availability_zone', None)
-            data['created_at'] = self.ext_obj.get('created_at', None)
-            data['export_locations'] = self.export_locations
-            data['share_proto'] = self.ext_obj.get('share_proto', None)
-            data['share_network'] = self.share_network
-            data['share_server'] = self.share_server
-            data['snapshot_id'] = self.ext_obj.get('snapshot_id', None)
-            data['host'] = self.ext_obj.get('host', None)
-            data['is_public'] = self.ext_obj.get('is_public', None)
-            info['details'].update(data)
+            data["status"] = self.ext_obj.get("status", None)
+            data["size"] = self.ext_obj.get("size", None)
+            data["share_type"] = self.ext_obj.get("share_type", None)
+            data["availability_zone"] = self.ext_obj.get("availability_zone", None)
+            data["created_at"] = self.ext_obj.get("created_at", None)
+            data["export_locations"] = self.export_locations
+            data["share_proto"] = self.ext_obj.get("share_proto", None)
+            data["share_network"] = self.share_network
+            data["share_server"] = self.share_server
+            data["snapshot_id"] = self.ext_obj.get("snapshot_id", None)
+            data["host"] = self.ext_obj.get("host", None)
+            data["is_public"] = self.ext_obj.get("is_public", None)
+            info["details"].update(data)
 
         return info
 
@@ -360,36 +373,41 @@ class OpenstackShare(OpenstackResource):
     def get_size(self):
         size = 0
         if self.ext_obj is not None:
-            size = self.ext_obj.get('size', None)
+            size = self.ext_obj.get("size", None)
         return size
 
     def get_proto(self):
         proto = None
         if self.ext_obj is not None:
-            proto = self.ext_obj.get('share_proto', None)
+            proto = self.ext_obj.get("share_proto", None)
         return proto
 
-    @trace(op='view')
+    @trace(op="view")
     def get_network(self):
-        from beehive_resource.plugins.openstack.entity.ops_network import OpenstackNetwork
+        from beehive_resource.plugins.openstack.entity.ops_network import (
+            OpenstackNetwork,
+        )
+
         network = None
         if self.ext_obj is not None:
-            net_id = self.ext_obj.get('share_network_id', None)
+            net_id = self.ext_obj.get("share_network_id", None)
             if net_id is None:
-                share_type = self.ext_obj.get('share_type', None)
+                share_type = self.ext_obj.get("share_type", None)
                 if share_type is not None:
-                    vlan = share_type.split('-')[-1]
-                    networks, tot = self.container.get_resources(objdef=OpenstackNetwork.objdef,
-                                                                 type=OpenstackNetwork.objdef,
-                                                                 segmentation_id=vlan)
+                    vlan = share_type.split("-")[-1]
+                    networks, tot = self.container.get_resources(
+                        objdef=OpenstackNetwork.objdef,
+                        type=OpenstackNetwork.objdef,
+                        segmentation_id=vlan,
+                    )
                     if tot > 0:
                         network = networks[0]
             else:
                 network = self.container.get_resource_by_extid(net_id)
-        self.logger.debug('Get share %s network: %s' % (self.uuid, truncate(network)))
+        self.logger.debug("Get share %s network: %s" % (self.uuid, truncate(network)))
         return network
 
-    @trace(op='use')
+    @trace(op="use")
     def grant_list(self):
         """Get share grant list
 
@@ -415,16 +433,16 @@ class OpenstackShare(OpenstackResource):
                 }
             ]
         """
-        self.verify_permisssions('use')
+        self.verify_permisssions("use")
         try:
             res = self.container.conn.manila.share.action.list_access(self.ext_id)
-            self.logger.debug('Get openstack manila share %s grant list: %s' % (self.name, res))
+            self.logger.debug("Get openstack manila share %s grant list: %s" % (self.name, res))
             return res
         except:
-            self.logger.warn('', exc_info=True)
+            self.logger.warn("", exc_info=True)
         return []
-    
-    @trace(op='update')
+
+    @trace(op="update")
     def grant_add(self, params):
         """Add share grant.
         All manila shares begin with no access. Clients must be provided with explicit access via this API.
@@ -441,17 +459,17 @@ class OpenstackShare(OpenstackResource):
         - user. Authenticates by a user or group name. A valid value is an alphanumeric string that can contain some
           special characters and is from 4 to 255 characters long.
 
-        :param access_level: The access level to the share. To grant or deny access to a share, you specify one of the 
+        :param access_level: The access level to the share. To grant or deny access to a share, you specify one of the
             following share access levels: - rw. Read and write (RW) access. - ro. Read- only (RO) access.
-        :param access_type: The access rule type. A valid value for the share access rule type is one of the following 
-            values: 
-            - ip. Authenticates an instance through its IP address. A valid format is XX.XX.XX.XX or XX.XX.XX.XX/XX. 
-              For example 0.0.0.0/0. - cert. Authenticates an instance through a TLS certificate. Specify the TLS 
-              identity as the IDENTKEY. A valid value is any string up to 64 characters long in the common name (CN) of 
+        :param access_type: The access rule type. A valid value for the share access rule type is one of the following
+            values:
+            - ip. Authenticates an instance through its IP address. A valid format is XX.XX.XX.XX or XX.XX.XX.XX/XX.
+              For example 0.0.0.0/0. - cert. Authenticates an instance through a TLS certificate. Specify the TLS
+              identity as the IDENTKEY. A valid value is any string up to 64 characters long in the common name (CN) of
               the certificate. The meaning of a string depends on its interpretation.
-            - user. Authenticates by a user or group name. A valid value is an alphanumeric string that can contain some 
+            - user. Authenticates by a user or group name. A valid value is an alphanumeric string that can contain some
               special characters and is from 4 to 32 characters long.
-        :param access_to: The value that defines the access. The back end grants or denies the access to it. A valid 
+        :param access_to: The value that defines the access. The back end grants or denies the access to it. A valid
             value is one of these values:
             - ip. Authenticates an instance through its IP address. A valid format is XX.XX.XX.XX or XX.XX.XX.XX/XX.
               For example 0.0.0.0/0.
@@ -461,21 +479,23 @@ class OpenstackShare(OpenstackResource):
             - user. Authenticates by a user or group name. A valid value is an alphanumeric string that can contain some
               special characters and is from 4 to 32 characters long.
         :return: {'taskid':..}, 202
-        :raise ApiManagerError:             
+        :raise ApiManagerError:
         """
         grants = self.grant_list()
         for grant in grants:
-            if params.get('access_type') == grant.get('access_type') and \
-                    params.get('access_to') == grant.get('access_to') and \
-                    params.get('access_key') == grant.get('access_key'):
-                raise ApiManagerError('grant already assigned to share %s' % self.oid)
+            if (
+                params.get("access_type") == grant.get("access_type")
+                and params.get("access_to") == grant.get("access_to")
+                and params.get("access_key") == grant.get("access_key")
+            ):
+                raise ApiManagerError("grant already assigned to share %s" % self.oid)
 
-        name = 'grant_add'
-        steps = [self.task_path + 'share_grant_add_step']
-        res = self.action(name, steps, log='Add share %s grant' % self.uuid, check=None, **params)
+        name = "grant_add"
+        steps = [self.task_path + "share_grant_add_step"]
+        res = self.action(name, steps, log="Add share %s grant" % self.uuid, check=None, **params)
         return res
 
-    @trace(op='update')
+    @trace(op="update")
     def grant_remove(self, params):
         """Remove share grant
 
@@ -483,12 +503,12 @@ class OpenstackShare(OpenstackResource):
         :return: {'taskid':..}, 202
         :raise ApiManagerError:
         """
-        name = 'grant_remove'
-        steps = [self.task_path + 'share_grant_remove_step']
-        res = self.action(name, steps, log='Remove share %s grant' % self.uuid, check=None, **params)
+        name = "grant_remove"
+        steps = [self.task_path + "share_grant_remove_step"]
+        res = self.action(name, steps, log="Remove share %s grant" % self.uuid, check=None, **params)
         return res
 
-    @trace(op='update')
+    @trace(op="update")
     def size_extend(self, params):
         """Extend manila share
 
@@ -496,15 +516,15 @@ class OpenstackShare(OpenstackResource):
         :return: {'taskid':..}, 202
         :raise ApiManagerError:
         """
-        if params.get('new_size') <= self.get_size():
-            raise ApiManagerError('new size must be grater than actual size')
+        if params.get("new_size") <= self.get_size():
+            raise ApiManagerError("new size must be grater than actual size")
 
-        name = 'size_extend'
-        steps = [self.task_path + 'share_size_extend_step']
-        res = self.action(name, steps, log='Extend manila share %s' % self.uuid, check=None, **params)
+        name = "size_extend"
+        steps = [self.task_path + "share_size_extend_step"]
+        res = self.action(name, steps, log="Extend manila share %s" % self.uuid, check=None, **params)
         return res
-    
-    @trace(op='update')
+
+    @trace(op="update")
     def size_shrink(self, params):
         """Shrink manila share
 
@@ -512,15 +532,15 @@ class OpenstackShare(OpenstackResource):
         :return: {'taskid':..}, 202
         :raise ApiManagerError:
         """
-        if params.get('new_size') >= self.get_size():
-            raise ApiManagerError('new size must be lower than actual size')
+        if params.get("new_size") >= self.get_size():
+            raise ApiManagerError("new size must be lower than actual size")
 
-        name = 'size_extend'
-        steps = [self.task_path + 'share_size_shrink_step']
-        res = self.action(name, steps, log='Shrink manila share %s' % self.uuid, check=None, **params)
+        name = "size_extend"
+        steps = [self.task_path + "share_size_shrink_step"]
+        res = self.action(name, steps, log="Shrink manila share %s" % self.uuid, check=None, **params)
         return res
-    
-    @trace(op='update')
+
+    @trace(op="update")
     def revert_to_snapshot(self, params):
         """Revert manila share to snapshot
 
@@ -528,7 +548,13 @@ class OpenstackShare(OpenstackResource):
         :return: {'taskid':..}, 202
         :raise ApiManagerError:
         """
-        name = 'revert_to_snapshot'
-        steps = [self.task_path + 'share_revert_to_snapshot_step']
-        res = self.action(name, steps, log='Revert manila share %s to snapshot' % self.uuid, check=None, **params)
+        name = "revert_to_snapshot"
+        steps = [self.task_path + "share_revert_to_snapshot_step"]
+        res = self.action(
+            name,
+            steps,
+            log="Revert manila share %s to snapshot" % self.uuid,
+            check=None,
+            **params,
+        )
         return res

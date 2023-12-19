@@ -1,12 +1,18 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from celery.utils.log import get_task_logger
 from beehive.common.task.manager import task_manager
-from beehive_resource.tasks import ResourceJobTask, ResourceJob, \
-    create_resource_pre, create_resource_post, update_resource_post,\
-    update_resource_pre, expunge_resource_pre
+from beehive_resource.tasks import (
+    ResourceJobTask,
+    ResourceJob,
+    create_resource_pre,
+    create_resource_post,
+    update_resource_post,
+    update_resource_pre,
+    expunge_resource_pre,
+)
 from beehive.common.task.job import job_task, job, Job
 from beehive.common.task.util import end_task, start_task
 from beehive_resource.plugins.vsphere.task.util import VsphereServerHelper
@@ -17,7 +23,7 @@ from beehive.common.task.canvas import signature
 logger = get_task_logger(__name__)
 
 stack_entity_type_mapping = {
-    'VS::Vsphere::Server': 'Vsphere.DataCenter.Folder.Server',
+    "VS::Vsphere::Server": "Vsphere.DataCenter.Folder.Server",
 }
 
 
@@ -25,14 +31,14 @@ stack_entity_type_mapping = {
 @job_task()
 def stack_create_entity(self, options):
     """Create opsck stack
-    
-    **Parameters:**    
-    
+
+    **Parameters:**
+
         * **options** (tupla): Tupla with some useful options.
-            (class_name, objid, job, job id, start time, 
+            (class_name, objid, job, job id, start time,
              time before new query, user)
         * **sharedarea** (dict):
-        
+
             * **objid**: resource objid
             * **parent**: resource parent id
             * **cid**: container id
@@ -50,51 +56,51 @@ def stack_create_entity(self, options):
             * **parameters**: 'Supplies arguments for parameters defined in the stack template
             * **files**: Supplies the contents of files referenced in the template or the environment
             * **owner**: stack owner name
-        
+
     **Return:**
-    
+
         stack id
     """
     # get params from shared data
     params = self.get_shared_data()
-    
+
     # validate input params
-    cid = params.get('cid')
-    oid = params.get('id')
-    template_uri = params.get('template_uri')
-    parent_id = params.get('parent')
-    name = params.get('name')
-    environment = params.get('environment', None)
-    parameters = params.get('parameters', None)
-    files = params.get('files', None)
-    tags = params.get('tags', '')
-    stack_owner = params.get('owner')
-    self.update('PROGRESS', msg='Get configuration params')
+    cid = params.get("cid")
+    oid = params.get("id")
+    template_uri = params.get("template_uri")
+    parent_id = params.get("parent")
+    name = params.get("name")
+    environment = params.get("environment", None)
+    parameters = params.get("parameters", None)
+    files = params.get("files", None)
+    tags = params.get("tags", "")
+    stack_owner = params.get("owner")
+    self.update("PROGRESS", msg="Get configuration params")
 
     # get orchestrator
     self.get_session()
     orchestrator = self.get_container(cid)
-    self.update('PROGRESS', msg='Get orchestrator %s' % cid)
+    self.update("PROGRESS", msg="Get orchestrator %s" % cid)
 
     # validate template
     orch = orchestrator.get_orchestrator_resource()
     template = orch.validate_template(template_uri)
-    self.update('PROGRESS', msg='Validate template %s' % template_uri)
+    self.update("PROGRESS", msg="Validate template %s" % template_uri)
 
     # parse template
-    outputs = template.get('outputs')
-    parameters = template.get('parameters')
-    resources = template.get('resources')
+    outputs = template.get("outputs")
+    parameters = template.get("parameters")
+    resources = template.get("resources")
 
     servers = []
     for resname, resource in resources.items():
         logger.warn(resname)
-        restype = resource.get('type')
-        resconf = resource.get('properties')
+        restype = resource.get("type")
+        resconf = resource.get("properties")
         logger.warn(restype)
         logger.warn(resconf)
-        if restype == 'VS::Vsphere::Server':
-            '''
+        if restype == "VS::Vsphere::Server":
+            """
             server = {
                 'name': '%s-%s' % (resname, id_gen()),
                 'imageRef':
@@ -128,7 +134,7 @@ def stack_create_entity(self, options):
                 'metadata':
                 'security_groups'
             }
-            servers.append(server)'''
+            servers.append(server)"""
             pass
 
     # create all servers
@@ -137,9 +143,8 @@ def stack_create_entity(self, options):
         node = helper.create_server(**server)
 
     # create new stack
-    stack = {'id': 'pippo'}
-    stack_id = stack['id']
-
+    stack = {"id": "pippo"}
+    stack_id = stack["id"]
 
     # stack_id = stack['id']
     # self.update('PROGRESS', msg='Create stack %s - Starting' % stack_id)
@@ -162,18 +167,15 @@ def stack_create_entity(self, options):
     #     self.update('PROGRESS')
     #     gevent.sleep(task_local.delta)
 
-
-
-
-    self.update('PROGRESS', msg='Create stack %s - Completed' % stack_id)
+    self.update("PROGRESS", msg="Create stack %s - Completed" % stack_id)
 
     # save current data in shared area
-    params['ext_id'] = stack_id
-    params['result'] = stack_id
+    params["ext_id"] = stack_id
+    params["result"] = stack_id
     # params['attrib'] = {'volume':{'boot':volume.id}}
     self.set_shared_data(params)
-    self.update('PROGRESS', msg='Update shared area')
-    
+    self.update("PROGRESS", msg="Update shared area")
+
     return stack_id
 
 
@@ -182,10 +184,10 @@ def stack_create_entity(self, options):
 def stack_register_child_entity(self, options):
     """Register opsck stack child entity
 
-    **Parameters:**    
+    **Parameters:**
 
         * **options** (tupla): Tupla with some useful options.
-            (class_name, objid, job, job id, start time, 
+            (class_name, objid, job, job id, start time,
              time before new query, user)
         * **sharedarea** (dict):
 
@@ -215,24 +217,24 @@ def stack_register_child_entity(self, options):
     params = self.get_shared_data()
 
     # validate input params
-    cid = params.get('cid')
+    cid = params.get("cid")
     # oid = params.get('id')
-    ext_id = params.get('ext_id')
-    name = params.get('name')
-    parent_id = params.get('parent')
-    self.update('PROGRESS', msg='Get configuration params')
+    ext_id = params.get("ext_id")
+    name = params.get("name")
+    parent_id = params.get("parent")
+    self.update("PROGRESS", msg="Get configuration params")
 
     # get container
     self.get_session()
     container = self.get_container(cid, projectid=parent_id)
     conn = container.conn
-    self.update('PROGRESS', msg='Get container %s' % cid)
+    self.update("PROGRESS", msg="Get container %s" % cid)
 
     # get resources
     resources = conn.heat.stack.resource.list(stack_name=name, oid=ext_id)
-    self.update('PROGRESS', msg='Get child resources: %s' % truncate(resources))
+    self.update("PROGRESS", msg="Get child resources: %s" % truncate(resources))
 
-    '''
+    """
     [{'resource_name': 'my_instance', 
       'links': [{}], 
       'logical_resource_id': 'my_instance',
@@ -243,41 +245,45 @@ def stack_register_child_entity(self, options):
       'resource_status_reason': 'state changed',
       'physical_resource_id': '9d06ea46-6ab0-4e93-88b9-72f32de0cc31', 
       'resource_type': 'OS::Nova::Server'}]
-    '''
+    """
 
     # get child resources objdef
     objdefs = {}
     res_ext_ids = []
     for item in resources:
         # TODO : router should need additional operation for internal port and ha network
-        mapping = stack_entity_type_mapping[item['resource_type']]
+        mapping = stack_entity_type_mapping[item["resource_type"]]
         if mapping is not None:
             objdefs[mapping] = None
-            res_ext_ids.append(item['physical_resource_id'])
-    self.update('PROGRESS', msg='get child resources objdef: %s' % objdefs)
+            res_ext_ids.append(item["physical_resource_id"])
+    self.update("PROGRESS", msg="get child resources objdef: %s" % objdefs)
 
     # run celery job
     if len(objdefs) > 0:
         params = {
-            'cid': cid,
-            'types': ','.join(objdefs.keys()),
-            'new': True,
-            'died': False,
-            'changed': False
+            "cid": cid,
+            "types": ",".join(objdefs.keys()),
+            "new": True,
+            "died": False,
+            "changed": False,
         }
         params.update(container.get_user())
-        task = signature('beehive_resource.tasks.job_synchronize_container', (container.objid, params), app=task_manager,
-                         queue=container.celery_broker_queue)
+        task = signature(
+            "beehive_resource.tasks.job_synchronize_container",
+            (container.objid, params),
+            app=task_manager,
+            queue=container.celery_broker_queue,
+        )
         job = task.apply_async()
-        self.logger.info('Start job job_synchronize_container %s' % job.id)
+        self.logger.info("Start job job_synchronize_container %s" % job.id)
 
         # wait job complete
         self.wait_for_job_complete(job.id)
 
     # save current data in shared area
-    params['res_ext_ids'] = res_ext_ids
+    params["res_ext_ids"] = res_ext_ids
     self.set_shared_data(params)
-    self.update('PROGRESS', msg='Update shared area')
+    self.update("PROGRESS", msg="Update shared area")
 
     return res_ext_ids
 
@@ -322,17 +328,17 @@ def stack_link_child_entity(self, options):
     params = self.get_shared_data()
 
     # validate input params
-    oid = params.get('id')
-    res_ext_ids = params.get('res_ext_ids')
-    self.update('PROGRESS', msg='Get configuration params')
+    oid = params.get("id")
+    res_ext_ids = params.get("res_ext_ids")
+    self.update("PROGRESS", msg="Get configuration params")
 
     # link child resource to stack
     self.get_session()
     stack = self.get_resource(oid)
     for ext_id in res_ext_ids:
         child = self.get_resource_by_extid(ext_id)
-        stack.add_link('%s-%s-stack-link' % (oid, child.oid), 'stack', child.oid, attributes={})
-        self.update('PROGRESS', msg='Link stack %s to child %s' % (oid, child.oid))
+        stack.add_link("%s-%s-stack-link" % (oid, child.oid), "stack", child.oid, attributes={})
+        self.update("PROGRESS", msg="Link stack %s to child %s" % (oid, child.oid))
 
     return True
 
@@ -341,19 +347,19 @@ def stack_link_child_entity(self, options):
 @job_task()
 def stack_update_entity(self, options):
     """Create opsck stack
-    
-    **Parameters:**    
-    
+
+    **Parameters:**
+
         * **options** (tupla): Tupla with some useful options.
-            (class_name, objid, job, job id, start time, 
+            (class_name, objid, job, job id, start time,
              time before new query, user)
         * **sharedarea** (dict):
-        
+
             * **cid**: orchestrator id
             * **id**: stack id
-        
+
     **Return:**
-    
+
         stack id
     """
     pass
@@ -363,35 +369,35 @@ def stack_update_entity(self, options):
 @job_task()
 def stack_delete_entity(self, options):
     """Delete opsck stack
-    
-    **Parameters:**    
-    
+
+    **Parameters:**
+
         * **options** (tupla): Tupla with some useful options.
-            (class_name, objid, job, job id, start time, 
+            (class_name, objid, job, job id, start time,
              time before new query, user)
         * **sharedarea** (dict):
-        
+
             * **cid**: orchestrator id
             * **id**: stack id
-        
+
     **Return:**
-    
+
         stack id
     """
     # get params from shared data
     params = self.get_shared_data()
-    
+
     # validate input params
-    cid = params.get('cid')
-    ext_id = params.get('ext_id')
-    parent_id = params.get('parent_id')
-    self.update('PROGRESS', msg='Get configuration params')
-    
+    cid = params.get("cid")
+    ext_id = params.get("ext_id")
+    parent_id = params.get("parent_id")
+    self.update("PROGRESS", msg="Get configuration params")
+
     # get stack resource
     self.get_session()
     container = self.get_container(cid, projectid=parent_id)
     conn = container.conn
-    self.update('PROGRESS', msg='Get container %s' % cid)
+    self.update("PROGRESS", msg="Get container %s" % cid)
 
     # if self.is_ext_id_valid(ext_id) is True:
     #     res = container.get_resource_by_extid(ext_id)
@@ -426,33 +432,33 @@ def stack_delete_entity(self, options):
 @job_task()
 def stack_expunge_resource_post(self, options):
     """Remove stack resource in cloudapi - post task.
-    
-    **Parameters:**    
-    
+
+    **Parameters:**
+
         * **options** (tupla): Tupla with some useful options.
-            (class_name, objid, job, job id, start time, 
+            (class_name, objid, job, job id, start time,
              time before new query, user)
         * **sharedarea** (dict):
-        
+
             * **cid**: orchestrator id
             * **id**: stack id
-        
+
     **Return:**
-    
+
         stack child id
     """
     # get params from shared data
     params = self.get_shared_data()
-    
+
     # validate input params
-    cid = params.get('cid')
-    oid = params.get('id')
-    self.update('PROGRESS', msg='Get configuration params') 
+    cid = params.get("cid")
+    oid = params.get("id")
+    self.update("PROGRESS", msg="Get configuration params")
 
     # get all child resources
     self.get_session()
     container = self.get_container(cid)
-    resources = self.get_linked_resources(oid, link_type='stack', container_id=cid)
+    resources = self.get_linked_resources(oid, link_type="stack", container_id=cid)
 
     # get child resources objdef
     objdefs = {}
@@ -464,8 +470,8 @@ def stack_expunge_resource_post(self, options):
     for k, v in stack_entity_type_mapping.items():
         if v is not None:
             objdefs[v] = None
-    self.update('PROGRESS', msg='Get child resources objdef: %s' % objdefs)
-    self.update('PROGRESS', msg='Get child resources ext_id: %s' % res_ids)
+    self.update("PROGRESS", msg="Get child resources objdef: %s" % objdefs)
+    self.update("PROGRESS", msg="Get child resources ext_id: %s" % res_ids)
 
     # # run celery job
     # if len(objdefs) > 0:
@@ -490,7 +496,7 @@ def stack_expunge_resource_post(self, options):
     self.get_session()
     resource = self.get_resource(oid)
     resource.expunge_internal()
-    self.update('PROGRESS', msg='Delete stack %s resource' % oid)
+    self.update("PROGRESS", msg="Delete stack %s resource" % oid)
 
     return res_ids
 
@@ -499,15 +505,15 @@ def stack_expunge_resource_post(self, options):
 # JOB
 #
 @task_manager.task(bind=True, base=ResourceJob)
-@job(entity_class=VsphereStack, name='insert', delta=3)
+@job(entity_class=VsphereStack, name="insert", delta=3)
 def job_stack_create(self, objid, params):
     """Create opsck stack
-    
+
     **Parameters:**
-    
+
         * **objid** (str): objid of the resource. Ex. 110//2222//334//*
-        * **params** (:py:class:`dict`): input params    
-    
+        * **params** (:py:class:`dict`): input params
+
             * **oid**: resource oid
             * **parent**: resource parent id
             * **cid**: container id
@@ -525,33 +531,36 @@ def job_stack_create(self, objid, params):
             * **parameters**: 'Supplies arguments for parameters defined in the stack template
             * **files**: Supplies the contents of files referenced in the template or the environment
             * **owner**: stack owner name
-                    
+
     **Returns:**
-    
+
         True
     """
     ops = self.get_options()
     self.set_shared_data(params)
-    
-    Job.create([
-        end_task,
-        #stack_link_child_entity,
-        #stack_register_child_entity,
-        create_resource_post,
-        stack_create_entity,
-        create_resource_pre,
-        start_task
-    ], ops).delay()
+
+    Job.create(
+        [
+            end_task,
+            # stack_link_child_entity,
+            # stack_register_child_entity,
+            create_resource_post,
+            stack_create_entity,
+            create_resource_pre,
+            start_task,
+        ],
+        ops,
+    ).delay()
     return True
 
 
 @task_manager.task(bind=True, base=ResourceJob)
-@job(entity_class=VsphereStack, name='update', delta=3)
+@job(entity_class=VsphereStack, name="update", delta=3)
 def job_stack_update(self, objid, params):
     """Update opsck stack
-    
+
     **Parameters:**
-    
+
         * **objid** (str): objid of the resource. Ex. 110//2222//334//*
         * **params** (:py:class:`dict`): input params
 
@@ -562,29 +571,32 @@ def job_stack_update(self, objid, params):
             * **ext_id** (str): physical id
 
     **Returns:**
-    
+
         True
     """
     ops = self.get_options()
-    self.set_shared_data(params)    
-    
-    Job.create([
-        end_task,
-        update_resource_post,
-        stack_update_entity,
-        update_resource_pre,
-        start_task
-    ], ops).delay()
+    self.set_shared_data(params)
+
+    Job.create(
+        [
+            end_task,
+            update_resource_post,
+            stack_update_entity,
+            update_resource_pre,
+            start_task,
+        ],
+        ops,
+    ).delay()
     return True
 
 
 @task_manager.task(bind=True, base=ResourceJob)
-@job(entity_class=VsphereStack, name='delete', delta=1)
+@job(entity_class=VsphereStack, name="delete", delta=1)
 def job_stack_delete(self, objid, params):
     """Delete opsck stack
-    
+
     **Parameters:**
-    
+
         * **objid** (str): objid of the resource. Ex. 110//2222//334//*
         * **params** (:py:class:`dict`): input params
 
@@ -595,17 +607,20 @@ def job_stack_delete(self, objid, params):
             * **ext_id** (str): resource physical id
 
     **Returns:**
-    
+
         True
     """
     ops = self.get_options()
     self.set_shared_data(params)
-    
-    Job.create([
-        end_task,
-        stack_expunge_resource_post,
-        stack_delete_entity,
-        expunge_resource_pre,
-        start_task
-    ], ops).delay()
+
+    Job.create(
+        [
+            end_task,
+            stack_expunge_resource_post,
+            stack_delete_entity,
+            expunge_resource_pre,
+            start_task,
+        ],
+        ops,
+    ).delay()
     return True

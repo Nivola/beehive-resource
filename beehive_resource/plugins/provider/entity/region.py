@@ -1,18 +1,19 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beecell.simple import id_gen
 from beehive_resource.plugins.provider.entity.base import LocalProviderResource
 
 
 class Region(LocalProviderResource):
-    """Provider region
-    """
-    objdef = 'Provider.Region'
-    objuri = '%s/regions/%s'
-    objname = 'region'
-    objdesc = 'Provider region'
+    """Provider region"""
+
+    objdef = "Provider.Region"
+    objuri = "%s/regions/%s"
+    objname = "region"
+    objdesc = "Provider region"
 
     create_task = None
     import_task = None
@@ -55,15 +56,15 @@ class Region(LocalProviderResource):
         :raise ApiManagerError:
         """
         new_kvargs = {
-            'objid': container.objid + '//' + id_gen(),
-            'active': True,
-            'attribute': {
-                'config': {
-                    'geo_area': kvargs.pop('geo_area'),
-                    'coords': kvargs.pop('coords')
+            "objid": container.objid + "//" + id_gen(),
+            "active": True,
+            "attribute": {
+                "config": {
+                    "geo_area": kvargs.pop("geo_area"),
+                    "coords": kvargs.pop("coords"),
                 }
             },
-            'parent': None
+            "parent": None,
         }
 
         kvargs.update(new_kvargs)
@@ -82,7 +83,10 @@ class Region(LocalProviderResource):
         :return: kvargs
         :raise ApiManagerError:
         """
-        kvargs['attribute'] = {'geo_area': kvargs.pop('geo_area', None), 'coords': kvargs.pop('coords', None)}
+        kvargs["attribute"] = {
+            "geo_area": kvargs.pop("geo_area", None),
+            "coords": kvargs.pop("coords", None),
+        }
         return kvargs
 
     def pre_delete(self, *args, **kvargs):

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from logging import getLogger
 
@@ -12,9 +12,9 @@ logger = getLogger(__name__)
 
 
 class DomainTask(AbstractResourceTask):
-    """Domain task
-    """
-    name = 'domain_task'
+    """Domain task"""
+
+    name = "domain_task"
     entity_class = OpenstackDomain
 
 
