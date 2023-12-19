@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 from datetime import datetime
 
 from beecell.types.type_date import format_date
@@ -9,12 +10,12 @@ from beehive_resource.plugins.provider.entity.aggregate import ComputeProviderRe
 
 
 class ComputeElasticIp(ComputeProviderResource):
-    """Compute ElasticIp
-    """
-    objdef = 'Provider.ComputeZone.ComputeElasticIp'
-    objuri = '%s/elasticips/%s'
-    objname = 'elasticip'
-    objdesc = 'Provider ComputeElasticIp'
+    """Compute ElasticIp"""
+
+    objdef = "Provider.ComputeZone.ComputeElasticIp"
+    objuri = "%s/elasticips/%s"
+    objname = "elasticip"
+    objdesc = "Provider ComputeElasticIp"
     # task_path = 'beehive_resource.plugins.provider.task_v2.elasticip.ElasticIpTask.'
     task_path = None
 
@@ -32,7 +33,7 @@ class ComputeElasticIp(ComputeProviderResource):
         """
         # verify permissions
         info = Resource.info(self)
-        info['availability_zones'] = self.availability_zones
+        info["availability_zones"] = self.availability_zones
         return info
 
     def detail(self):
@@ -43,14 +44,13 @@ class ComputeElasticIp(ComputeProviderResource):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = Resource.detail(self)
-        info['availability_zones'] = self.availability_zones
+        info["availability_zones"] = self.availability_zones
         return info
 
     def get_os_version(self):
-        """Get OS version
-        """
-        os_ver = self.get_configs().get('os_ver')
-        return os_ver.split('.')[0]
+        """Get OS version"""
+        os_ver = self.get_configs().get("os_ver")
+        return os_ver.split(".")[0]
 
     @staticmethod
     def customize_list(controller, entities, *args, **kvargs):
@@ -289,30 +289,30 @@ class ComputeElasticIp(ComputeProviderResource):
         """
         # base metric units
         metric_units = {
-            'elastic_ip': '#',
+            "elastic_ip": "#",
         }
 
         # base metric label
-        metric_labels = {'elastic_ip': 'elastic_ip'}
+        metric_labels = {"elastic_ip": "elastic_ip"}
 
         metrics = {
-            metric_labels.get('elastic_ip'): 0,
-            metric_labels.get('gbdisk_hi'): 0,
+            metric_labels.get("elastic_ip"): 0,
+            metric_labels.get("gbdisk_hi"): 0,
         }
 
         metric_units = {metric_labels.get(k): v for k, v in metric_units.items()}
 
-        metrics = [{'key': k, 'value': v, 'type': 1, 'unit': metric_units.get(k)} for k, v in metrics.items()]
+        metrics = [{"key": k, "value": v, "type": 1, "unit": metric_units.get(k)} for k, v in metrics.items()]
         res = {
-            'id': self.oid,
-            'uuid': self.uuid,
-            'resource_uuid': self.uuid,
-            'type': self.objdef,
-            'metrics': metrics,
-            'extraction_date': format_date(datetime.today())
+            "id": self.oid,
+            "uuid": self.uuid,
+            "resource_uuid": self.uuid,
+            "type": self.objdef,
+            "metrics": metrics,
+            "extraction_date": format_date(datetime.today()),
         }
 
-        self.logger.debug('Get compute volume %s metrics: %s' % (self.uuid, res))
+        self.logger.debug("Get compute volume %s metrics: %s" % (self.uuid, res))
         return res
 
 

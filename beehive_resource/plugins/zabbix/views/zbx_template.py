@@ -7,12 +7,16 @@ from beecell.swagger import SwaggerHelper
 from beehive_resource.plugins.zabbix.entity.zbx_template import ZabbixTemplate
 from beehive_resource.plugins.zabbix.views import ZabbixAPI, ZabbixApiView
 from beehive_resource.view import ResourceResponseSchema, ListResourcesRequestSchema
-from beehive.common.apimanager import PaginatedResponseSchema, SwaggerApiView, GetApiObjectRequestSchema,\
-    CrudApiObjectJobResponseSchema
+from beehive.common.apimanager import (
+    PaginatedResponseSchema,
+    SwaggerApiView,
+    GetApiObjectRequestSchema,
+    CrudApiObjectJobResponseSchema,
+)
 
 
 class ZabbixTemplateApiView(ZabbixApiView):
-    tags = ['zabbix']
+    tags = ["zabbix"]
     resclass = ZabbixTemplate
     parentclass = None
 
@@ -32,20 +36,14 @@ class ListTemplatesResponseSchema(PaginatedResponseSchema):
 
 class ListTemplates(ZabbixTemplateApiView):
     definitions = {
-        'ListTemplatesResponseSchema': ListTemplatesResponseSchema,
+        "ListTemplatesResponseSchema": ListTemplatesResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(ListTemplatesRequestSchema)
     parameters_schema = ListTemplatesRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': ListTemplatesResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListTemplatesResponseSchema}})
 
     def get(self, controller, data, *args, **kwargs):
-        """List templates
-        """
+        """List templates"""
         return self.get_resources(controller, **data)
 
 
@@ -55,28 +53,29 @@ class GetTemplateResponseSchema(Schema):
 
 class GetTemplate(ZabbixTemplateApiView):
     definitions = {
-        'GetTemplateResponseSchema': GetTemplateResponseSchema,
+        "GetTemplateResponseSchema": GetTemplateResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetTemplateResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetTemplateResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
-        """Get template
-        """
+        """Get template"""
         return self.get_resource(controller, oid)
 
 
 class CreateTemplateParamRequestSchema(Schema):
-    container = fields.String(required=True, example='1234', description='container id, uuid or name')
-    name = fields.String(required=True, example='linux template')
-    desc = fields.String(required=False, example='template description')
-    groups = fields.List(fields.String(required=True, example='[\'50\', \'62\']', many=True, allow_none=True,
-                                       description='hostgroups to add the template to'))
+    container = fields.String(required=True, example="1234", description="container id, uuid or name")
+    name = fields.String(required=True, example="linux template")
+    desc = fields.String(required=False, example="template description")
+    groups = fields.List(
+        fields.String(
+            required=True,
+            example="['50', '62']",
+            many=True,
+            allow_none=True,
+            description="hostgroups to add the template to",
+        )
+    )
 
 
 class CreateTemplateRequestSchema(Schema):
@@ -84,66 +83,51 @@ class CreateTemplateRequestSchema(Schema):
 
 
 class CreateHostBodyRequestSchema(Schema):
-    body = fields.Nested(CreateTemplateRequestSchema, context='body')
+    body = fields.Nested(CreateTemplateRequestSchema, context="body")
 
 
 class CreateTemplate(ZabbixTemplateApiView):
     definitions = {
-        'CreateTemplateRequestSchema': CreateTemplateRequestSchema,
-        'CrudApiObjectJobResponseSchema': CrudApiObjectJobResponseSchema
+        "CreateTemplateRequestSchema": CreateTemplateRequestSchema,
+        "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(CreateHostBodyRequestSchema)
     parameters_schema = CreateTemplateRequestSchema
-    responses = SwaggerApiView.setResponses({
-        202: {
-            'description': 'success',
-            'schema': CrudApiObjectJobResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def post(self, controller, data, *args, **kwargs):
-        """Create template
-        """
+        """Create template"""
         return self.create_resource(controller, data)
 
 
 class UpdateTemplate(ZabbixTemplateApiView):
     def put(self, controller, data, oid, *args, **kwargs):
-        """Update template
-        """
+        """Update template"""
         return self.update_resource(controller, oid, data)
 
 
 class DeleteTemplate(ZabbixTemplateApiView):
-    definitions = {
-        'CrudApiObjectJobResponseSchema': CrudApiObjectJobResponseSchema
-    }
+    definitions = {"CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        202: {
-            'description': 'success',
-            'schema': CrudApiObjectJobResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def delete(self, controller, data, oid, *args, **kwargs):
-        """Delete template
-        """
+        """Delete template"""
         return self.expunge_resource(controller, oid)
 
 
 class ZabbixTemplateAPI(ZabbixAPI):
-    """Zabbix base platform api routes
-    """
+    """Zabbix base platform api routes"""
+
     @staticmethod
     def register_api(module, *args, **kwargs):
         base = ZabbixAPI.base
         rules = [
-            ('%s/templates' % base, 'GET', ListTemplates, {}),
-            ('%s/templates/<oid>' % base, 'GET', GetTemplate, {}),
-            ('%s/templates' % base, 'POST', CreateTemplate, {}),
+            ("%s/templates" % base, "GET", ListTemplates, {}),
+            ("%s/templates/<oid>" % base, "GET", GetTemplate, {}),
+            ("%s/templates" % base, "POST", CreateTemplate, {}),
             # ('%s/templates/<oid>' % base, 'PUT', UpdateTemplate, {}),
-            ('%s/templates/<oid>' % base, 'DELETE', DeleteTemplate, {}),
+            ("%s/templates/<oid>" % base, "DELETE", DeleteTemplate, {}),
         ]
 
         ZabbixAPI.register_api(module, rules, **kwargs)

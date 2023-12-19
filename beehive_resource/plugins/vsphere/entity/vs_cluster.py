@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beecell.simple import id_gen
 from beehive_resource.plugins.vsphere.entity import VsphereResource
@@ -9,22 +9,19 @@ from beehive_resource.plugins.vsphere.entity.vs_resource_pool import VsphereReso
 
 
 class VsphereCluster(VsphereResource):
-    objdef = 'Vsphere.DataCenter.Cluster'
-    objuri = 'clusters'
-    objname = 'cluster'
-    objdesc = 'Vsphere clusters'
-    
-    default_tags = ['vsphere']
-    
+    objdef = "Vsphere.DataCenter.Cluster"
+    objuri = "clusters"
+    objname = "cluster"
+    objdesc = "Vsphere clusters"
+
+    default_tags = ["vsphere"]
+
     def __init__(self, *args, **kvargs):
         """ """
         VsphereResource.__init__(self, *args, **kvargs)
-        
+
         # child classes
-        self.child_classes = [
-            VsphereHost,
-            VsphereResourcePool
-        ]        
+        self.child_classes = [VsphereHost, VsphereResourcePool]
 
     #
     # discover, synchronize
@@ -47,7 +44,7 @@ class VsphereCluster(VsphereResource):
         for datacenter in datacenters:
             for node in datacenter.hostFolder.childEntity:
                 obj_type = type(node).__name__
-                if obj_type == 'vim.ClusterComputeResource':
+                if obj_type == "vim.ClusterComputeResource":
                     items.append((node._moId, node.name, datacenter._moId, None))
 
         # add new item to final list
@@ -57,8 +54,17 @@ class VsphereCluster(VsphereResource):
                 parent_id = item[2]
                 parent_class = item[3]
                 resclass = VsphereCluster
-                res.append((resclass, item[0], parent_id, resclass.objdef, item[1], parent_class))
-        
+                res.append(
+                    (
+                        resclass,
+                        item[0],
+                        parent_id,
+                        resclass.objdef,
+                        item[1],
+                        parent_class,
+                    )
+                )
+
         return res
 
     @staticmethod
@@ -73,18 +79,20 @@ class VsphereCluster(VsphereResource):
         content = container.conn.si.RetrieveContent()
         datacenters = content.rootFolder.childEntity
         items = []
-                
+
         for datacenter in datacenters:
             for node in datacenter.hostFolder.childEntity:
                 obj_type = type(node).__name__
-                if obj_type == 'vim.ClusterComputeResource':
-                    items.append({
-                        'id': node._moId,
-                        'name': node.name,
-                    })          
-        
+                if obj_type == "vim.ClusterComputeResource":
+                    items.append(
+                        {
+                            "id": node._moId,
+                            "name": node.name,
+                        }
+                    )
+
         return items
-    
+
     @staticmethod
     def synchronize(container, entity):
         """Discover method used when synchronize beehive container with remote platform.
@@ -98,22 +106,22 @@ class VsphereCluster(VsphereResource):
         resclass = entity[0]
         ext_id = entity[1]
         parent_id = entity[2]
-        name = entity[4]   
-        
+        name = entity[4]
+
         parent = container.get_resource_by_extid(parent_id)
         parent_id = parent.oid
-        objid = '%s//%s' % (parent.objid, id_gen())
-        
+        objid = "%s//%s" % (parent.objid, id_gen())
+
         res = {
-            'resource_class': resclass,
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent_id,
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent_id,
+            "tags": resclass.default_tags,
         }
         return res
 
@@ -134,18 +142,18 @@ class VsphereCluster(VsphereResource):
         :raises ApiManagerError:
         """
         remote_entities = container.conn.cluster.list()
-        
+
         # create index of remote objs
-        remote_entities_index = {i['obj']._moId:i for i in remote_entities}      
-        
+        remote_entities_index = {i["obj"]._moId: i for i in remote_entities}
+
         for entity in entities:
             try:
                 ext_obj = remote_entities_index.get(entity.ext_id, None)
                 entity.set_physical_entity(ext_obj)
             except:
-                container.logger.warn('', exc_info=1)
+                container.logger.warn("", exc_info=1)
         return entities
-    
+
     def post_get(self):
         """Post get function. This function is used in get_entity method.
         Extend this function to extend description info returned after query.
@@ -158,10 +166,10 @@ class VsphereCluster(VsphereResource):
             self.set_physical_entity(ext_obj)
         except:
             pass
-    
+
     #
     # info
-    #    
+    #
     def info(self):
         """Get info.
 
@@ -183,8 +191,8 @@ class VsphereCluster(VsphereResource):
         # verify permissions
         info = VsphereResource.detail(self)
         if self.ext_obj is not None:
-            details = info['details']
-            data = {'config': self.ext_obj.summary}
+            details = info["details"]
+            data = {"config": self.ext_obj.summary}
             details.update(data)
-        
+
         return info

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 import logging
 from beecell.simple import id_gen
@@ -13,21 +14,21 @@ logger = logging.getLogger(__name__)
 
 
 class GrafanaAlertNotification(GrafanaResource):
-    objdef = 'Grafana.AlertNotification'
-    objuri = 'alert_notifications'
-    objname = 'alert_notification'
-    objdesc = 'Grafana AlertNotification'
-    
-    default_tags = ['grafana']
-    task_base_path = 'beehive_resource.plugins.grafana.task_v2.grafana_alert_notification.GrafanaAlertNotificationTask.'
-    
+    objdef = "Grafana.AlertNotification"
+    objuri = "alert_notifications"
+    objname = "alert_notification"
+    objdesc = "Grafana AlertNotification"
+
+    default_tags = ["grafana"]
+    task_base_path = "beehive_resource.plugins.grafana.task_v2.grafana_alert_notification.GrafanaAlertNotificationTask."
+
     def __init__(self, *args, **kvargs):
         """ """
         GrafanaResource.__init__(self, *args, **kvargs)
 
         # object uri
         # self.objuri = '/%s/%s/%s' % (self.container.version, self.container.objuri, GrafanaAlertNotification.objuri)
-        
+
     #
     # discover, synchronize
     #
@@ -51,12 +52,21 @@ class GrafanaAlertNotification(GrafanaResource):
         # add new item to final list
         res = []
         for item in remote_entities:
-            if item['uid'] not in res_ext_ids:
+            if item["uid"] not in res_ext_ids:
                 level = None
-                name = item['name']
+                name = item["name"]
                 parent_id = None
-                res.append((GrafanaAlertNotification, item['uid'], parent_id, GrafanaAlertNotification.objdef, name, level))
-        
+                res.append(
+                    (
+                        GrafanaAlertNotification,
+                        item["uid"],
+                        parent_id,
+                        GrafanaAlertNotification.objdef,
+                        name,
+                        level,
+                    )
+                )
+
         return res
 
     @staticmethod
@@ -72,13 +82,10 @@ class GrafanaAlertNotification(GrafanaResource):
         conn_grafana: GrafanaManager = container.conn_grafana
         remote_entities = conn_grafana.alert_notification.list()
         for item in remote_entities:
-            items.append({
-                'id': item['uid'],
-                'name': item['name']
-            })
+            items.append({"id": item["uid"], "name": item["name"]})
 
         return items
-    
+
     @staticmethod
     def synchronize(container, entity):
         """Discover method used when synchronize beehive container with remote platform.
@@ -93,19 +100,19 @@ class GrafanaAlertNotification(GrafanaResource):
         ext_id = entity[1]
         parent_id = entity[2]
         name = entity[4]
-        
-        objid = '%s//%s' % (container.objid, id_gen())
-        
+
+        objid = "%s//%s" % (container.objid, id_gen())
+
         res = {
-            'resource_class': resclass,
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent_id,
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent_id,
+            "tags": resclass.default_tags,
         }
 
         return res
@@ -128,10 +135,10 @@ class GrafanaAlertNotification(GrafanaResource):
         """
         # get from grafana
         remote_entities = container.conn_grafana.alert_notification.list()
-        
+
         # create index of remote objs
-        remote_entities_index = {i['id']: i for i in remote_entities}
-        
+        remote_entities_index = {i["id"]: i for i in remote_entities}
+
         entity: GrafanaAlertNotification
         for entity in entities:
             try:
@@ -139,10 +146,10 @@ class GrafanaAlertNotification(GrafanaResource):
                 entity.set_physical_entity(ext_obj)
                 # entity.get_dashboard()
             except:
-                container.logger.warn('', exc_info=1)
+                container.logger.warn("", exc_info=1)
 
         return entities
-    
+
     def post_get(self):
         """Post get function. This function is used in get_entity method.
         Extend this function to extend description info returned after query.
@@ -153,7 +160,7 @@ class GrafanaAlertNotification(GrafanaResource):
         ext_obj = self.get_remote_alert_notification(self.controller, self.ext_id, self.container, self.ext_id)
         self.set_physical_entity(ext_obj)
         # self.get_dashboard()
-        
+
     @staticmethod
     def pre_create(controller, container, *args, **kvargs):
         """Check input params before resource creation. This function is used in container resource_factory method.
@@ -178,48 +185,48 @@ class GrafanaAlertNotification(GrafanaResource):
         :raise ApiManagerError:
         """
         steps = [
-            GrafanaAlertNotification.task_base_path + 'create_resource_pre_step',
-            GrafanaAlertNotification.task_base_path + 'grafana_alert_notification_create_physical_step',
-            GrafanaAlertNotification.task_base_path + 'create_resource_post_step',
+            GrafanaAlertNotification.task_base_path + "create_resource_pre_step",
+            GrafanaAlertNotification.task_base_path + "grafana_alert_notification_create_physical_step",
+            GrafanaAlertNotification.task_base_path + "create_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
     def pre_update(self, *args, **kvargs):
         """Pre update function. This function is used in update method.
 
         :param args: custom params
-        :param kvargs: custom params            
-        :return: kvargs            
+        :param kvargs: custom params
+        :return: kvargs
         :raises ApiManagerError:
         """
         steps = [
-            GrafanaAlertNotification.task_base_path + 'update_resource_pre_step',
-            GrafanaAlertNotification.task_base_path + 'grafana_alert_notification_update_physical_step',
-            GrafanaAlertNotification.task_base_path + 'update_resource_post_step',
+            GrafanaAlertNotification.task_base_path + "update_resource_pre_step",
+            GrafanaAlertNotification.task_base_path + "grafana_alert_notification_update_physical_step",
+            GrafanaAlertNotification.task_base_path + "update_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
     def pre_delete(self, *args, **kvargs):
         """Pre delete function. This function is used in delete method.
 
         :param args: custom params
-        :param kvargs: custom params            
-        :return: kvargs            
+        :param kvargs: custom params
+        :return: kvargs
         :raises ApiManagerError:
         """
         steps = [
-            GrafanaAlertNotification.task_base_path + 'expunge_resource_pre_step',
-            GrafanaAlertNotification.task_base_path + 'grafana_alert_notification_delete_physical_step',
-            GrafanaAlertNotification.task_base_path + 'expunge_resource_post_step',
+            GrafanaAlertNotification.task_base_path + "expunge_resource_pre_step",
+            GrafanaAlertNotification.task_base_path + "grafana_alert_notification_delete_physical_step",
+            GrafanaAlertNotification.task_base_path + "expunge_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
-    
+
     #
     # info
-    #    
+    #
     def info(self):
         """Get info.
 
@@ -239,4 +246,3 @@ class GrafanaAlertNotification(GrafanaResource):
         """
         info = GrafanaResource.detail(self)
         return info
-

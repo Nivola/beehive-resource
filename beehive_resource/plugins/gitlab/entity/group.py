@@ -6,18 +6,24 @@ from beecell.simple import id_gen
 from beehive.common.task_v2 import run_async
 from beehive_resource.plugins.gitlab.entity import GitlabResource
 import logging
-from beehive_resource.util import create_resource, expunge_resource, update_resource, patch_resource, import_resource
+from beehive_resource.util import (
+    create_resource,
+    expunge_resource,
+    update_resource,
+    patch_resource,
+    import_resource,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class GitlabGroup(GitlabResource):
-    objdef = 'Gitlab.Group'
-    objuri = 'groups'
-    objname = 'group'
-    objdesc = 'Gitlab group'
+    objdef = "Gitlab.Group"
+    objuri = "groups"
+    objname = "group"
+    objdesc = "Gitlab group"
 
-    default_tags = ['gitlab']
+    default_tags = ["gitlab"]
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -49,13 +55,23 @@ class GitlabGroup(GitlabResource):
         # add new items to final list
         res = []
         for item in items:
-            item_id = item['groupid']
+            item_id = item["groupid"]
             if item_id not in res_ext_ids:
                 level = None
-                name = item['name']
-                status = item['status']
+                name = item["name"]
+                status = item["status"]
                 parent_id = None
-                res.append((GitlabGroup, item_id, parent_id, GitlabGroup.objdef, name, level, status))
+                res.append(
+                    (
+                        GitlabGroup,
+                        item_id,
+                        parent_id,
+                        GitlabGroup.objdef,
+                        name,
+                        level,
+                        status,
+                    )
+                )
 
         return res
 
@@ -71,10 +87,7 @@ class GitlabGroup(GitlabResource):
         items = []
         groups = container.conn.group.list()
         for group in groups:
-            items.append({
-                'id': group['groupid'],
-                'name': group['name']
-            })
+            items.append({"id": group["groupid"], "name": group["name"]})
         return items
 
     @staticmethod
@@ -93,18 +106,18 @@ class GitlabGroup(GitlabResource):
         name = entity[4]
         status = entity[6]
 
-        objid = '%s//%s' % (container.objid, id_gen())
+        objid = "%s//%s" % (container.objid, id_gen())
 
         res = {
-            'resource_class': resclass,
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent_id,
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent_id,
+            "tags": resclass.default_tags,
         }
 
         return res
@@ -174,14 +187,13 @@ class GitlabGroup(GitlabResource):
     #
     @staticmethod
     def pre_create(controller, container, *args, **kvargs):
-        """check input params before resource creation.
-        """
-        container.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        container.logger.warn('I am the pre_create')
-        container.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        """check input params before resource creation."""
+        container.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        container.logger.warn("I am the pre_create")
+        container.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         return kvargs
 
-    @run_async(action='insert', alias='create_gitlab_group')
+    @run_async(action="insert", alias="create_gitlab_group")
     @create_resource()
     def do_create(self, **params):
         """method to execute to make custom resource operations useful to complete create
@@ -189,9 +201,9 @@ class GitlabGroup(GitlabResource):
         :param params: custom params required by task
         :return:
         """
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        self.logger.warn('I am the do_create')
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        self.logger.warn("I am the do_create")
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         pass
 
     #
@@ -199,14 +211,13 @@ class GitlabGroup(GitlabResource):
     #
     @staticmethod
     def pre_import(controller, container, *args, **kvargs):
-        """check input params before resource creation.
-        """
-        container.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        container.logger.warn('I am the pre_import')
-        container.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        """check input params before resource creation."""
+        container.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        container.logger.warn("I am the pre_import")
+        container.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         return kvargs
 
-    @run_async(action='insert', alias='import_gitlab_group')
+    @run_async(action="insert", alias="import_gitlab_group")
     @import_resource()
     def do_import(self, **params):
         """method to execute to make custom resource operations useful to complete import
@@ -214,23 +225,22 @@ class GitlabGroup(GitlabResource):
         :param params: custom params required by task
         :return:
         """
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        self.logger.warn('I am the do_import')
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        self.logger.warn("I am the do_import")
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         pass
 
     #
     # patch
     #
     def pre_patch(self, *args, **kvargs):
-        """check input params before resource patch.
-        """
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        self.logger.warn('I am the pre_patch')
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        """check input params before resource patch."""
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        self.logger.warn("I am the pre_patch")
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         return kvargs
 
-    @run_async(action='delete', alias='patch_gitlab_group')
+    @run_async(action="delete", alias="patch_gitlab_group")
     @patch_resource()
     def do_patch(self, **params):
         """method to execute to make custom resource operations useful to complete patch
@@ -238,23 +248,22 @@ class GitlabGroup(GitlabResource):
         :param params: custom params required by task
         :return:
         """
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        self.logger.warn('I am the do_patch')
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        self.logger.warn("I am the do_patch")
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         pass
 
     #
     # update
     #
     def pre_update(self, *args, **kvargs):
-        """pre update function. This function is used in update method.
-        """
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        self.logger.warn('I am the pre_update')
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        """pre update function. This function is used in update method."""
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        self.logger.warn("I am the pre_update")
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         return kvargs
 
-    @run_async(action='delete', alias='update_gitlab_group')
+    @run_async(action="delete", alias="update_gitlab_group")
     @update_resource()
     def do_update(self, **params):
         """method to execute to make custom resource operations useful to complete update
@@ -262,23 +271,22 @@ class GitlabGroup(GitlabResource):
         :param params: custom params required by task
         :return:
         """
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        self.logger.warn('I am the do_update')
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        self.logger.warn("I am the do_update")
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         pass
 
     #
     # expunge
     #
     def pre_expunge(self, *args, **kvargs):
-        """check input params before resource expunge.
-        """
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        self.logger.warn('I am the pre_expunge')
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        """check input params before resource expunge."""
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        self.logger.warn("I am the pre_expunge")
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         return kvargs
 
-    @run_async(action='delete', alias='expunge_gitlab_group')
+    @run_async(action="delete", alias="expunge_gitlab_group")
     @expunge_resource()
     def do_expunge(self, **params):
         """method to execute to make custom resource operations useful to complete expunge
@@ -286,9 +294,9 @@ class GitlabGroup(GitlabResource):
         :param params: custom params required by task
         :return:
         """
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        self.logger.warn('I am the do_expunge')
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        self.logger.warn("I am the do_expunge")
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
 
         # if self.is_ext_id_valid() is False:
         #     self.logger.warn('resource %s ext_id is not valid' % self.oid)

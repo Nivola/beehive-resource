@@ -1,15 +1,21 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 import gevent
 from celery.utils.log import get_task_logger
 from celery import chain, chord, group, signature
 from beecell.simple import get_value, import_class
-from beehive_resource.tasks import ResourceJobTask, ResourceJob,\
-    create_resource_pre, create_resource_post, expunge_resource_pre,\
-    expunge_resource_post, update_resource_post,\
-    update_resource_pre
+from beehive_resource.tasks import (
+    ResourceJobTask,
+    ResourceJob,
+    create_resource_pre,
+    create_resource_post,
+    expunge_resource_pre,
+    expunge_resource_post,
+    update_resource_post,
+    update_resource_pre,
+)
 from beehive.common.task.manager import task_manager
 from beehive.common.task.job import job_task, job, task_local, Job
 from beehive.common.task.util import end_task, start_task
@@ -23,7 +29,7 @@ logger = get_task_logger(__name__)
 @job_task()
 def share_create_entity(self, options):
     """Create openstack share
-    
+
     :param options: config options. (class_name, objid, job, job id, start time, time before new query, user)
     :param sharedarea:
     :param sharedarea.share_proto: The Shared File Systems protocol. A valid value is NFS, CIFS,
@@ -43,59 +49,68 @@ def share_create_entity(self, options):
     """
     params = self.get_shared_data()
 
-    cid = params.get('cid')
-    oid = params.get('id')
-    parent_id = params.get('parent')
-    name = params.get('name')
-    desc = params.get('desc')
-    proto = params.get('share_proto')
-    size = params.get('size')
-    share_type = params.get('share_type')
-    is_public = params.get('is_public')
-    share_group_id = params.get('share_group_id')
-    metadata = params.get('metadata')
-    availability_zone = params.get('availability_zone')
-    self.update('PROGRESS', msg='Get configuration params')
-    
+    cid = params.get("cid")
+    oid = params.get("id")
+    parent_id = params.get("parent")
+    name = params.get("name")
+    desc = params.get("desc")
+    proto = params.get("share_proto")
+    size = params.get("size")
+    share_type = params.get("share_type")
+    is_public = params.get("is_public")
+    share_group_id = params.get("share_group_id")
+    metadata = params.get("metadata")
+    availability_zone = params.get("availability_zone")
+    self.update("PROGRESS", msg="Get configuration params")
+
     # get container
     self.get_session()
     container = self.get_container(cid, projectid=parent_id)
     conn = container.conn.manila
 
     # create openstack share
-    inst = conn.share.create(proto, size, name=name, description=desc, share_type=share_type, is_public=is_public,
-                             availability_zone=availability_zone, share_group_id=share_group_id, metadata=metadata)
-    inst_id = inst['id']
-    self.update('PROGRESS', msg='Create share %s - Starting' % inst_id)
+    inst = conn.share.create(
+        proto,
+        size,
+        name=name,
+        description=desc,
+        share_type=share_type,
+        is_public=is_public,
+        availability_zone=availability_zone,
+        share_group_id=share_group_id,
+        metadata=metadata,
+    )
+    inst_id = inst["id"]
+    self.update("PROGRESS", msg="Create share %s - Starting" % inst_id)
 
     # set ext_id
     container.update_resource(oid, ext_id=inst_id)
-    self.update('PROGRESS', msg='Set share remote openstack id %s' % inst_id)
+    self.update("PROGRESS", msg="Set share remote openstack id %s" % inst_id)
 
     # loop until entity is not stopped or get error
     while True:
         inst = OpenstackShare.get_remote_share(container.controller, inst_id, container, inst_id)
         # inst = conn.share.get(inst_id)
-        status = inst['status']
-        if status == 'available':
+        status = inst["status"]
+        if status == "available":
             break
-        if status == 'error':
-            self.update('PROGRESS', msg='Create share %s - Error' % inst_id)
-            raise Exception('Can not create share %s' % name)
-        
+        if status == "error":
+            self.update("PROGRESS", msg="Create share %s - Error" % inst_id)
+            raise Exception("Can not create share %s" % name)
+
         # update task
-        self.update('PROGRESS')       
+        self.update("PROGRESS")
 
         # sleep a little
         gevent.sleep(task_local.delta)
-    self.update('PROGRESS', msg='Create share %s - Completed' % inst_id)          
+    self.update("PROGRESS", msg="Create share %s - Completed" % inst_id)
 
     # save current data in shared area
-    params['ext_id'] = inst_id
-    params['attrib'] = None
+    params["ext_id"] = inst_id
+    params["attrib"] = None
     self.set_shared_data(params)
-    self.update('PROGRESS', msg='Update shared area')
-    
+    self.update("PROGRESS", msg="Update shared area")
+
     return inst_id
 
 
@@ -125,11 +140,11 @@ def share_delete_entity(self, options):
     """
     params = self.get_shared_data()
 
-    cid = params.get('cid')
-    parent_id = params.get('parent')
-    ext_id = params.get('ext_id')
-    self.update('PROGRESS', msg='Get configuration params')
-    
+    cid = params.get("cid")
+    parent_id = params.get("parent")
+    ext_id = params.get("ext_id")
+    self.update("PROGRESS", msg="Get configuration params")
+
     # get container
     self.get_session()
     container = self.get_container(cid, projectid=parent_id)
@@ -141,30 +156,30 @@ def share_delete_entity(self, options):
         try:
             conn.share.get(ext_id)
         except:
-            self.update('PROGRESS', msg='Share %s does not exist anymore' % ext_id)
+            self.update("PROGRESS", msg="Share %s does not exist anymore" % ext_id)
             return None
 
         # remove share
         conn.share.delete(ext_id)
-        self.update('PROGRESS', msg='Delete share %s - Starting' % ext_id)
+        self.update("PROGRESS", msg="Delete share %s - Starting" % ext_id)
 
         # loop until entity is not deleted or get error
         while True:
             inst = OpenstackShare.get_remote_share(container.controller, ext_id, container, ext_id)
             # inst = conn.share.get(ext_id)
-            status = inst.get('status', 'deleted')
-            if status == 'deleted':
+            status = inst.get("status", "deleted")
+            if status == "deleted":
                 break
-            elif status == 'error' or status == 'error_deleting':
-                self.update('PROGRESS', msg='Delete share %s - Error' % ext_id)
-                raise Exception('Can not delete share %s' % ext_id)
+            elif status == "error" or status == "error_deleting":
+                self.update("PROGRESS", msg="Delete share %s - Error" % ext_id)
+                raise Exception("Can not delete share %s" % ext_id)
 
-            self.update('PROGRESS')
+            self.update("PROGRESS")
             gevent.sleep(task_local.delta)
 
         resource.update_internal(ext_id=None)
-        self.update('PROGRESS', msg='Delete stack %s - Completed' % ext_id)
-    
+        self.update("PROGRESS", msg="Delete stack %s - Completed" % ext_id)
+
     return ext_id
 
 
@@ -200,13 +215,13 @@ def share_grant_add(self, options):
     """
     params = self.get_shared_data()
 
-    cid = params.get('cid')
-    parent_id = params.get('parent')
-    ext_id = params.get('ext_id')
-    access_level = params.get('access_level')
-    access_type = params.get('access_type')
-    access_to = params.get('access_to')
-    self.update('PROGRESS', msg='Get configuration params')
+    cid = params.get("cid")
+    parent_id = params.get("parent")
+    ext_id = params.get("ext_id")
+    access_level = params.get("access_level")
+    access_type = params.get("access_type")
+    access_to = params.get("access_to")
+    self.update("PROGRESS", msg="Get configuration params")
 
     # get container
     self.get_session()
@@ -215,8 +230,10 @@ def share_grant_add(self, options):
 
     if self.is_ext_id_valid(ext_id) is True:
         conn.share.action.grant_access(ext_id, access_level, access_type, access_to)
-        self.update('PROGRESS', msg='Add grant to share %s: %s - %s - %s' %
-                                     (ext_id, access_level, access_type, access_to))
+        self.update(
+            "PROGRESS",
+            msg="Add grant to share %s: %s - %s - %s" % (ext_id, access_level, access_type, access_to),
+        )
 
     return True
 
@@ -237,11 +254,11 @@ def share_grant_remove(self, options):
     """
     params = self.get_shared_data()
 
-    cid = params.get('cid')
-    parent_id = params.get('parent')
-    ext_id = params.get('ext_id')
-    access_id = params.get('access_id')
-    self.update('PROGRESS', msg='Get configuration params')
+    cid = params.get("cid")
+    parent_id = params.get("parent")
+    ext_id = params.get("ext_id")
+    access_id = params.get("access_id")
+    self.update("PROGRESS", msg="Get configuration params")
 
     # get container
     self.get_session()
@@ -250,7 +267,7 @@ def share_grant_remove(self, options):
 
     if self.is_ext_id_valid(ext_id) is True:
         conn.share.action.revoke_access(ext_id, access_id)
-        self.update('PROGRESS', msg='Remove grant %s from share %s' % (ext_id, access_id))
+        self.update("PROGRESS", msg="Remove grant %s from share %s" % (ext_id, access_id))
 
     return True
 
@@ -271,11 +288,11 @@ def share_size_extend(self, options):
     """
     params = self.get_shared_data()
 
-    cid = params.get('cid')
-    parent_id = params.get('parent')
-    ext_id = params.get('ext_id')
-    new_size = params.get('new_size')
-    self.update('PROGRESS', msg='Get configuration params')
+    cid = params.get("cid")
+    parent_id = params.get("parent")
+    ext_id = params.get("ext_id")
+    new_size = params.get("new_size")
+    self.update("PROGRESS", msg="Get configuration params")
 
     # get container
     self.get_session()
@@ -285,23 +302,23 @@ def share_size_extend(self, options):
     if self.is_ext_id_valid(ext_id) is True:
         # remove share
         conn.share.action.extend(ext_id, new_size)
-        self.update('PROGRESS', msg='Extend share %s size - Starting' % ext_id)
+        self.update("PROGRESS", msg="Extend share %s size - Starting" % ext_id)
 
         # loop until entity is not deleted or get error
         while True:
             inst = OpenstackShare.get_remote_share(container.controller, ext_id, container, ext_id)
             # inst = conn.share.get(ext_id)
-            status = inst['status']
-            if status == 'available':
+            status = inst["status"]
+            if status == "available":
                 break
-            elif status == 'error' or status == 'extending_error':
-                self.update('PROGRESS', msg='Extend share %s size - Error' % ext_id)
-                raise Exception('Can not Extend share %s size ' % ext_id)
+            elif status == "error" or status == "extending_error":
+                self.update("PROGRESS", msg="Extend share %s size - Error" % ext_id)
+                raise Exception("Can not Extend share %s size " % ext_id)
 
-            self.update('PROGRESS')
+            self.update("PROGRESS")
             gevent.sleep(task_local.delta)
 
-        self.update('PROGRESS', msg='Extend share %s size - Completed' % ext_id)
+        self.update("PROGRESS", msg="Extend share %s size - Completed" % ext_id)
 
     return True
 
@@ -322,11 +339,11 @@ def share_size_shrink(self, options):
     """
     params = self.get_shared_data()
 
-    cid = params.get('cid')
-    parent_id = params.get('parent')
-    ext_id = params.get('ext_id')
-    new_size = params.get('new_size')
-    self.update('PROGRESS', msg='Get configuration params')
+    cid = params.get("cid")
+    parent_id = params.get("parent")
+    ext_id = params.get("ext_id")
+    new_size = params.get("new_size")
+    self.update("PROGRESS", msg="Get configuration params")
 
     # get container
     self.get_session()
@@ -336,23 +353,23 @@ def share_size_shrink(self, options):
     if self.is_ext_id_valid(ext_id) is True:
         # remove share
         conn.share.action.shrink(ext_id, new_size)
-        self.update('PROGRESS', msg='Shrink share %s size - Starting' % ext_id)
+        self.update("PROGRESS", msg="Shrink share %s size - Starting" % ext_id)
 
         # loop until entity is not deleted or get error
         while True:
             inst = OpenstackShare.get_remote_share(container.controller, ext_id, container, ext_id)
             # inst = conn.share.get(ext_id)
-            status = inst['status']
-            if status == 'available':
+            status = inst["status"]
+            if status == "available":
                 break
-            elif status == 'error' or status == 'shrinking_error' or status == 'shrinking_possible_data_loss_error':
-                self.update('PROGRESS', msg='Shrink share %s size - Error' % ext_id)
-                raise Exception('Can not Shrink share %s size ' % ext_id)
+            elif status == "error" or status == "shrinking_error" or status == "shrinking_possible_data_loss_error":
+                self.update("PROGRESS", msg="Shrink share %s size - Error" % ext_id)
+                raise Exception("Can not Shrink share %s size " % ext_id)
 
-            self.update('PROGRESS')
+            self.update("PROGRESS")
             gevent.sleep(task_local.delta)
 
-        self.update('PROGRESS', msg='Shrink share %s size - Completed' % ext_id)
+        self.update("PROGRESS", msg="Shrink share %s size - Completed" % ext_id)
 
     return True
 
@@ -373,11 +390,11 @@ def share_revert_to_snapshot(self, options):
     """
     params = self.get_shared_data()
 
-    cid = params.get('cid')
-    parent_id = params.get('parent')
-    ext_id = params.get('ext_id')
-    snapshot_id = params.get('snapshot_id')
-    self.update('PROGRESS', msg='Get configuration params')
+    cid = params.get("cid")
+    parent_id = params.get("parent")
+    ext_id = params.get("ext_id")
+    snapshot_id = params.get("snapshot_id")
+    self.update("PROGRESS", msg="Get configuration params")
 
     # get container
     self.get_session()
@@ -386,18 +403,21 @@ def share_revert_to_snapshot(self, options):
 
     if self.is_ext_id_valid(ext_id) is True:
         conn.share.action.revert(ext_id, snapshot_id)
-        self.update('PROGRESS', msg='Revert share %s to snapshot: %s - %s - %s' % (ext_id, snapshot_id))
+        self.update(
+            "PROGRESS",
+            msg="Revert share %s to snapshot: %s" % (ext_id, snapshot_id),
+        )
 
     return True
 
 
 @task_manager.task(bind=True, base=ResourceJob)
-@job(entity_class=OpenstackShare, name='insert', delta=3)
+@job(entity_class=OpenstackShare, name="insert", delta=3)
 def job_share_create(self, objid, params):
     """Create openstack share
-    
+
     :param objid: objid of the resource. Ex. 110//2222//334//*
-    :param params: input params    
+    :param params: input params
     :param params.objid: resource objid
     :param params.parent: resource parent id
     :param params.cid: container id
@@ -414,7 +434,7 @@ def job_share_create(self, objid, params):
     :param params.share_type: (Optional) The share type name. If you omit this parameter, the
         default share type is used. To view the default share type set by the administrator, issue a list
         default share types request. You cannot specify both the share_type and volume_type parameters.
-    :param params.is_public** (:py:class:`bool`): (Optional) The level of visibility for the share. Set to true to make 
+    :param params.is_public** (:py:class:`bool`): (Optional) The level of visibility for the share. Set to true to make
         hare public. Set to false to make it private. Default value is false.
     :param params.snapshot_id: (Optional) The UUID of the share's base snapshot.
     :param params.share_group_id :(Optional) The UUID of the share group.
@@ -424,22 +444,25 @@ def job_share_create(self, objid, params):
     """
     ops = self.get_options()
     self.set_shared_data(params)
-    
-    Job.create([
-        end_task,
-        create_resource_post,
-        share_create_entity,
-        create_resource_pre,
-        start_task
-    ], ops).delay()
+
+    Job.create(
+        [
+            end_task,
+            create_resource_post,
+            share_create_entity,
+            create_resource_pre,
+            start_task,
+        ],
+        ops,
+    ).delay()
     return True
 
 
 @task_manager.task(bind=True, base=ResourceJob)
-@job(entity_class=OpenstackShare, name='update', delta=3)
+@job(entity_class=OpenstackShare, name="update", delta=3)
 def job_share_update(self, objid, params):
     """Update openstack share
-    
+
     :param objid: objid of the resource. Ex. 110//2222//334//*
     :param params: input params
     :param params.cid: container id
@@ -452,23 +475,26 @@ def job_share_update(self, objid, params):
     :return: True
     """
     ops = self.get_options()
-    self.set_shared_data(params)    
+    self.set_shared_data(params)
 
-    Job.create([
-        end_task,
-        update_resource_post,
-        share_update_entity,
-        update_resource_pre,
-        start_task
-    ], ops).delay()
+    Job.create(
+        [
+            end_task,
+            update_resource_post,
+            share_update_entity,
+            update_resource_pre,
+            start_task,
+        ],
+        ops,
+    ).delay()
     return True
 
 
 @task_manager.task(bind=True, base=ResourceJob)
-@job(entity_class=OpenstackShare, name='delete', delta=3)
+@job(entity_class=OpenstackShare, name="delete", delta=3)
 def job_share_delete(self, objid, params):
     """Delete openstack share
-    
+
     :param objid: objid of the resource. Ex. 110//2222//334//*
     :param params: input params
     :param params.cid: container id
@@ -480,20 +506,23 @@ def job_share_delete(self, objid, params):
     :return: True
     """
     ops = self.get_options()
-    self.set_shared_data(params)    
-    
-    Job.create([
-        end_task,
-        expunge_resource_post,
-        share_delete_entity,
-        expunge_resource_pre,
-        start_task
-    ], ops).delay()
+    self.set_shared_data(params)
+
+    Job.create(
+        [
+            end_task,
+            expunge_resource_post,
+            share_delete_entity,
+            expunge_resource_pre,
+            start_task,
+        ],
+        ops,
+    ).delay()
     return True
 
 
 @task_manager.task(bind=True, base=ResourceJob)
-@job(entity_class=OpenstackShare, name='update', delta=1)
+@job(entity_class=OpenstackShare, name="update", delta=1)
 def job_share_grant_add(self, objid, params):
     """Add grant to share
 
@@ -525,16 +554,12 @@ def job_share_grant_add(self, objid, params):
     ops = self.get_options()
     self.set_shared_data(params)
 
-    Job.create([
-        end_task,
-        share_grant_add,
-        start_task
-    ], ops).delay()
+    Job.create([end_task, share_grant_add, start_task], ops).delay()
     return True
 
 
 @task_manager.task(bind=True, base=ResourceJob)
-@job(entity_class=OpenstackShare, name='update', delta=1)
+@job(entity_class=OpenstackShare, name="update", delta=1)
 def job_share_grant_remove(self, objid, params):
     """Remove grant from share
 
@@ -550,16 +575,12 @@ def job_share_grant_remove(self, objid, params):
     ops = self.get_options()
     self.set_shared_data(params)
 
-    Job.create([
-        end_task,
-        share_grant_remove,
-        start_task
-    ], ops).delay()
+    Job.create([end_task, share_grant_remove, start_task], ops).delay()
     return True
 
 
 @task_manager.task(bind=True, base=ResourceJob)
-@job(entity_class=OpenstackShare, name='update', delta=3)
+@job(entity_class=OpenstackShare, name="update", delta=3)
 def job_share_size_extend(self, objid, params):
     """Extend share size
 
@@ -575,16 +596,12 @@ def job_share_size_extend(self, objid, params):
     ops = self.get_options()
     self.set_shared_data(params)
 
-    Job.create([
-        end_task,
-        share_size_extend,
-        start_task
-    ], ops).delay()
+    Job.create([end_task, share_size_extend, start_task], ops).delay()
     return True
 
 
 @task_manager.task(bind=True, base=ResourceJob)
-@job(entity_class=OpenstackShare, name='update', delta=3)
+@job(entity_class=OpenstackShare, name="update", delta=3)
 def job_share_size_shrink(self, objid, params):
     """Shrink share size
 
@@ -600,16 +617,12 @@ def job_share_size_shrink(self, objid, params):
     ops = self.get_options()
     self.set_shared_data(params)
 
-    Job.create([
-        end_task,
-        share_size_shrink,
-        start_task
-    ], ops).delay()
+    Job.create([end_task, share_size_shrink, start_task], ops).delay()
     return True
 
 
 @task_manager.task(bind=True, base=ResourceJob)
-@job(entity_class=OpenstackShare, name='update', delta=3)
+@job(entity_class=OpenstackShare, name="update", delta=3)
 def job_share_revert_to_snapshot(self, objid, params):
     """Revert share to snapshot
 
@@ -625,9 +638,5 @@ def job_share_revert_to_snapshot(self, objid, params):
     ops = self.get_options()
     self.set_shared_data(params)
 
-    Job.create([
-        end_task,
-        share_revert_to_snapshot,
-        start_task
-    ], ops).delay()
+    Job.create([end_task, share_revert_to_snapshot, start_task], ops).delay()
     return True

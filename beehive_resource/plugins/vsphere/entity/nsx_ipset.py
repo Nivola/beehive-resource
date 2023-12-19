@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beecell.simple import id_gen
 from beehive.common.apimanager import ApiManagerError
@@ -11,13 +11,13 @@ from beehive_resource.plugins.vsphere.entity.nsx_security_group import NsxSecuri
 
 
 class NsxIpSet(NsxResource):
-    objdef = 'Vsphere.Nsx.IpSet'
-    objuri = 'nsx_ipsets'
-    objname = 'nsx_ipset'
-    objdesc = 'Vsphere Nsx ipset'
+    objdef = "Vsphere.Nsx.IpSet"
+    objuri = "nsx_ipsets"
+    objname = "nsx_ipset"
+    objdesc = "Vsphere Nsx ipset"
 
-    default_tags = ['vsphere', 'network']
-    task_path = 'beehive_resource.plugins.vsphere.task_v2.nsx_ipset.NsxIpsetTask.'
+    default_tags = ["vsphere", "network"]
+    task_path = "beehive_resource.plugins.vsphere.task_v2.nsx_ipset.NsxIpsetTask."
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -42,10 +42,10 @@ class NsxIpSet(NsxResource):
         """
         items = []
 
-        nsx_manager_id = container.conn.system.nsx.summary_info()['hostName']
+        nsx_manager_id = container.conn.system.nsx.summary_info()["hostName"]
         ipsets = container.conn.network.nsx.ipset.list()
         for ipset in ipsets:
-            items.append((ipset['objectId'], ipset['name'], nsx_manager_id, None))
+            items.append((ipset["objectId"], ipset["name"], nsx_manager_id, None))
 
         # add new item to final list
         res = []
@@ -54,7 +54,16 @@ class NsxIpSet(NsxResource):
                 parent_id = item[2]
                 parent_class = item[3]
                 resclass = NsxIpSet
-                res.append((resclass, item[0], parent_id, resclass.objdef, item[1], parent_class))
+                res.append(
+                    (
+                        resclass,
+                        item[0],
+                        parent_id,
+                        resclass.objdef,
+                        item[1],
+                        parent_class,
+                    )
+                )
 
         return res
 
@@ -70,10 +79,12 @@ class NsxIpSet(NsxResource):
         items = []
         ipsets = container.conn.network.nsx.ipset.list()
         for ipset in ipsets:
-            items.append({
-                'id':ipset['objectId'],
-                'name':ipset['name'],
-            })
+            items.append(
+                {
+                    "id": ipset["objectId"],
+                    "name": ipset["name"],
+                }
+            )
 
         return items
 
@@ -95,18 +106,18 @@ class NsxIpSet(NsxResource):
 
         parent = container.get_resource_by_extid(parent_id)
         parent_id = parent.oid
-        objid = '%s//%s' % (parent.objid, id_gen())
+        objid = "%s//%s" % (parent.objid, id_gen())
 
         res = {
-            'resource_class': resclass,
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent_id,
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent_id,
+            "tags": resclass.default_tags,
         }
         return res
 
@@ -129,14 +140,14 @@ class NsxIpSet(NsxResource):
         remote_entities = container.conn.network.nsx.ipset.list()
 
         # create index of remote objs
-        remote_entities_index = {i['objectId']: i for i in remote_entities}
+        remote_entities_index = {i["objectId"]: i for i in remote_entities}
 
         for entity in entities:
             try:
                 ext_obj = remote_entities_index.get(entity.ext_id, None)
                 entity.set_physical_entity(ext_obj)
             except:
-                container.logger.warn('', exc_info=True)
+                container.logger.warn("", exc_info=True)
         return entities
 
     def post_get(self):
@@ -177,19 +188,21 @@ class NsxIpSet(NsxResource):
         """
         # get parent manager
         manager = container.get_nsx_manager()
-        objid = '%s//%s' % (manager.objid, id_gen())
+        objid = "%s//%s" % (manager.objid, id_gen())
 
-        kvargs.update({
-            'objid': objid,
-            'parent': manager.oid,
-        })
+        kvargs.update(
+            {
+                "objid": objid,
+                "parent": manager.oid,
+            }
+        )
 
         steps = [
-            NsxIpSet.task_path + 'create_resource_pre_step',
-            NsxIpSet.task_path + 'nsx_ipset_create_step',
-            NsxIpSet.task_path + 'create_resource_post_step'
+            NsxIpSet.task_path + "create_resource_pre_step",
+            NsxIpSet.task_path + "nsx_ipset_create_step",
+            NsxIpSet.task_path + "create_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
 
         return kvargs
 
@@ -202,10 +215,10 @@ class NsxIpSet(NsxResource):
         :raises ApiManagerError:
         """
         steps = [
-            NsxIpSet.task_path + 'update_resource_pre_step',
-            NsxIpSet.task_path + 'update_resource_post_step'
+            NsxIpSet.task_path + "update_resource_pre_step",
+            NsxIpSet.task_path + "update_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
     def pre_delete(self, *args, **kvargs):
@@ -217,11 +230,11 @@ class NsxIpSet(NsxResource):
         :raises ApiManagerError:
         """
         steps = [
-            NsxIpSet.task_path + 'expunge_resource_pre_step',
-            NsxIpSet.task_path + 'nsx_ipset_delete_step',
-            NsxIpSet.task_path + 'expunge_resource_post_step'
+            NsxIpSet.task_path + "expunge_resource_pre_step",
+            NsxIpSet.task_path + "nsx_ipset_delete_step",
+            NsxIpSet.task_path + "expunge_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
     #
@@ -237,7 +250,7 @@ class NsxIpSet(NsxResource):
         info = NsxResource.info(self)
         try:
             if self.ext_obj is not None:
-                info['details'] = {'cidr':self.ext_obj.get('value', '')}
+                info["details"] = {"cidr": self.ext_obj.get("value", "")}
         except Exception as ex:
             self.logger.warning(ex, exc_info=True)
         return info
@@ -253,17 +266,21 @@ class NsxIpSet(NsxResource):
         info = NsxResource.detail(self)
         try:
             if self.ext_obj is not None:
-                details = {'scope': {'id': self.ext_obj['scope']['id'],
-                                     'name': self.ext_obj['scope']['name'],
-                                     'type': self.ext_obj['scope']['objectTypeName']},
-                           'revision': self.ext_obj['revision'],
-                           'client_handle': self.ext_obj['clientHandle'],
-                           'extended_attributes': self.ext_obj['extendedAttributes'],
-                           'is_universal': self.ext_obj['isUniversal'],
-                           'universal_revision': self.ext_obj['universalRevision'],
-                           'inheritance_allowed': self.ext_obj['inheritanceAllowed'],
-                           'cidr': self.ext_obj.get('value', '')}
-                info['details'] = details
+                details = {
+                    "scope": {
+                        "id": self.ext_obj["scope"]["id"],
+                        "name": self.ext_obj["scope"]["name"],
+                        "type": self.ext_obj["scope"]["objectTypeName"],
+                    },
+                    "revision": self.ext_obj["revision"],
+                    "client_handle": self.ext_obj["clientHandle"],
+                    "extended_attributes": self.ext_obj["extendedAttributes"],
+                    "is_universal": self.ext_obj["isUniversal"],
+                    "universal_revision": self.ext_obj["universalRevision"],
+                    "inheritance_allowed": self.ext_obj["inheritanceAllowed"],
+                    "cidr": self.ext_obj.get("value", ""),
+                }
+                info["details"] = details
         except Exception as ex:
             self.logger.warn(ex, exc_info=True)
 
@@ -278,16 +295,16 @@ class NsxIpSet(NsxResource):
         """
         ext_obj = self.container.conn.network.nsx.sg.get(security_group_id)
         data = self.container.conn.network.nsx.sg.info(ext_obj)
-        members = data.pop('member', [])
+        members = data.pop("member", [])
         if isinstance(members, dict):
             members = [members]
 
         for member in members:
-            if self.ext_id == member['objectId']:
+            if self.ext_id == member["objectId"]:
                 return True
         return False
 
-    @trace(op='update')
+    @trace(op="update")
     def add_security_group(self, *args, **kvargs):
         """Add security group to nsx ipset
 
@@ -295,10 +312,10 @@ class NsxIpSet(NsxResource):
         :return: {'taskid':..}, 202
         :raise ApiManagerError:
         """
+
         def check(*args, **kvargs):
-            security_group = self.container.get_simple_resource(kvargs['security_group'],
-                                                                entity_class=NsxSecurityGroup)
-            kvargs['security_group'] = security_group.ext_id
+            security_group = self.container.get_simple_resource(kvargs["security_group"], entity_class=NsxSecurityGroup)
+            kvargs["security_group"] = security_group.ext_id
             return kvargs
 
             # if self.has_security_group(security_group.oid) is False:
@@ -309,11 +326,17 @@ class NsxIpSet(NsxResource):
             #     raise ApiManagerError('security group %s is already attached to port %s' %
             #                           (security_group.oid, self.oid))
 
-        steps = ['beehive_resource.plugins.vsphere.task_v2.nsx_ipset.NsxIpsetTask.ipset_add_security_group_step']
-        res = self.action('add_security_group', steps, log='Add security group to nsx ipset', check=check, **kvargs)
+        steps = ["beehive_resource.plugins.vsphere.task_v2.nsx_ipset.NsxIpsetTask.ipset_add_security_group_step"]
+        res = self.action(
+            "add_security_group",
+            steps,
+            log="Add security group to nsx ipset",
+            check=check,
+            **kvargs,
+        )
         return res
 
-    @trace(op='update')
+    @trace(op="update")
     def del_security_group(self, *args, **kvargs):
         """Remove security group from nsx ipset
 
@@ -321,10 +344,10 @@ class NsxIpSet(NsxResource):
         :return: {'taskid':..}, 202
         :raise ApiManagerError:
         """
+
         def check(*args, **kvargs):
-            security_group = self.container.get_simple_resource(kvargs['security_group'],
-                                                                entity_class=NsxSecurityGroup)
-            kvargs['security_group'] = security_group.ext_id
+            security_group = self.container.get_simple_resource(kvargs["security_group"], entity_class=NsxSecurityGroup)
+            kvargs["security_group"] = security_group.ext_id
             return kvargs
             # if self.has_security_group(security_group.oid) is True:
             #     kvargs['security_group'] = security_group.oid
@@ -332,7 +355,12 @@ class NsxIpSet(NsxResource):
             # else:
             #     raise ApiManagerError('security group %s is not attached to port %s' % (security_group.oid, self.oid))
 
-        steps = ['beehive_resource.plugins.vsphere.task_v2.nsx_ipset.NsxIpsetTask.ipset_del_security_group_step']
-        res = self.action('del_security_group', steps, log='Remove security group from nsx ipset',
-                          check=check, **kvargs)
+        steps = ["beehive_resource.plugins.vsphere.task_v2.nsx_ipset.NsxIpsetTask.ipset_del_security_group_step"]
+        res = self.action(
+            "del_security_group",
+            steps,
+            log="Remove security group from nsx ipset",
+            check=check,
+            **kvargs,
+        )
         return res

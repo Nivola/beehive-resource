@@ -1,31 +1,36 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive.common.model import BaseEntity
 from beehive_resource.container import Resource
 from beehive_resource.plugins.provider.entity.aggregate import ComputeProviderResource
 from beehive.common.apimanager import ApiManagerError
-from beehive_resource.plugins.provider.entity.zone import AvailabilityZoneChildResource, ComputeZone
+from beehive_resource.plugins.provider.entity.zone import (
+    AvailabilityZoneChildResource,
+    ComputeZone,
+)
+
 # from beehive_resource.plugins.provider.entity.logging_space import ComputeLoggingSpace
 from logging import getLogger
 
 logger = getLogger(__name__)
 
+
 class ComputeLoggingRole(ComputeProviderResource):
-    """Compute logging role
-    """
-    objdef = 'Provider.ComputeZone.ComputeLoggingSpace.ComputeLoggingRole'
-    objuri = '%s/logging_roles/%s'
-    objname = 'logging_role'
-    objdesc = 'Provider ComputeLoggingRole'
-    task_base_path = 'beehive_resource.plugins.provider.task_v2.logging_role.ComputeLoggingRoleTask.'
+    """Compute logging role"""
+
+    objdef = "Provider.ComputeZone.ComputeLoggingSpace.ComputeLoggingRole"
+    objuri = "%s/logging_roles/%s"
+    objname = "logging_role"
+    objdesc = "Provider ComputeLoggingRole"
+    task_base_path = "beehive_resource.plugins.provider.task_v2.logging_role.ComputeLoggingRoleTask."
 
     def __init__(self, *args, **kvargs):
         ComputeProviderResource.__init__(self, *args, **kvargs)
 
-        self.child_classes = [
-        ]
+        self.child_classes = []
 
     def info(self):
         """Get infos.
@@ -50,7 +55,7 @@ class ComputeLoggingRole(ComputeProviderResource):
 
         info = Resource.detail(self)
         # TODO metodo verificare se da implementare
-        #info['applied'] = [a.small_info() for a in self.get_applied_logging_role()]
+        # info['applied'] = [a.small_info() for a in self.get_applied_logging_role()]
         return info
 
     @staticmethod
@@ -97,67 +102,70 @@ class ComputeLoggingRole(ComputeProviderResource):
         :return: kvargs
         :raise ApiManagerError:
         """
-        orchestrator_type = kvargs.get('type')
-        orchestrator_tag = kvargs.get('orchestrator_tag')
-        #compute_zone_id = kvargs.get('compute_zone')
-        space_id = kvargs.get('parent')
+        orchestrator_type = kvargs.get("type")
+        orchestrator_tag = kvargs.get("orchestrator_tag")
+        # compute_zone_id = kvargs.get('compute_zone')
+        space_id = kvargs.get("parent")
 
         # get compute logging space
-        from beehive_resource.plugins.provider.entity.logging_space import ComputeLoggingSpace
+        from beehive_resource.plugins.provider.entity.logging_space import (
+            ComputeLoggingSpace,
+        )
+
         compute_logging_space: ComputeLoggingSpace
         compute_logging_space = container.get_simple_resource(space_id)
         compute_logging_space.check_active()
         compute_logging_space.set_container(container)
         compute_zone = compute_logging_space.get_parent()
-        #compute_zone.oid - id della zone
+        # compute_zone.oid - id della zone
 
         if compute_logging_space is None:
-            raise ApiManagerError('ComputeLoggingSpace Parent not found')
+            raise ApiManagerError("ComputeLoggingSpace Parent not found")
 
         # get compute zone
-        #compute_zone: ComputeZone
-        #compute_zone = container.get_simple_resource(compute_zone_id)
+        # compute_zone: ComputeZone
+        # compute_zone = container.get_simple_resource(compute_zone_id)
         compute_zone.check_active()
         compute_zone.set_container(container)
         multi_avz = True
 
         if compute_zone is None:
-            raise ApiManagerError('ComputeZone Parent not found')
+            raise ApiManagerError("ComputeZone Parent not found")
 
         # get availability zones ACTIVE
         availability_zones = ComputeProviderResource.get_active_availability_zones(compute_zone, multi_avz)
 
         # set params
         params = {
-            'compute_zone': compute_zone.oid,
-            'attribute': {
-                'type': orchestrator_type,
+            "compute_zone": compute_zone.oid,
+            "attribute": {
+                "type": orchestrator_type,
                 # 'type': 'elk',
-                'orchestrator_tag': orchestrator_tag,
-            }
+                "orchestrator_tag": orchestrator_tag,
+            },
         }
         kvargs.update(params)
 
         # TODO fv capire se in desc c'è la tripletta
         compute_zone_model: BaseEntity
         compute_zone_model = compute_zone.model
-        controller.logger.debug2('compute_zone_model.desc %s' % (compute_zone_model.desc))
+        controller.logger.debug2("compute_zone_model.desc %s" % (compute_zone_model.desc))
 
         # create task workflow
         steps = [
-            ComputeLoggingRole.task_base_path + 'create_resource_pre_step',
+            ComputeLoggingRole.task_base_path + "create_resource_pre_step",
         ]
         for availability_zone in availability_zones:
-            logger.debug(': role - create in availability_zone: %s' % (availability_zone))
+            logger.debug(": role - create in availability_zone: %s" % (availability_zone))
             step = {
-                'step': ComputeLoggingRole.task_base_path + 'create_zone_logging_role_step',
-                'args': [availability_zone]
+                "step": ComputeLoggingRole.task_base_path + "create_zone_logging_role_step",
+                "args": [availability_zone],
             }
             steps.append(step)
-        steps.append(ComputeLoggingRole.task_path + 'create_resource_post_step')
-        kvargs['steps'] = steps
+        steps.append(ComputeLoggingRole.task_path + "create_resource_post_step")
+        kvargs["steps"] = steps
         # fv - forzatura
-        kvargs['sync'] = False
+        kvargs["sync"] = False
 
         return kvargs
 
@@ -178,23 +186,23 @@ class ComputeLoggingRole(ComputeProviderResource):
         # check related objects
 
         # get logging_roles
-        customs, total = self.get_linked_resources(link_type_filter='relation%')
+        customs, total = self.get_linked_resources(link_type_filter="relation%")
         childs = [e.oid for e in customs]
 
         # create task workflow
-        kvargs['steps'] = self.group_remove_step(childs)
+        kvargs["steps"] = self.group_remove_step(childs)
 
         return kvargs
 
 
 class LoggingRole(AvailabilityZoneChildResource):
-    """Availability Zone LoggingRole
-    """
-    objdef = 'Provider.Region.Site.AvailabilityZone.LoggingRole'
-    objuri = '%s/logging_roles/%s'
-    objname = 'logging_role'
-    objdesc = 'Provider Availability Zone LoggingRole'
-    task_base_path = 'beehive_resource.plugins.provider.task_v2.logging_role.LoggingRoleTask.'
+    """Availability Zone LoggingRole"""
+
+    objdef = "Provider.Region.Site.AvailabilityZone.LoggingRole"
+    objuri = "%s/logging_roles/%s"
+    objname = "logging_role"
+    objdesc = "Provider Availability Zone LoggingRole"
+    task_base_path = "beehive_resource.plugins.provider.task_v2.logging_role.LoggingRoleTask."
 
     def __init__(self, *args, **kvargs):
         AvailabilityZoneChildResource.__init__(self, *args, **kvargs)
@@ -222,29 +230,27 @@ class LoggingRole(AvailabilityZoneChildResource):
         :return: kvargs
         :raise ApiManagerError:
         """
-        avz_id = kvargs.get('parent')
-        orchestrator_tag = kvargs.get('orchestrator_tag', 'default')
+        avz_id = kvargs.get("parent")
+        orchestrator_tag = kvargs.get("orchestrator_tag", "default")
 
         # get availability_zone
         avz = container.get_simple_resource(avz_id)
 
         # select remote orchestrator
-        orchestrator = avz.get_orchestrators_by_tag(orchestrator_tag, select_types=['elk'])
+        orchestrator = avz.get_orchestrators_by_tag(orchestrator_tag, select_types=["elk"])
 
         # set container
-        params = {
-            'orchestrator': list(orchestrator.values())[0]
-        }
+        params = {"orchestrator": list(orchestrator.values())[0]}
         kvargs.update(params)
 
         # create task workflow
         steps = [
-            LoggingRole.task_base_path + 'create_resource_pre_step',
-            LoggingRole.task_base_path + 'create_elk_role_step',
-            LoggingRole.task_base_path + 'create_resource_post_step',
+            LoggingRole.task_base_path + "create_resource_pre_step",
+            LoggingRole.task_base_path + "create_elk_role_step",
+            LoggingRole.task_base_path + "create_resource_post_step",
         ]
-        kvargs['steps'] = steps
-        kvargs['sync'] = True
+        kvargs["steps"] = steps
+        kvargs["sync"] = True
 
         return kvargs
 
@@ -262,9 +268,9 @@ class LoggingRole(AvailabilityZoneChildResource):
         :raise ApiManagerError:
         """
         # select physical orchestrator
-        orchestrator_idx = self.get_orchestrators(select_types=['elk'])
-        kvargs['steps'] = self.group_remove_step(orchestrator_idx)
-        kvargs['sync'] = True
+        orchestrator_idx = self.get_orchestrators(select_types=["elk"])
+        kvargs["steps"] = self.group_remove_step(orchestrator_idx)
+        kvargs["sync"] = True
 
         return kvargs
 
@@ -273,10 +279,10 @@ class LoggingRole(AvailabilityZoneChildResource):
 
         :return: elk role resource
         """
-        roles, total = self.get_linked_resources(link_type_filter='relation')
+        roles, total = self.get_linked_resources(link_type_filter="relation")
         if total > 0:
             role = roles[0]
-            self.logger.debug('get zone logging_role %s elk role: %s' % (self.oid, role))
+            self.logger.debug("get zone logging_role %s elk role: %s" % (self.oid, role))
             return role
         else:
-            raise ApiManagerError('no elk role in zone logging_role %s' % self.oid)
+            raise ApiManagerError("no elk role in zone logging_role %s" % self.oid)

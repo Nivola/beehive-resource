@@ -1,18 +1,27 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive_resource.plugins.provider.entity.stack import ComputeStack
 from beehive_resource.plugins.provider.entity.zone import ComputeZone
-from beehive_resource.view import ListResourcesRequestSchema,\
-    ResourceResponseSchema
-from beehive.common.apimanager import PaginatedResponseSchema, SwaggerApiView, \
-    GetApiObjectRequestSchema, CrudApiObjectTaskResponseSchema, CrudApiObjectSimpleResponseSchema, ApiManagerError
+from beehive_resource.view import ListResourcesRequestSchema, ResourceResponseSchema
+from beehive.common.apimanager import (
+    PaginatedResponseSchema,
+    SwaggerApiView,
+    GetApiObjectRequestSchema,
+    CrudApiObjectTaskResponseSchema,
+    CrudApiObjectSimpleResponseSchema,
+    ApiManagerError,
+)
 from beecell.swagger import SwaggerHelper
 from flasgger import fields, Schema
-from beehive_resource.plugins.provider.views import ProviderAPI,\
-    LocalProviderApiView, UpdateProviderResourceRequestSchema,\
-    CreateProviderResourceRequestSchema
+from beehive_resource.plugins.provider.views import (
+    ProviderAPI,
+    LocalProviderApiView,
+    UpdateProviderResourceRequestSchema,
+    CreateProviderResourceRequestSchema,
+)
 from marshmallow.validate import OneOf
 
 
@@ -22,7 +31,7 @@ class ProviderStack(LocalProviderApiView):
 
 
 class ListStacksRequestSchema(ListResourcesRequestSchema):
-    compute_zones = fields.String(context='query', description='comma separated list of compute zone id or uuid')
+    compute_zones = fields.String(context="query", description="comma separated list of compute zone id or uuid")
 
 
 class ListStacksResponseSchema(PaginatedResponseSchema):
@@ -31,16 +40,11 @@ class ListStacksResponseSchema(PaginatedResponseSchema):
 
 class ListStacks(ProviderStack):
     definitions = {
-        'ListStacksResponseSchema': ListStacksResponseSchema,
+        "ListStacksResponseSchema": ListStacksResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(ListStacksRequestSchema)
     parameters_schema = ListStacksRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': ListStacksResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListStacksResponseSchema}})
 
     def get(self, controller, data, *args, **kwargs):
         """
@@ -50,9 +54,9 @@ class ListStacks(ProviderStack):
         # - filter by: tags
         # - filter by: compute_zone
         """
-        compute_zones = data.pop('compute_zones', None)
+        compute_zones = data.pop("compute_zones", None)
         if compute_zones is not None:
-            data['parent_list'] = compute_zones.split(',')
+            data["parent_list"] = compute_zones.split(",")
 
         return self.get_resources(controller, **data)
 
@@ -63,15 +67,10 @@ class GetStackResponseSchema(Schema):
 
 class GetStack(ProviderStack):
     definitions = {
-        'GetStackResponseSchema': GetStackResponseSchema,
+        "GetStackResponseSchema": GetStackResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetStackResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetStackResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -87,15 +86,10 @@ class GetStackResourcesResponseSchema(Schema):
 
 class GetStackResources(ProviderStack):
     definitions = {
-        'GetStackResourcesResponseSchema': GetStackResourcesResponseSchema,
+        "GetStackResourcesResponseSchema": GetStackResourcesResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetStackResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetStackResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -104,7 +98,7 @@ class GetStackResources(ProviderStack):
         """
         resource = self.get_resource_reference(controller, oid)
         resources = resource.resources()
-        return {'stack_resources': resources, 'count': len(resources)}
+        return {"stack_resources": resources, "count": len(resources)}
 
 
 class GetStackInputsResponseSchema(Schema):
@@ -113,15 +107,10 @@ class GetStackInputsResponseSchema(Schema):
 
 class GetStackInputs(ProviderStack):
     definitions = {
-        'GetStackInputsResponseSchema': GetStackInputsResponseSchema,
+        "GetStackInputsResponseSchema": GetStackInputsResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetStackInputsResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetStackInputsResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -130,7 +119,7 @@ class GetStackInputs(ProviderStack):
         """
         resource = self.get_resource_reference(controller, oid)
         inputs = resource.inputs()
-        return {'stack_inputs': inputs, 'count': len(inputs)}
+        return {"stack_inputs": inputs, "count": len(inputs)}
 
 
 class GetStackOutputsResponseSchema(Schema):
@@ -139,15 +128,10 @@ class GetStackOutputsResponseSchema(Schema):
 
 class GetStackOutputs(ProviderStack):
     definitions = {
-        'GetStackOutputsResponseSchema': GetStackOutputsResponseSchema,
+        "GetStackOutputsResponseSchema": GetStackOutputsResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetStackOutputsResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetStackOutputsResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -156,32 +140,60 @@ class GetStackOutputs(ProviderStack):
         """
         resource = self.get_resource_reference(controller, oid)
         outputs = resource.outputs()
-        return {'stack_outputs': outputs, 'count': len(outputs)}
+        return {"stack_outputs": outputs, "count": len(outputs)}
 
 
 class CreateStackTemplateRequestSchema(Schema):
-    availability_zone = fields.String(required=True, example='2995',
-                                      description='id, uuid or name of the site where is located the orchestrator')
-    orchestrator_type = fields.String(required=True, example='openstack', description='Orchestrator type. Can be '
-                                      'openstack', validate=OneOf(['openstack']))
-    template_uri = fields.String(required=True, example='https://localhost/hot/test_template.yaml',
-                                 description='remote template uri')
-    owner = fields.String(required=False, example='admin', description='stack owner')
-    environment = fields.Dict(required=False, default={}, description='additional environment')
-    parameters = fields.Dict(required=True, example={'image_id': 'centos7-guestagent'},
-                             description='stack input parameters')
-    files = fields.Dict(required=False, default={'myfile': '#!\/bin\/bash\necho \"Hello\" > \/root\/testfile.txt'},
-                        description='stack input files')
+    availability_zone = fields.String(
+        required=True,
+        example="2995",
+        description="id, uuid or name of the site where is located the orchestrator",
+    )
+    orchestrator_type = fields.String(
+        required=True,
+        example="openstack",
+        description="Orchestrator type. Can be " "openstack",
+        validate=OneOf(["openstack"]),
+    )
+    template_uri = fields.String(
+        required=True,
+        example="https://localhost/hot/test_template.yaml",
+        description="remote template uri",
+    )
+    owner = fields.String(required=False, example="admin", description="stack owner")
+    environment = fields.Dict(required=False, default={}, description="additional environment")
+    parameters = fields.Dict(
+        required=True,
+        example={"image_id": "centos7-guestagent"},
+        description="stack input parameters",
+    )
+    files = fields.Dict(
+        required=False,
+        default={"myfile": '#!\/bin\/bash\necho "Hello" > \/root\/testfile.txt'},
+        description="stack input files",
+    )
 
 
 class CreateStackParamRequestSchema(CreateProviderResourceRequestSchema):
-    compute_zone = fields.String(required=True, example='1', description='parent compute zone id or uuid')
-    parameters = fields.Dict(required=True, example={'image_id': 'centos7-guestagent'},
-                             description='stack input parameters')
-    templates = fields.Nested(CreateStackTemplateRequestSchema, many=True, required=True, allow_none=True,
-                              description='list of stack template per availability zone')
-    resolve = fields.Boolean(example=False, missing=True, required=False,
-                             description='Define if stack instances must registered on the availability_zone dns zone')
+    compute_zone = fields.String(required=True, example="1", description="parent compute zone id or uuid")
+    parameters = fields.Dict(
+        required=True,
+        example={"image_id": "centos7-guestagent"},
+        description="stack input parameters",
+    )
+    templates = fields.Nested(
+        CreateStackTemplateRequestSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+        description="list of stack template per availability zone",
+    )
+    resolve = fields.Boolean(
+        example=False,
+        missing=True,
+        required=False,
+        description="Define if stack instances must registered on the availability_zone dns zone",
+    )
 
 
 class CreateStackRequestSchema(Schema):
@@ -189,22 +201,19 @@ class CreateStackRequestSchema(Schema):
 
 
 class CreateStackBodyRequestSchema(Schema):
-    body = fields.Nested(CreateStackRequestSchema, context='body')
+    body = fields.Nested(CreateStackRequestSchema, context="body")
 
 
 class CreateStack(ProviderStack):
     definitions = {
-        'CreateStackRequestSchema': CreateStackRequestSchema,
-        'CrudApiObjectTaskResponseSchema': CrudApiObjectTaskResponseSchema
+        "CreateStackRequestSchema": CreateStackRequestSchema,
+        "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(CreateStackBodyRequestSchema)
     parameters_schema = CreateStackRequestSchema
-    responses = SwaggerApiView.setResponses({
-        202: {
-            'description': 'success',
-            'schema': CrudApiObjectTaskResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses(
+        {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
+    )
 
     def post(self, controller, data, *args, **kwargs):
         """
@@ -223,22 +232,19 @@ class UpdateStackRequestSchema(Schema):
 
 
 class UpdateStackBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateStackRequestSchema, context='body')
+    body = fields.Nested(UpdateStackRequestSchema, context="body")
 
 
 class UpdateStack(ProviderStack):
     definitions = {
-        'UpdateStackRequestSchema':UpdateStackRequestSchema,
-        'CrudApiObjectTaskResponseSchema':CrudApiObjectTaskResponseSchema
+        "UpdateStackRequestSchema": UpdateStackRequestSchema,
+        "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(UpdateStackBodyRequestSchema)
     parameters_schema = UpdateStackRequestSchema
-    responses = SwaggerApiView.setResponses({
-        202: {
-            'description': 'success',
-            'schema': CrudApiObjectTaskResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses(
+        {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
+    )
 
     def put(self, controller, data, oid, *args, **kwargs):
         """
@@ -249,16 +255,11 @@ class UpdateStack(ProviderStack):
 
 
 class DeleteStack(ProviderStack):
-    definitions = {
-        'CrudApiObjectTaskResponseSchema':CrudApiObjectTaskResponseSchema
-    }
+    definitions = {"CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        202: {
-            'description': 'success',
-            'schema': CrudApiObjectTaskResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses(
+        {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
+    )
 
     def delete(self, controller, data, oid, *args, **kwargs):
         """
@@ -269,20 +270,18 @@ class DeleteStack(ProviderStack):
 
 
 class GetManageResponseSchema(Schema):
-    is_managed = fields.Boolean(required=True, description='Return True if compute zone is managed by ssh module')
+    is_managed = fields.Boolean(
+        required=True,
+        description="Return True if compute zone is managed by ssh module",
+    )
 
 
 class GetManage(ProviderStack):
     definitions = {
-        'GetManageResponseSchema': GetManageResponseSchema,
+        "GetManageResponseSchema": GetManageResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetManageResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetManageResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -291,40 +290,35 @@ class GetManage(ProviderStack):
         """
         stack = self.get_resource_reference(controller, oid)
         res = stack.is_managed()
-        return {'is_managed': res}
+        return {"is_managed": res}
 
 
 class AddManageRequestParamSchema(Schema):
-    user = fields.String(required=False, description='Node user', missing='root', example='root')
-    password = fields.String(required=False, description='Node user password', missing='', example='test')
-    key = fields.String(required=True, description='ssh key name or uuid', example='prova123')
+    user = fields.String(required=False, description="Node user", missing="root", example="root")
+    password = fields.String(required=False, description="Node user password", missing="", example="test")
+    key = fields.String(required=True, description="ssh key name or uuid", example="prova123")
 
 
 class AddManageRequestSchema(Schema):
-    manage = fields.Nested(AddManageRequestParamSchema, required=True, description='Management params')
+    manage = fields.Nested(AddManageRequestParamSchema, required=True, description="Management params")
 
 
 class AddManageRequestBodySchema(GetApiObjectRequestSchema):
-    body = fields.Nested(AddManageRequestSchema, context='body')
+    body = fields.Nested(AddManageRequestSchema, context="body")
 
 
 class AddManageResponseSchema(Schema):
-    manage = fields.Boolean(required=True, description='Ssh group uuid')
+    manage = fields.Boolean(required=True, description="Ssh group uuid")
 
 
 class AddManage(ProviderStack):
     definitions = {
-        'AddManageRequestSchema': AddManageRequestSchema,
-        'AddManageResponseSchema': AddManageResponseSchema,
+        "AddManageRequestSchema": AddManageRequestSchema,
+        "AddManageResponseSchema": AddManageResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(AddManageRequestBodySchema)
     parameters_schema = AddManageRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': AddManageResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": AddManageResponseSchema}})
 
     def post(self, controller, data, oid, *args, **kwargs):
         """
@@ -332,20 +326,14 @@ class AddManage(ProviderStack):
         Manage stack
         """
         stack = self.get_resource_reference(controller, oid)
-        res = stack.manage(**data.get('manage'))
-        return {'manage': res}
+        res = stack.manage(**data.get("manage"))
+        return {"manage": res}
 
 
 class DeleteManage(ProviderStack):
-    definitions = {
-        'CrudApiObjectSimpleResponseSchema': CrudApiObjectSimpleResponseSchema
-    }
+    definitions = {"CrudApiObjectSimpleResponseSchema": CrudApiObjectSimpleResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        204: {
-            'description': 'success'
-        }
-    })
+    responses = SwaggerApiView.setResponses({204: {"description": "success"}})
 
     def delete(self, controller, data, oid, *args, **kwargs):
         """
@@ -363,15 +351,10 @@ class GetStackDnsResponseSchema(Schema):
 
 class GetStackDns(ProviderStack):
     definitions = {
-        'GetStackDnsResponseSchema': GetStackDnsResponseSchema,
+        "GetStackDnsResponseSchema": GetStackDnsResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetStackDnsResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetStackDnsResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -380,7 +363,7 @@ class GetStackDns(ProviderStack):
         """
         obj = self.get_resource_reference(controller, oid, run_customize=False)
         res = obj.get_dns_recorda()
-        resp = {'dns': [i.detail() for i in res]}
+        resp = {"dns": [i.detail() for i in res]}
         return resp
 
 
@@ -390,15 +373,10 @@ class SetStackDnsResponseSchema(Schema):
 
 class SetStackDns(ProviderStack):
     definitions = {
-        'SetStackDnsResponseSchema': SetStackDnsResponseSchema,
+        "SetStackDnsResponseSchema": SetStackDnsResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': SetStackDnsResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": SetStackDnsResponseSchema}})
 
     def post(self, controller, data, oid, *args, **kwargs):
         """
@@ -408,11 +386,11 @@ class SetStackDns(ProviderStack):
         obj = self.get_resource_reference(controller, oid, run_customize=False)
 
         # check instance status
-        if obj.get_base_state() != 'ACTIVE':
-            raise ApiManagerError('Stack %s is not in ACTIVE state' % obj.uuid)
+        if obj.get_base_state() != "ACTIVE":
+            raise ApiManagerError("Stack %s is not in ACTIVE state" % obj.uuid)
 
         res = obj.set_dns_recorda(force=True, ttl=30)
-        resp = {'uuids': res}
+        resp = {"uuids": res}
         return resp
 
 
@@ -422,15 +400,10 @@ class UnSetStackDnsResponseSchema(Schema):
 
 class UnSetStackDns(ProviderStack):
     definitions = {
-        'UnSetStackDnsResponseSchema': UnSetStackDnsResponseSchema,
+        "UnSetStackDnsResponseSchema": UnSetStackDnsResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': UnSetStackDnsResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": UnSetStackDnsResponseSchema}})
 
     def delete(self, controller, data, oid, *args, **kwargs):
         """
@@ -440,39 +413,37 @@ class UnSetStackDns(ProviderStack):
         obj = self.get_resource_reference(controller, oid, run_customize=False)
 
         # check instance status
-        if obj.get_base_state() != 'ACTIVE':
-            raise ApiManagerError('Stack %s is not in ACTIVE state' % obj.uuid)
+        if obj.get_base_state() != "ACTIVE":
+            raise ApiManagerError("Stack %s is not in ACTIVE state" % obj.uuid)
 
         res = obj.unset_dns_recorda()
-        resp = {'uuids': res}
+        resp = {"uuids": res}
         return resp
 
 
 class StackProviderAPI(ProviderAPI):
-    """
-    """
+    """ """
+
     @staticmethod
     def register_api(module, **kwargs):
         base = ProviderAPI.base
         rules = [
             # - filter by: tags
             # - filter by: compute_zone
-            ('%s/stacks' % base, 'GET', ListStacks, {}),
-            ('%s/stacks/<oid>' % base, 'GET', GetStack, {}),
-            ('%s/stacks/<oid>/resources' % base, 'GET', GetStackResources, {}),
-            ('%s/stacks/<oid>/inputs' % base, 'GET', GetStackInputs, {}),
-            ('%s/stacks/<oid>/outputs' % base, 'GET', GetStackOutputs, {}),
-            ('%s/stacks' % base, 'POST', CreateStack, {}),
-            ('%s/stacks/<oid>' % base, 'PUT', UpdateStack, {}),
-            ('%s/stacks/<oid>' % base, 'DELETE', DeleteStack, {}),
-
-            ('%s/stacks/<oid>/manage' % base, 'GET', GetManage, {}),
-            ('%s/stacks/<oid>/manage' % base, 'POST', AddManage, {}),
-            ('%s/stacks/<oid>/manage' % base, 'DELETE', DeleteManage, {}),
-
-            ('%s/stacks/<oid>/dns' % base, 'GET', GetStackDns, {}),
-            ('%s/stacks/<oid>/dns' % base, 'POST', SetStackDns, {}),
-            ('%s/stacks/<oid>/dns' % base, 'DELETE', UnSetStackDns, {}),
+            ("%s/stacks" % base, "GET", ListStacks, {}),
+            ("%s/stacks/<oid>" % base, "GET", GetStack, {}),
+            ("%s/stacks/<oid>/resources" % base, "GET", GetStackResources, {}),
+            ("%s/stacks/<oid>/inputs" % base, "GET", GetStackInputs, {}),
+            ("%s/stacks/<oid>/outputs" % base, "GET", GetStackOutputs, {}),
+            ("%s/stacks" % base, "POST", CreateStack, {}),
+            ("%s/stacks/<oid>" % base, "PUT", UpdateStack, {}),
+            ("%s/stacks/<oid>" % base, "DELETE", DeleteStack, {}),
+            ("%s/stacks/<oid>/manage" % base, "GET", GetManage, {}),
+            ("%s/stacks/<oid>/manage" % base, "POST", AddManage, {}),
+            ("%s/stacks/<oid>/manage" % base, "DELETE", DeleteManage, {}),
+            ("%s/stacks/<oid>/dns" % base, "GET", GetStackDns, {}),
+            ("%s/stacks/<oid>/dns" % base, "POST", SetStackDns, {}),
+            ("%s/stacks/<oid>/dns" % base, "DELETE", UnSetStackDns, {}),
         ]
 
         ProviderAPI.register_api(module, rules, **kwargs)

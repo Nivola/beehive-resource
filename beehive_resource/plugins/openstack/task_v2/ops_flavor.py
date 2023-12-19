@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from logging import getLogger
 from beehive.common.task_v2 import task_step
@@ -12,9 +12,9 @@ logger = getLogger(__name__)
 
 
 class FlavorTask(AbstractResourceTask):
-    """Flavor task
-    """
-    name = 'flavor_task'
+    """Flavor task"""
+
+    name = "flavor_task"
     entity_class = OpenstackFlavor
 
     @staticmethod
@@ -27,26 +27,26 @@ class FlavorTask(AbstractResourceTask):
         :param dict params: step params
         :return: oid, params
         """
-        cid = params.get('cid')
-        oid = params.get('id')
-        name = params.get('name')
-        desc = params.get('desc')
-        vcpus = params.get('vcpus')
-        ram = params.get('ram')
-        disk = params.get('disk')
-        task.progress(step_id, msg='Get configuration params')
+        cid = params.get("cid")
+        oid = params.get("id")
+        name = params.get("name")
+        desc = params.get("desc")
+        vcpus = params.get("vcpus")
+        ram = params.get("ram")
+        disk = params.get("disk")
+        task.progress(step_id, msg="Get configuration params")
 
         container = task.get_container(cid)
         conn = container.conn
         inst = conn.flavor.create(name, vcpus, ram, disk, desc)
-        inst_id = inst['id']
-        task.progress(step_id, msg='Create flavor %s' % inst_id)
-        
+        inst_id = inst["id"]
+        task.progress(step_id, msg="Create flavor %s" % inst_id)
+
         # save current data in shared area
-        params['ext_id'] = inst_id
-        params['attrib'] = {}
-        task.progress(step_id, msg='Update shared area')
-    
+        params["ext_id"] = inst_id
+        params["attrib"] = {}
+        task.progress(step_id, msg="Update shared area")
+
         return oid, params
 
     @staticmethod
@@ -59,15 +59,15 @@ class FlavorTask(AbstractResourceTask):
         :param dict params: step params
         :return: oid, params
         """
-        cid = params.get('cid')
-        oid = params.get('id')
-        ext_id = params.get('ext_id')
-        extra_specs = params.get('extra_specs')
+        cid = params.get("cid")
+        oid = params.get("id")
+        ext_id = params.get("ext_id")
+        extra_specs = params.get("extra_specs")
 
         container = task.get_container(cid)
         conn = container.conn
         inst = conn.flavor.extra_spec_create(ext_id, extra_specs)
-        task.progress(step_id, msg='Update flavor %s' % ext_id)
+        task.progress(step_id, msg="Update flavor %s" % ext_id)
 
         return oid, params
 
@@ -81,8 +81,8 @@ class FlavorTask(AbstractResourceTask):
         :param dict params: step params
         :return: oid, params
         """
-        cid = params.get('cid')
-        oid = params.get('id')
+        cid = params.get("cid")
+        oid = params.get("id")
 
         container = task.get_container(cid)
         conn = container.conn
@@ -96,7 +96,7 @@ class FlavorTask(AbstractResourceTask):
 
                 # delete openstack flavor
                 conn.flavor.delete(resource.ext_id)
-                task.progress(step_id, msg='Delete flavor %s' % resource.ext_id)
+                task.progress(step_id, msg="Delete flavor %s" % resource.ext_id)
             except:
                 pass
 

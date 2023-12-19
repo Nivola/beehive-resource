@@ -1,19 +1,28 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive_resource.plugins.vsphere.entity.vs_volumetype import VsphereVolumeType
 from beehive_resource.plugins.vsphere.views import VsphereAPI, VsphereApiView
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
-from beehive.common.apimanager import PaginatedResponseSchema, SwaggerApiView, GetApiObjectRequestSchema,\
-    CrudApiObjectJobResponseSchema, CrudApiObjectResponseSchema
-from beehive_resource.view import ResourceResponseSchema, ListResourcesRequestSchema, ResourceSmallResponseSchema
+from beehive.common.apimanager import (
+    PaginatedResponseSchema,
+    SwaggerApiView,
+    GetApiObjectRequestSchema,
+    CrudApiObjectJobResponseSchema,
+    CrudApiObjectResponseSchema,
+)
+from beehive_resource.view import (
+    ResourceResponseSchema,
+    ListResourcesRequestSchema,
+    ResourceSmallResponseSchema,
+)
 from beehive_resource.plugins.vsphere.entity.vs_datacenter import VsphereDatacenter
 
 
 class VsphereVolumeTypeApiView(VsphereApiView):
-    tags = ['vsphere']
+    tags = ["vsphere"]
     resclass = VsphereVolumeType
     parentclass = VsphereDatacenter
 
@@ -32,16 +41,11 @@ class ListVolumeTypesResponseSchema(PaginatedResponseSchema):
 
 class ListVolumeTypes(VsphereVolumeTypeApiView):
     definitions = {
-        'ListVolumeTypesResponseSchema': ListVolumeTypesResponseSchema,
+        "ListVolumeTypesResponseSchema": ListVolumeTypesResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(ListVolumeTypesRequestSchema)
     parameters_schema = ListVolumeTypesRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': ListVolumeTypesResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListVolumeTypesResponseSchema}})
 
     def get(self, controller, data, *args, **kwargs):
         """
@@ -57,15 +61,10 @@ class GetVolumeTypeResponseSchema(Schema):
 
 class GetVolumeType(VsphereVolumeTypeApiView):
     definitions = {
-        'GetVolumeTypeResponseSchema': GetVolumeTypeResponseSchema,
+        "GetVolumeTypeResponseSchema": GetVolumeTypeResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetVolumeTypeResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetVolumeTypeResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -76,12 +75,12 @@ class GetVolumeType(VsphereVolumeTypeApiView):
 
 
 class CreateVolumeTypeParamRequestSchema(Schema):
-    container = fields.String(required=True, example='12', description='container id, uuid or name')
-    name = fields.String(required=True, example='test', description='name')
-    desc = fields.String(required=True, example='test', description='name')
-    datacenter = fields.String(required=True, example='23', description='datacenter id, uuid or name')
-    tags = fields.String(example='prova', default='', description='comma separated list of tags')
-    disk_iops = fields.Integer(example=1, missing=-1, description='disk iops')
+    container = fields.String(required=True, example="12", description="container id, uuid or name")
+    name = fields.String(required=True, example="test", description="name")
+    desc = fields.String(required=True, example="test", description="name")
+    datacenter = fields.String(required=True, example="23", description="datacenter id, uuid or name")
+    tags = fields.String(example="prova", default="", description="comma separated list of tags")
+    disk_iops = fields.Integer(example=1, missing=-1, description="disk iops")
 
 
 class CreateVolumeTypeRequestSchema(Schema):
@@ -89,22 +88,17 @@ class CreateVolumeTypeRequestSchema(Schema):
 
 
 class CreateVolumeTypeBodyRequestSchema(Schema):
-    body = fields.Nested(CreateVolumeTypeRequestSchema, context='body')
+    body = fields.Nested(CreateVolumeTypeRequestSchema, context="body")
 
 
 class CreateVolumeType(VsphereVolumeTypeApiView):
     definitions = {
-        'CreateVolumeTypeRequestSchema': CreateVolumeTypeRequestSchema,
-        'CrudApiObjectResponseSchema': CrudApiObjectResponseSchema
+        "CreateVolumeTypeRequestSchema": CreateVolumeTypeRequestSchema,
+        "CrudApiObjectResponseSchema": CrudApiObjectResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(CreateVolumeTypeBodyRequestSchema)
     parameters_schema = CreateVolumeTypeRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': CrudApiObjectResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": CrudApiObjectResponseSchema}})
 
     def post(self, controller, data, *args, **kwargs):
         """
@@ -115,9 +109,9 @@ class CreateVolumeType(VsphereVolumeTypeApiView):
 
 
 class UpdateVolumeTypeParamRequestSchema(Schema):
-    name = fields.String(default='test')
-    desc = fields.String(default='test')
-    disk_iops = fields.Integer(example=1, missing=1, description='disk iops')
+    name = fields.String(default="test")
+    desc = fields.String(default="test")
+    disk_iops = fields.Integer(example=1, missing=1, description="disk iops")
 
 
 class UpdateVolumeTypeRequestSchema(Schema):
@@ -125,22 +119,17 @@ class UpdateVolumeTypeRequestSchema(Schema):
 
 
 class UpdateVolumeTypeBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateVolumeTypeRequestSchema, context='body')
+    body = fields.Nested(UpdateVolumeTypeRequestSchema, context="body")
 
 
 class UpdateVolumeType(VsphereVolumeTypeApiView):
     definitions = {
-        'UpdateVolumeTypeRequestSchema': UpdateVolumeTypeRequestSchema,
-        'CrudApiObjectJobResponseSchema': CrudApiObjectJobResponseSchema
+        "UpdateVolumeTypeRequestSchema": UpdateVolumeTypeRequestSchema,
+        "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(UpdateVolumeTypeBodyRequestSchema)
     parameters_schema = UpdateVolumeTypeRequestSchema
-    responses = SwaggerApiView.setResponses({
-        202: {
-            'description': 'success',
-            'schema': CrudApiObjectJobResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def put(self, controller, data, oid, *args, **kwargs):
         """
@@ -151,16 +140,9 @@ class UpdateVolumeType(VsphereVolumeTypeApiView):
 
 
 class DeleteVolumeType(VsphereVolumeTypeApiView):
-    definitions = {
-        'CrudApiObjectJobResponseSchema': CrudApiObjectJobResponseSchema
-    }
+    definitions = {"CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        202: {
-            'description': 'success',
-            'schema': CrudApiObjectJobResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def delete(self, controller, data, oid, *args, **kwargs):
         return self.expunge_resource(controller, oid)
@@ -172,15 +154,10 @@ class GetVolumeTypeDatastoresResponseSchema(Schema):
 
 class GetVolumeTypeDatastores(VsphereVolumeTypeApiView):
     definitions = {
-        'GetVolumeTypeResponseSchema': GetVolumeTypeResponseSchema,
+        "GetVolumeTypeResponseSchema": GetVolumeTypeResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetVolumeTypeResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetVolumeTypeResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -192,14 +169,18 @@ class GetVolumeTypeDatastores(VsphereVolumeTypeApiView):
         datastore = resource.get_datastores()
         for d in datastore:
             ds = d[0].small_info()
-            ds['tag'] = d[1]
+            ds["tag"] = d[1]
             res.append(ds)
-        return {'datastores': res, 'count': len(res)}
+        return {"datastores": res, "count": len(res)}
 
 
 class AddVolumeTypeDatastoresParamRequestSchema(Schema):
-    uuid = fields.String(example='4cdf0ea4-159a-45aa-96f2-708e461130e1', required=True, description='Datastore uuid')
-    tag = fields.String(example='default', required=True, description='Datastore tag')
+    uuid = fields.String(
+        example="4cdf0ea4-159a-45aa-96f2-708e461130e1",
+        required=True,
+        description="Datastore uuid",
+    )
+    tag = fields.String(example="default", required=True, description="Datastore tag")
 
 
 class AddVolumeTypeDatastoresRequestSchema(Schema):
@@ -207,22 +188,17 @@ class AddVolumeTypeDatastoresRequestSchema(Schema):
 
 
 class AddVolumeTypeDatastoresBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(AddVolumeTypeDatastoresRequestSchema, context='body')
+    body = fields.Nested(AddVolumeTypeDatastoresRequestSchema, context="body")
 
 
 class AddVolumeTypeDatastores(VsphereVolumeTypeApiView):
     definitions = {
-        'AddVolumeTypeDatastoresRequestSchema': AddVolumeTypeDatastoresRequestSchema,
-        'CrudApiObjectJobResponseSchema': CrudApiObjectJobResponseSchema
+        "AddVolumeTypeDatastoresRequestSchema": AddVolumeTypeDatastoresRequestSchema,
+        "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(AddVolumeTypeDatastoresBodyRequestSchema)
     parameters_schema = AddVolumeTypeDatastoresRequestSchema
-    responses = SwaggerApiView.setResponses({
-        202: {
-            'description': 'success',
-            'schema': CrudApiObjectResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectResponseSchema}})
 
     def post(self, controller, data, oid, *args, **kwargs):
         """
@@ -230,13 +206,17 @@ class AddVolumeTypeDatastores(VsphereVolumeTypeApiView):
         Add volumetype datastore
         """
         resource = self.get_resource_reference(controller, oid)
-        data = data.get('datastore')
-        resource.add_datastore(data.get('uuid'), data.get('tag'))
-        return {'uuid': data.get('uuid')}
+        data = data.get("datastore")
+        resource.add_datastore(data.get("uuid"), data.get("tag"))
+        return {"uuid": data.get("uuid")}
 
 
 class DeleteVolumeTypeDatastoresParamRequestSchema(Schema):
-    uuid = fields.String(example='4cdf0ea4-159a-45aa-96f2-708e461130e1', required=True, description='Datastore uuid')
+    uuid = fields.String(
+        example="4cdf0ea4-159a-45aa-96f2-708e461130e1",
+        required=True,
+        description="Datastore uuid",
+    )
 
 
 class DeleteVolumeTypeDatastoresRequestSchema(Schema):
@@ -244,22 +224,17 @@ class DeleteVolumeTypeDatastoresRequestSchema(Schema):
 
 
 class DeleteVolumeTypeDatastoresBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(DeleteVolumeTypeDatastoresRequestSchema, context='body')
+    body = fields.Nested(DeleteVolumeTypeDatastoresRequestSchema, context="body")
 
 
 class DeleteVolumeTypeDatastores(VsphereVolumeTypeApiView):
     definitions = {
-        'DeleteVolumeTypeDatastoresRequestSchema': DeleteVolumeTypeDatastoresRequestSchema,
-        'CrudApiObjectJobResponseSchema': CrudApiObjectJobResponseSchema
+        "DeleteVolumeTypeDatastoresRequestSchema": DeleteVolumeTypeDatastoresRequestSchema,
+        "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(DeleteVolumeTypeDatastoresBodyRequestSchema)
     parameters_schema = DeleteVolumeTypeDatastoresRequestSchema
-    responses = SwaggerApiView.setResponses({
-        202: {
-            'description': 'success',
-            'schema': CrudApiObjectResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectResponseSchema}})
 
     def delete(self, controller, data, oid, *args, **kwargs):
         """
@@ -267,27 +242,41 @@ class DeleteVolumeTypeDatastores(VsphereVolumeTypeApiView):
         Remove volumetype datastore
         """
         resource = self.get_resource_reference(controller, oid)
-        data = data.get('datastore')
-        resource.del_datastore(data.get('uuid'))
-        return {'uuid': data.get('uuid')}
+        data = data.get("datastore")
+        resource.del_datastore(data.get("uuid"))
+        return {"uuid": data.get("uuid")}
 
 
 class VsphereVolumeTypeAPI(VsphereAPI):
-    """Vsphere base platform api routes:
-    """
+    """Vsphere base platform api routes:"""
+
     @staticmethod
     def register_api(module, **kwargs):
         base = VsphereAPI.base
         rules = [
-            ('%s/volumetypes' % base, 'GET', ListVolumeTypes, {}),
-            ('%s/volumetypes/<oid>' % base, 'GET', GetVolumeType, {}),
-            ('%s/volumetypes' % base, 'POST', CreateVolumeType, {}),
-            ('%s/volumetypes/<oid>' % base, 'PUT', UpdateVolumeType, {}),
-            ('%s/volumetypes/<oid>' % base, 'DELETE', DeleteVolumeType, {}),
-
-            ('%s/volumetypes/<oid>/datastores' % base, 'GET', GetVolumeTypeDatastores, {}),
-            ('%s/volumetypes/<oid>/datastores' % base, 'POST', AddVolumeTypeDatastores, {}),
-            ('%s/volumetypes/<oid>/datastores' % base, 'DELETE', DeleteVolumeTypeDatastores, {}),
+            ("%s/volumetypes" % base, "GET", ListVolumeTypes, {}),
+            ("%s/volumetypes/<oid>" % base, "GET", GetVolumeType, {}),
+            ("%s/volumetypes" % base, "POST", CreateVolumeType, {}),
+            ("%s/volumetypes/<oid>" % base, "PUT", UpdateVolumeType, {}),
+            ("%s/volumetypes/<oid>" % base, "DELETE", DeleteVolumeType, {}),
+            (
+                "%s/volumetypes/<oid>/datastores" % base,
+                "GET",
+                GetVolumeTypeDatastores,
+                {},
+            ),
+            (
+                "%s/volumetypes/<oid>/datastores" % base,
+                "POST",
+                AddVolumeTypeDatastores,
+                {},
+            ),
+            (
+                "%s/volumetypes/<oid>/datastores" % base,
+                "DELETE",
+                DeleteVolumeTypeDatastores,
+                {},
+            ),
         ]
 
         VsphereAPI.register_api(module, rules, **kwargs)

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from celery.utils.log import get_task_logger
 from beehive_resource.plugins.openstack.entity.ops_volume import OpenstackVolume
@@ -33,11 +33,11 @@ def task_create_volume(self, options):
     :param sharedarea.tags: comma separated resource tags to assign [default='']
     :param sharedarea.size: The size of the volume, in gibibytes (GiB).
     :param sharedarea.availability_zone: The availability zone. [optional]
-    :param sharedarea.source_volid: The UUID of the source volume. The API creates a new volume with the same size as 
+    :param sharedarea.source_volid: The UUID of the source volume. The API creates a new volume with the same size as
         the source volume. [optional]
-    :param sharedarea.multiattach: To enable this volume to attach to more than one server, set this value to true. 
+    :param sharedarea.multiattach: To enable this volume to attach to more than one server, set this value to true.
         Default is false. [optional] [todo]
-    :param sharedarea.snapshot_id: To create a volume from an existing snapshot, specify the UUID of the volume 
+    :param sharedarea.snapshot_id: To create a volume from an existing snapshot, specify the UUID of the volume
         snapshot. The volume is created in same availability zone and with same size as the snapshot. [optional]
     :param sharedarea.imageRef: The UUID of the image from which you want to create the volume. Required to create a
         bootable volume. [optional]
@@ -50,30 +50,30 @@ def task_create_volume(self, options):
     :param sharedarea.metadata: One or more metadata key and value pairs that are associated with the volume. [optional]
     :param sharedarea.source_replica: The UUID of the primary volume to clone. [optional] [todo]
     :param sharedarea.consistencygroup_id: The UUID of the consistency group. [optional] [todo]
-    :param sharedarea.scheduler_hints: The dictionary of data to send to the scheduler. [optional] [todo]    
+    :param sharedarea.scheduler_hints: The dictionary of data to send to the scheduler. [optional] [todo]
     :return: volume physical id
     """
     self.set_operation()
 
     # get params from shared data
     params = self.get_shared_data()
-    self.progress(msg='Get shared area')
+    self.progress(msg="Get shared area")
 
     # validate input params
-    cid = params.get('cid')
-    oid = params.get('id')
-    name = params.get('name')
-    desc = params.get('desc')
-    parent_id = params.get('parent')
-    availability_zone = params.get('availability_zone')
-    image = params.get('image')
-    project_extid = params.get('project_extid')
-    size = params.get('size')
-    source_volid = params.get('volume')
-    snapshot_id = params.get('snapshot_id')
-    volume_type = params.get('volume_type')
-    consistencygroup_id = params.get('consistencygroup_id')
-    metadata = params.get('metadata')
+    cid = params.get("cid")
+    oid = params.get("id")
+    name = params.get("name")
+    desc = params.get("desc")
+    parent_id = params.get("parent")
+    availability_zone = params.get("availability_zone")
+    image = params.get("image")
+    project_extid = params.get("project_extid")
+    size = params.get("size")
+    source_volid = params.get("volume")
+    snapshot_id = params.get("snapshot_id")
+    volume_type = params.get("volume_type")
+    consistencygroup_id = params.get("consistencygroup_id")
+    metadata = params.get("metadata")
 
     # create session
     self.get_session()
@@ -81,49 +81,60 @@ def task_create_volume(self, options):
     # get container
     container = self.get_container(cid, projectid=parent_id)
     conn = container.conn
-    self.progress(msg='%s' % container)
-    self.progress(msg='%s' % conn)
-    self.progress(msg='%s' % parent_id)
-    self.progress(msg='Get container %s' % cid)
+    self.progress(msg="%s" % container)
+    self.progress(msg="%s" % conn)
+    self.progress(msg="%s" % parent_id)
+    self.progress(msg="Get container %s" % cid)
 
     # create new volume
-    volume_ext = conn.volume.create(size=int(size), availability_zone=availability_zone,
-                                    source_volid=source_volid, description=desc, multiattach=False,
-                                    snapshot_id=snapshot_id, name=name, imageRef=image, volume_type=volume_type,
-                                    metadata=metadata, source_replica=None, consistencygroup_id=consistencygroup_id,
-                                    scheduler_hints=None, tenant_id=project_extid)
+    volume_ext = conn.volume.create(
+        size=int(size),
+        availability_zone=availability_zone,
+        source_volid=source_volid,
+        description=desc,
+        multiattach=False,
+        snapshot_id=snapshot_id,
+        name=name,
+        imageRef=image,
+        volume_type=volume_type,
+        metadata=metadata,
+        source_replica=None,
+        consistencygroup_id=consistencygroup_id,
+        scheduler_hints=None,
+        tenant_id=project_extid,
+    )
 
-    volume_id = volume_ext['id']
-    self.progress(msg='Create openstack volume %s - Starting' % volume_id)
+    volume_id = volume_ext["id"]
+    self.progress(msg="Create openstack volume %s - Starting" % volume_id)
 
     # attach remote volume
     container.update_resource(oid, ext_id=volume_id)
-    self.progress(msg='Attach openstack volume %s to volume %s' % (volume_id, oid))
+    self.progress(msg="Attach openstack volume %s to volume %s" % (volume_id, oid))
 
     # loop until entity is not stopped or get error
     while True:
         inst = OpenstackVolume.get_remote_volume(container.controller, volume_id, container, volume_id)
         # inst = conn.volume.get(oid=volume_id)
-        status = inst.get('status', 'error')
-        if status == 'available':
+        status = inst.get("status", "error")
+        if status == "available":
             break
-        elif status == 'error':
-            self.progress(msg='Create openstack volume %s - Error' % volume_id)
-            raise Exception('Can not create openstack volume %s' % volume_id)
+        elif status == "error":
+            self.progress(msg="Create openstack volume %s - Error" % volume_id)
+            raise Exception("Can not create openstack volume %s" % volume_id)
 
-        self.update('PROGRESS')
+        self.update("PROGRESS")
         gevent.sleep(task_local.delta)
 
-    self.progress(msg='Create volume %s - Completed' % volume_id)
+    self.progress(msg="Create volume %s - Completed" % volume_id)
 
     # acvitate volume
     container.update_resource(oid, state=ResourceState.ACTIVE, active=True)
-    self.progress(msg='Acvitate volume %s' % volume_id)
+    self.progress(msg="Acvitate volume %s" % volume_id)
 
     # save current data in shared area
-    params['ext_id'] = volume_id
+    params["ext_id"] = volume_id
     self.set_shared_data(params)
-    self.progress(msg='Update shared area')
+    self.progress(msg="Update shared area")
 
     return volume_id
 
@@ -147,13 +158,13 @@ def task_delete_volume(self, options):
 
     # get params from shared data
     params = self.get_shared_data()
-    self.progress(msg='Get shared area')
+    self.progress(msg="Get shared area")
 
     # validate input params
-    cid = params.get('cid')
-    ext_id = params.get('ext_id')
-    parent_id = params.get('parent_id')
-    self.progress(msg='Get configuration params')
+    cid = params.get("cid")
+    ext_id = params.get("ext_id")
+    parent_id = params.get("parent_id")
+    self.progress(msg="Get configuration params")
 
     # get server resource
     self.get_session()
@@ -166,24 +177,24 @@ def task_delete_volume(self, options):
         # check volume exists
         rv = OpenstackVolume.get_remote_volume(container.controller, ext_id, container, ext_id)
         if rv == {}:
-            self.progress(msg='Volume %s does not exist anymore' % ext_id)
+            self.progress(msg="Volume %s does not exist anymore" % ext_id)
             return False
 
         # remote volume snapshots
         snapshots = container.conn.volume.snapshot.list(volume_id=ext_id)
         for snapshot in snapshots:
-            container.conn.volume.snapshot.delete(snapshot['id'])
+            container.conn.volume.snapshot.delete(snapshot["id"])
             while True:
                 try:
-                    container.conn.volume.snapshot.get(snapshot['id'])
+                    container.conn.volume.snapshot.get(snapshot["id"])
                     gevent.sleep(2)
                 except:
-                    self.progress('Volume %s snapshot %s deleted' % (ext_id, snapshot['id']))
+                    self.progress("Volume %s snapshot %s deleted" % (ext_id, snapshot["id"]))
                     break
 
         # remove server
         conn.volume.delete(ext_id)
-        self.progress(msg='Delete volume %s - Starting' % ext_id)
+        self.progress(msg="Delete volume %s - Starting" % ext_id)
 
         # loop until entity is not deleted or get error
         while True:
@@ -191,16 +202,16 @@ def task_delete_volume(self, options):
                 inst = OpenstackVolume.get_remote_volume(container.controller, ext_id, container, ext_id)
                 # inst = conn.volume.get(oid=ext_id)
                 if inst == {}:
-                    self.task.progress('Volume does not exist anymore')
-                    raise Exception('Volume does not exist anymore')
-                status = inst['status']
-                self.progress(msg='Volume %s status: %s' % (ext_id, status))
-                if status == 'error_deleting':
-                    self.progress(msg='Delete volume %s - Error' % ext_id)
-                    raise Exception('Can not delete volume %s' % ext_id)
-                elif status == 'error':
-                    self.progress(msg='delete volume %s - Error' % ext_id)
-                    raise Exception('Can not delete volume %s' % ext_id)
+                    self.task.progress("Volume does not exist anymore")
+                    raise Exception("Volume does not exist anymore")
+                status = inst["status"]
+                self.progress(msg="Volume %s status: %s" % (ext_id, status))
+                if status == "error_deleting":
+                    self.progress(msg="Delete volume %s - Error" % ext_id)
+                    raise Exception("Can not delete volume %s" % ext_id)
+                elif status == "error":
+                    self.progress(msg="delete volume %s - Error" % ext_id)
+                    raise Exception("Can not delete volume %s" % ext_id)
 
                 gevent.sleep(task_local.delta)
             except:
@@ -208,6 +219,6 @@ def task_delete_volume(self, options):
                 break
 
         res.update_internal(ext_id=None)
-        self.progress(msg='Delete volume %s - Completed' % ext_id)
+        self.progress(msg="Delete volume %s - Completed" % ext_id)
 
     return ext_id

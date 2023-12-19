@@ -10,12 +10,12 @@ from beehive_resource.model import ResourceState
 
 
 def get_task(task_name):
-    return '%s.task.%s' % (__name__.rstrip('.controller'), task_name)
+    return "%s.task.%s" % (__name__.rstrip(".controller"), task_name)
 
 
 class DnsContainer(Orchestrator):
     """Dns container
-    
+
     **connection syntax:
 
         {
@@ -27,36 +27,43 @@ class DnsContainer(Orchestrator):
                 "nivolaprodkey.": "tq1vPSvUQEURKy...."
             }
         }
-    """    
-    objdef = 'Dns'
-    objdesc = 'Dns container'
-    objuri = 'nrs/dns'
-    version = 'v1.0'    
-    
+    """
+
+    objdef = "Dns"
+    objdesc = "Dns container"
+    objuri = "nrs/dns"
+    version = "v1.0"
+
     def __init__(self, *args, **kvargs):
         Orchestrator.__init__(self, *args, **kvargs)
 
-        self.child_classes = [
-            DnsZone
-        ]
+        self.child_classes = [DnsZone]
 
         self.conn = None
-        
+
     def ping(self):
         """Ping container.
 
         TODO:
-        
+
         :return: True if ping ok
         :rtype: bool
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         return True
-    
+
     @staticmethod
-    def pre_create(controller=None, type=None, name=None, desc=None, active=None, conn=None, **kvargs):
+    def pre_create(
+        controller=None,
+        type=None,
+        name=None,
+        desc=None,
+        active=None,
+        conn=None,
+        **kvargs,
+    ):
         """Check input params
-        
+
         :param controller: resource controller instance
         :param type: container type
         :param name: container name
@@ -74,35 +81,35 @@ class DnsContainer(Orchestrator):
                     }
                 }
 
-        :return: kvargs            
+        :return: kvargs
         :raise ApiManagerError:
         """
         # encrypt dns update key
-        for k, v in conn.get('key', {}).items():
-            conn['key'][k] = controller.encrypt_data(v)
+        for k, v in conn.get("key", {}).items():
+            conn["key"][k] = controller.encrypt_data(v)
 
         kvargs = {
-            'type': type,
-            'name': name,
-            'desc': desc,
-            'active': active,
-            'conn': conn,
+            "type": type,
+            "name": name,
+            "desc": desc,
+            "active": active,
+            "conn": conn,
         }
         return kvargs
-    
+
     def pre_change(self, **kvargs):
         """Check input params
-        
-        :param kvargs: custom params            
-        :return: kvargs            
+
+        :param kvargs: custom params
+        :return: kvargs
         :raise ApiManagerError:
         """
         return kvargs
-    
+
     def pre_clean(self, **kvargs):
         """Check input params
 
-        :param kvargs: custom params            
+        :param kvargs: custom params
         :return: kvargs
         :raise ApiManagerError:
         """
@@ -111,11 +118,11 @@ class DnsContainer(Orchestrator):
     def get_connection(self):
         """ """
         # decrypt update key
-        for k, v in self.conn_params.get('key', {}).items():
-            self.conn_params['key'][k] = self.controller.decrypt_data(v)
+        for k, v in self.conn_params.get("key", {}).items():
+            self.conn_params["key"][k] = self.controller.decrypt_data(v)
 
         conf = self.conn_params
-        self.conn = DnsManager(conf.get('serverdns'), zones=conf.get('zones'), dnskey=conf.get('key'))
+        self.conn = DnsManager(conf.get("serverdns"), zones=conf.get("zones"), dnskey=conf.get("key"))
         Orchestrator.get_connection(self)
 
     def close_connection(self):
@@ -134,29 +141,26 @@ class DnsContainer(Orchestrator):
 
 
 class DnsResource(Resource):
-    objdef = 'Dns.Resource'
-    objuri = 'dnsresource'
-    objname = 'dnsresource'
-    objdesc = 'Dns resource'
-    
+    objdef = "Dns.Resource"
+    objuri = "dnsresource"
+    objname = "dnsresource"
+    objdesc = "Dns resource"
+
     def __init__(self, *args, **kvargs):
         DnsResource.__init__(self, *args, **kvargs)
 
 
 class DnsZone(DnsResource):
-    objdef = 'Dns.DnsZone'
-    objuri = 'nrs/dns/zones'
-    objname = 'zone'
-    objdesc = 'Dns Zone'
+    objdef = "Dns.DnsZone"
+    objuri = "nrs/dns/zones"
+    objname = "zone"
+    objdesc = "Dns Zone"
 
     def __init__(self, *args, **kvargs):
         """ """
         Resource.__init__(self, *args, **kvargs)
 
-        self.child_classes = [
-            DnsRecordA,
-            DnsRecordCname
-        ]
+        self.child_classes = [DnsRecordA, DnsRecordCname]
 
     def info(self):
         """Get info.
@@ -199,7 +203,7 @@ class DnsZone(DnsResource):
         """Post get function. This function is used in get_entity method.
         Extend this function to extend description info returned after query.
 
-        :return: 
+        :return:
         :raise ApiManagerError:
         """
         pass
@@ -258,26 +262,21 @@ class DnsZone(DnsResource):
     # custom methdo
     #
     def get_nameservers(self):
-        """Get all the nameservers that resolve the zone
-        """
+        """Get all the nameservers that resolve the zone"""
         res = self.container.conn.query_nameservers(self.name, timeout=1.0)
         resp = []
         for k, vs in res.items():
             if vs is not None:
                 for v in vs:
-                    resp.append({
-                        'start_nameserver': k,
-                        'ip_addr': v[0],
-                        'fqdn': v[1]
-                    })
-        self.logger.debug('List zone %s nameservers: %s' % (self.uuid, resp))
+                    resp.append({"start_nameserver": k, "ip_addr": v[0], "fqdn": v[1]})
+        self.logger.debug("List zone %s nameservers: %s" % (self.uuid, resp))
         return resp
 
     def get_authority(self):
         """Get the SOA (Start of Authority) used to manage the zone
 
         :return: list of dict with the following keys:
-        
+
             start-nameserver: dns queried
             mname: The <domain-name> of the name server that was the original or primary source of data for this zone.
             rname: A <domain-name> which specifies the mailbox of the person responsible for this zone.
@@ -293,12 +292,12 @@ class DnsZone(DnsResource):
         res = self.container.conn.query_authority(self.name)
         resp = []
         for k, v in res.items():
-            v['start_nameserver'] = k
+            v["start_nameserver"] = k
             resp.append(v)
-        self.logger.debug('Get zone %s authority: %s' % (self.uuid, resp))
+        self.logger.debug("Get zone %s authority: %s" % (self.uuid, resp))
         return resp
 
-    def query_remote_record(self, name, recorda=True, recordcname=True, group='resolver'):
+    def query_remote_record(self, name, recorda=True, recordcname=True, group="resolver"):
         """Get ip address or alias
 
         :param name: name to resolve
@@ -306,32 +305,24 @@ class DnsZone(DnsResource):
         :param recordcname: if True resolve recordcname
         :param group: group used for resolution. Can be resolver or update
         """
-        fqdn = '%s.%s' % (name, self.name)
+        fqdn = "%s.%s" % (name, self.name)
         resp = []
 
         # query record a
         if recorda is True:
             res = self.container.conn.query_record_A(fqdn, timeout=1.0, group=group)
             for k, v in res.items():
-                resp.append({
-                    'type': 'record_a',
-                    'start_nameserver': k,
-                    'ip_address': v
-                })
+                resp.append({"type": "record_a", "start_nameserver": k, "ip_address": v})
 
         # query cname
         if recordcname is True:
             res = self.container.conn.query_record_CNAME(fqdn, timeout=1.0, group=group)
             for k, v in res.items():
-                resp.append({
-                    'type': 'record_cname',
-                    'start_nameserver': k,
-                    'base_fqdn': v
-                })
+                resp.append({"type": "record_cname", "start_nameserver": k, "base_fqdn": v})
 
-        self.logger.debug('Query name %s in zone %s: %s' % (fqdn, self.uuid, resp))
+        self.logger.debug("Query name %s in zone %s: %s" % (fqdn, self.uuid, resp))
         return resp
-    
+
     def create_remote_redcorda(self, ip_addr, name, ttl):
         """Create new record a in remote dns
 
@@ -341,7 +332,7 @@ class DnsZone(DnsResource):
         :return:
         """
         res = self.container.conn.add_record_A(ip_addr, name, self.name, ttl=ttl)
-        self.logger.debug('Create remote recorda %s %s in zone %s' % (ip_addr, name, self.name))
+        self.logger.debug("Create remote recorda %s %s in zone %s" % (ip_addr, name, self.name))
         return res
 
     def create_remote_redcord_cname(self, name, alias, ttl):
@@ -353,7 +344,7 @@ class DnsZone(DnsResource):
         :return:
         """
         res = self.container.conn.add_record_CNAME(name, alias, self.name, ttl=ttl)
-        self.logger.debug('Create remote record cname %s %s in zone %s' % (name, alias, self.name))
+        self.logger.debug("Create remote record cname %s %s in zone %s" % (name, alias, self.name))
         return res
 
     def delete_remote_redcorda(self, name):
@@ -365,7 +356,7 @@ class DnsZone(DnsResource):
         :return:
         """
         res = self.container.conn.del_record_A(name, self.name)
-        self.logger.debug('Delete remote recorda %s in zone %s' % (name, self.name))
+        self.logger.debug("Delete remote recorda %s in zone %s" % (name, self.name))
         return res
 
     def delete_remote_redcord_cname(self, name):
@@ -377,7 +368,7 @@ class DnsZone(DnsResource):
         :return:
         """
         res = self.container.conn.del_record_CNAME(name, self.name)
-        self.logger.debug('Delete remote recorda %s in zone %s' % (name, self.name))
+        self.logger.debug("Delete remote recorda %s in zone %s" % (name, self.name))
         return res
 
     def exist_remote_recorda(self, name):
@@ -386,8 +377,8 @@ class DnsZone(DnsResource):
         :param name: name to resolve
         """
         res = False
-        for a in self.query_remote_record(name, recordcname=False, group='update'):
-            if a.get('ip_address', None) is not None:
+        for a in self.query_remote_record(name, recordcname=False, group="update"):
+            if a.get("ip_address", None) is not None:
                 res = True
 
         return res
@@ -398,8 +389,8 @@ class DnsZone(DnsResource):
         :param name: name to resolve
         """
         res = False
-        for a in self.query_remote_record(name, recorda=False, group='update'):
-            if a.get('base_fqdn', None) is not None:
+        for a in self.query_remote_record(name, recorda=False, group="update"):
+            if a.get("base_fqdn", None) is not None:
                 res = True
 
         return res
@@ -418,80 +409,100 @@ class DnsZone(DnsResource):
         """
         resp = {}
         for record in records:
-            self.logger.warn('Get record %s' % record)
+            self.logger.warn("Get record %s" % record)
 
             ok = True
-            if record['type'] == 'A':
-                items, tot = self.get_resources(name=record['name'], entity_class=DnsRecordA, objdef=DnsRecordA.objdef)
+            if record["type"] == "A":
+                items, tot = self.get_resources(
+                    name=record["name"],
+                    entity_class=DnsRecordA,
+                    objdef=DnsRecordA.objdef,
+                )
                 if tot > 0:
-                    self.logger.warn('Record a %s already exists' % record)
-                    resp[record['name']] = False
+                    self.logger.warn("Record a %s already exists" % record)
+                    resp[record["name"]] = False
                     continue
 
-                res = self.query_remote_record(record['name'], recordcname=False, group='resolver')
+                res = self.query_remote_record(record["name"], recordcname=False, group="resolver")
                 for item in res:
-                    if item.get('ip_address') is None:
+                    if item.get("ip_address") is None:
                         ok = False
                         break
                 if ok is False:
-                    self.logger.warn('Record a %s does not exists in all nameservers of zone %s' %
-                                     (record['name'], self.name))
-                    resp[record['name']] = False
+                    self.logger.warn(
+                        "Record a %s does not exists in all nameservers of zone %s" % (record["name"], self.name)
+                    )
+                    resp[record["name"]] = False
                 else:
                     # set ip address
                     attributes = {
-                        'ip_address': record['value'],
-                        'host_name': record['name']
+                        "ip_address": record["value"],
+                        "host_name": record["name"],
                     }
-                    objid = '%s//%s' % (self.objid, id_gen())
-                    model = self.container.add_resource(objid=objid, name=record['name'], resource_class=DnsRecordA,
-                                                        ext_id=None, active=False, desc=record['name'],
-                                                        attrib=attributes, parent=self.oid)
+                    objid = "%s//%s" % (self.objid, id_gen())
+                    model = self.container.add_resource(
+                        objid=objid,
+                        name=record["name"],
+                        resource_class=DnsRecordA,
+                        ext_id=None,
+                        active=False,
+                        desc=record["name"],
+                        attrib=attributes,
+                        parent=self.oid,
+                    )
                     self.container.update_resource_state(model.id, ResourceState.ACTIVE)
                     self.container.activate_resource(model.id)
-                    resp[record['name']] = True
-                    self.logger.debug('Import record a %s in zone %s' % (record, self.name))
+                    resp[record["name"]] = True
+                    self.logger.debug("Import record a %s in zone %s" % (record, self.name))
 
-            if record['type'] == 'CNAME':
-                items, tot = self.get_resources(name=record['name'], entity_class=DnsRecordCname,
-                                                objdef=DnsRecordCname.objdef)
+            if record["type"] == "CNAME":
+                items, tot = self.get_resources(
+                    name=record["name"],
+                    entity_class=DnsRecordCname,
+                    objdef=DnsRecordCname.objdef,
+                )
                 if tot > 0:
-                    self.logger.warn('Record cname %s already exists' % record)
-                    resp[record['name']] = False
+                    self.logger.warn("Record cname %s already exists" % record)
+                    resp[record["name"]] = False
                     continue
 
-                res = self.query_remote_record(record['name'], recorda=False, group='resolver')
+                res = self.query_remote_record(record["name"], recorda=False, group="resolver")
                 for item in res:
-                    if item.get('base_fqdn') is None:
+                    if item.get("base_fqdn") is None:
                         ok = False
                         break
                 if ok is False:
-                    self.logger.warn('Record cname %s does not exists in all nameservers of zone %s' %
-                                     (record['name'], self.name))
-                    resp[record['name']] = False
+                    self.logger.warn(
+                        "Record cname %s does not exists in all nameservers of zone %s" % (record["name"], self.name)
+                    )
+                    resp[record["name"]] = False
                 else:
                     # set ip address
-                    attributes = {
-                        'alias': record['name'],
-                        'host_name': record['value']
-                    }
-                    objid = '%s//%s' % (self.objid, id_gen())
-                    model = self.container.add_resource(objid=objid, name=record['name'],
-                                                        resource_class=DnsRecordCname, ext_id=None, active=False,
-                                                        desc=record['name'], attrib=attributes, parent=self.oid)
+                    attributes = {"alias": record["name"], "host_name": record["value"]}
+                    objid = "%s//%s" % (self.objid, id_gen())
+                    model = self.container.add_resource(
+                        objid=objid,
+                        name=record["name"],
+                        resource_class=DnsRecordCname,
+                        ext_id=None,
+                        active=False,
+                        desc=record["name"],
+                        attrib=attributes,
+                        parent=self.oid,
+                    )
                     self.container.update_resource_state(model.id, ResourceState.ACTIVE)
                     self.container.activate_resource(model.id)
-                    resp[record['name']] = True
-                    self.logger.debug('Import record cname %s in zone %s' % (record, self.name))
+                    resp[record["name"]] = True
+                    self.logger.debug("Import record cname %s in zone %s" % (record, self.name))
 
         return resp
 
 
 class DnsRecordA(DnsResource):
-    objdef = 'Dns.DnsZone.DnsRecordA'
-    objuri = 'nrs/dns/recordas'
-    objname = 'recorda'
-    objdesc = 'Dns DnsRecordA'
+    objdef = "Dns.DnsZone.DnsRecordA"
+    objuri = "nrs/dns/recordas"
+    objname = "recorda"
+    objdesc = "Dns DnsRecordA"
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -507,13 +518,16 @@ class DnsRecordA(DnsResource):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         parent = self.get_parent()
-        self.parent = {'id': parent.oid, 'name': parent.name, 'uuid': parent.uuid}
+        self.parent = {"id": parent.oid, "name": parent.name, "uuid": parent.uuid}
 
         info = Resource.info(self)
-        info['name'] = self.get_attribs(key='host_name')
-        info['ip_address'] = self.get_attribs(key='ip_address')
-        info['fqdn'] = '%s.%s' % (self.get_attribs(key='host_name'), self.parent.get('name', None))
-        info.pop('attributes')
+        info["name"] = self.get_attribs(key="host_name")
+        info["ip_address"] = self.get_attribs(key="ip_address")
+        info["fqdn"] = "%s.%s" % (
+            self.get_attribs(key="host_name"),
+            self.parent.get("name", None),
+        )
+        info.pop("attributes")
         return info
 
     def detail(self):
@@ -524,14 +538,17 @@ class DnsRecordA(DnsResource):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         parent = self.get_parent()
-        self.parent = {'id': parent.oid, 'name': parent.name, 'uuid': parent.uuid}
+        self.parent = {"id": parent.oid, "name": parent.name, "uuid": parent.uuid}
 
         info = Resource.detail(self)
-        info['name'] = self.get_attribs(key='host_name')
-        info['ip_address'] = self.get_attribs(key='ip_address')
-        info['fqdn'] = '%s.%s' % (self.get_attribs(key='host_name'), self.parent.get('name', None))
-        info['details'] = self.remote_record
-        info.pop('attributes')
+        info["name"] = self.get_attribs(key="host_name")
+        info["ip_address"] = self.get_attribs(key="ip_address")
+        info["fqdn"] = "%s.%s" % (
+            self.get_attribs(key="host_name"),
+            self.parent.get("name", None),
+        )
+        info["details"] = self.remote_record
+        info.pop("attributes")
         return info
 
     #
@@ -561,7 +578,7 @@ class DnsRecordA(DnsResource):
         parent = self.get_parent()
         parent.set_container(self.container)
         self.remote_record = parent.query_remote_record(self.name, recordcname=False)
-        self.remote_record.extend(parent.query_remote_record(self.name, recordcname=False, group='update'))
+        self.remote_record.extend(parent.query_remote_record(self.name, recordcname=False, group="update"))
 
     @staticmethod
     def pre_create(controller, container, *args, **kvargs):
@@ -595,9 +612,9 @@ class DnsRecordA(DnsResource):
         # container.update_state(ContainerState.UPDATING)
 
         # get zone
-        zone = kvargs.get('parent')
-        name = kvargs.get('name')
-        force = kvargs.get('force')
+        zone = kvargs.get("parent")
+        name = kvargs.get("name")
+        force = kvargs.get("force")
         zone_obj = container.get_zone(zone)
 
         try:
@@ -606,32 +623,29 @@ class DnsRecordA(DnsResource):
             tot = 0
 
         if tot > 0:
-            raise ApiManagerError('Record a %s already exists in zone %s' % (name, zone))
+            raise ApiManagerError("Record a %s already exists in zone %s" % (name, zone))
 
         if zone_obj.exist_remote_recorda(name) is True:
-            container.logger.warn('Record a %s in zone %s dns already exists' % (name, zone_obj.name))
+            container.logger.warn("Record a %s in zone %s dns already exists" % (name, zone_obj.name))
             if force is True:
                 zone_obj.delete_remote_redcorda(name)
-                container.logger.warn('Delete existing record a %s in zone %s' % (name, zone_obj.name))
+                container.logger.warn("Delete existing record a %s in zone %s" % (name, zone_obj.name))
             else:
-                raise ApiManagerError('Record a %s in zone %s dns already exists' % (name, zone_obj.name))
+                raise ApiManagerError("Record a %s in zone %s dns already exists" % (name, zone_obj.name))
 
         elif zone_obj.exist_remote_record_cname(name) is True:
-            container.logger.warn('Record cname %s in zone %s dns already exists' % (name, zone_obj.name))
+            container.logger.warn("Record cname %s in zone %s dns already exists" % (name, zone_obj.name))
             if force is True:
                 zone_obj.delete_remote_redcord_cname(name)
-                container.logger.warn('Delete existing record cname %s in zone %s' % (name, zone_obj.name))
+                container.logger.warn("Delete existing record cname %s in zone %s" % (name, zone_obj.name))
             else:
-                raise ApiManagerError('Record cname %s in zone %s dns already exists' % (name, zone_obj.name))
+                raise ApiManagerError("Record cname %s in zone %s dns already exists" % (name, zone_obj.name))
 
         # create remote recorda
-        zone_obj.create_remote_redcorda(kvargs.get('ip_addr'), name, kvargs.get('ttl'))
+        zone_obj.create_remote_redcorda(kvargs.get("ip_addr"), name, kvargs.get("ttl"))
 
         # set ip address
-        kvargs['attribute'] = {
-            'ip_address': kvargs.get('ip_addr'),
-            'host_name': name
-        }
+        kvargs["attribute"] = {"ip_address": kvargs.get("ip_addr"), "host_name": name}
 
         return kvargs
 
@@ -691,10 +705,10 @@ class DnsRecordA(DnsResource):
 
 
 class DnsRecordCname(DnsResource):
-    objdef = 'Dns.DnsZone.DnsRecordCname'
-    objuri = 'nrs/dns/recordcnames'
-    objname = 'record_cname'
-    objdesc = 'Dns DnsRecordCname'
+    objdef = "Dns.DnsZone.DnsRecordCname"
+    objuri = "nrs/dns/recordcnames"
+    objname = "record_cname"
+    objdesc = "Dns DnsRecordCname"
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -708,13 +722,16 @@ class DnsRecordCname(DnsResource):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         parent = self.get_parent()
-        self.parent = {'id': parent.oid, 'name': parent.name, 'uuid': parent.uuid}
+        self.parent = {"id": parent.oid, "name": parent.name, "uuid": parent.uuid}
 
         info = Resource.info(self)
-        info['name'] = self.get_attribs(key='alias')
-        info['host_name'] = self.get_attribs(key='host_name')
-        info['fqdn'] = '%s.%s' % (self.get_attribs(key='alias'), self.parent.get('name', None))
-        info.pop('attributes')
+        info["name"] = self.get_attribs(key="alias")
+        info["host_name"] = self.get_attribs(key="host_name")
+        info["fqdn"] = "%s.%s" % (
+            self.get_attribs(key="alias"),
+            self.parent.get("name", None),
+        )
+        info.pop("attributes")
         return info
 
     def detail(self):
@@ -725,14 +742,17 @@ class DnsRecordCname(DnsResource):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         parent = self.get_parent()
-        self.parent = {'id': parent.oid, 'name': parent.name, 'uuid': parent.uuid}
+        self.parent = {"id": parent.oid, "name": parent.name, "uuid": parent.uuid}
 
         info = Resource.detail(self)
-        info['name'] = self.get_attribs(key='alias')
-        info['host_name'] = self.get_attribs(key='host_name')
-        info['fqdn'] = '%s.%s' % (self.get_attribs(key='alias'), self.parent.get('name', None))
-        info['details'] = self.remote_record
-        info.pop('attributes')
+        info["name"] = self.get_attribs(key="alias")
+        info["host_name"] = self.get_attribs(key="host_name")
+        info["fqdn"] = "%s.%s" % (
+            self.get_attribs(key="alias"),
+            self.parent.get("name", None),
+        )
+        info["details"] = self.remote_record
+        info.pop("attributes")
         return info
 
     #
@@ -762,7 +782,7 @@ class DnsRecordCname(DnsResource):
         parent = self.get_parent()
         parent.set_container(self.container)
         self.remote_record = parent.query_remote_record(self.name, recorda=False)
-        self.remote_record.extend(parent.query_remote_record(self.name, recorda=False, group='update'))
+        self.remote_record.extend(parent.query_remote_record(self.name, recorda=False, group="update"))
 
     @staticmethod
     def pre_create(controller, container, *args, **kvargs):
@@ -798,41 +818,38 @@ class DnsRecordCname(DnsResource):
         # container.update_state(ContainerState.UPDATING)
 
         # get zone
-        zone = kvargs.get('parent')
-        name = kvargs.get('name')
-        force = kvargs.get('force')
+        zone = kvargs.get("parent")
+        name = kvargs.get("name")
+        force = kvargs.get("force")
         zone_obj = container.get_zone(zone)
 
         try:
             container.get_resources(authorize=False, parent=zone_obj.oid, name=name)
-            raise ApiManagerError('Record a %s already exists in zone %s' % zone)
+            raise ApiManagerError("Record a %s already exists in zone %s" % zone)
         except Exception as ex:
             pass
 
         if zone_obj.exist_remote_recorda(name) is True:
-            container.logger.warn('Record a %s in zone %s dns already exists' % (name, zone_obj.name))
+            container.logger.warn("Record a %s in zone %s dns already exists" % (name, zone_obj.name))
             if force is True:
                 zone_obj.delete_remote_redcorda(name)
-                container.logger.warn('Delete existing record a %s in zone %s' % (name, zone_obj.name))
+                container.logger.warn("Delete existing record a %s in zone %s" % (name, zone_obj.name))
             else:
-                raise ApiManagerError('Record a %s in zone %s dns already exists' % (name, zone_obj.name))
+                raise ApiManagerError("Record a %s in zone %s dns already exists" % (name, zone_obj.name))
 
         elif zone_obj.exist_remote_record_cname(name) is True:
-            container.logger.warn('Record cname %s in zone %s dns already exists' % (name, zone_obj.name))
+            container.logger.warn("Record cname %s in zone %s dns already exists" % (name, zone_obj.name))
             if force is True:
                 zone_obj.delete_remote_redcord_cname(name)
-                container.logger.warn('Delete existing record cname %s in zone %s' % (name, zone_obj.name))
+                container.logger.warn("Delete existing record cname %s in zone %s" % (name, zone_obj.name))
             else:
-                raise ApiManagerError('Record cname %s in zone %s dns already exists' % (name, zone_obj.name))
+                raise ApiManagerError("Record cname %s in zone %s dns already exists" % (name, zone_obj.name))
 
         # create remote recorda
-        zone_obj.create_remote_redcord_cname(kvargs.get('host_name'), name, kvargs.get('ttl'))
+        zone_obj.create_remote_redcord_cname(kvargs.get("host_name"), name, kvargs.get("ttl"))
 
         # set ip address
-        kvargs['attribute'] = {
-            'alias': name,
-            'host_name': kvargs.get('host_name')
-        }
+        kvargs["attribute"] = {"alias": name, "host_name": kvargs.get("host_name")}
 
         return kvargs
 

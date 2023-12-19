@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 import gevent
 from celery.utils.log import get_task_logger
@@ -16,7 +16,7 @@ logger = get_task_logger(__name__)
 @job_task()
 def task_create_server(self, options):
     """Create vsphere server
-    
+
     :param tupla options: Task config params. (class_name, objid, job, job id, start time, time before new query, user)
     :param dict sharedarea: input params
     :param sharedarea.objid: resource objid
@@ -93,80 +93,103 @@ def task_create_server(self, options):
     """
     self.set_operation()
     params = self.get_shared_data()
-    
+
     # validate input params
-    cid = params.get('cid')
-    oid = params.get('id')
-    name = params.get('name')
-    folder_id = params.get('parent')
+    cid = params.get("cid")
+    oid = params.get("id")
+    name = params.get("name")
+    folder_id = params.get("parent")
     # resource_pool_id = params.get('availability_zone')
-    cluster_id = params.get('availability_zone')
-    volumes = params.get('block_device_mapping_v2')
-    self.progress('Get configuration params')
-    
+    cluster_id = params.get("availability_zone")
+    volumes = params.get("block_device_mapping_v2")
+    self.progress("Get configuration params")
+
     # get orchestrator
     self.get_session()
     orchestrator = self.get_container(cid)
     resource = orchestrator.get_resource(oid)
-    self.progress('Get orchestrator %s' % cid)
-    
+    self.progress("Get orchestrator %s" % cid)
+
     helper = VsphereServerHelper(self, orchestrator, params)
-    
+
     # get folder
     folder = self.get_resource_with_detail(folder_id)
-    self.progress('Get parent folder %s' % folder)
-    
+    self.progress("Get parent folder %s" % folder)
+
     # get cluster
     cluster = self.get_resource_with_detail(cluster_id)
-    self.progress('Get parent cluster %s' % cluster)
+    self.progress("Get parent cluster %s" % cluster)
 
     # volumes index
     volume_idx = []
 
     # create main volume
     main_volume = volumes.pop(0)
-    volume_name = '%s-root-volume' % name
-    volume_desc = 'Root Volume %s' % name
-    source_type = main_volume.get('source_type')
-    if source_type == 'image':
-        volume_type = main_volume.get('volume_type')
-        image_id = main_volume.get('uuid')
-    elif source_type == 'volume':
-        volume_obj = self.get_resource(main_volume.get('uuid'))
+    volume_name = "%s-root-volume" % name
+    volume_desc = "Root Volume %s" % name
+    source_type = main_volume.get("source_type")
+    if source_type == "image":
+        volume_type = main_volume.get("volume_type")
+        image_id = main_volume.get("uuid")
+    elif source_type == "volume":
+        volume_obj = self.get_resource(main_volume.get("uuid"))
         volume_type = volume_obj.get_volume_type().oid
-        image_id = volume_obj.get_attribs('source_image')
-        main_volume['volume_size'] = volume_obj.get_attribs('size')
+        image_id = volume_obj.get_attribs("source_image")
+        main_volume["volume_size"] = volume_obj.get_attribs("size")
 
-    main_volume['image_id'] = image_id
-    boot_volume_id = helper.create_volume(volume_name, volume_desc, folder_id, resource, volume_type, main_volume,
-                                          boot=True)
+    main_volume["image_id"] = image_id
+    boot_volume_id = helper.create_volume(
+        volume_name,
+        volume_desc,
+        folder_id,
+        resource,
+        volume_type,
+        main_volume,
+        boot=True,
+    )
     volume_idx.append(boot_volume_id)
-    self.progress('Create boot volume: %s' % boot_volume_id)
+    self.progress("Create boot volume: %s" % boot_volume_id)
 
     # create other volumes
     index = 0
     for volume in volumes:
         index += 1
-        volume_name = '%s-other-volume-%s' % (name, index)
-        volume_desc = 'Volume %s %s' % (name, index)
-        volume_id = helper.create_volume(volume_name, volume_desc, folder_id, resource, volume_type, volume, boot=False)
+        volume_name = "%s-other-volume-%s" % (name, index)
+        volume_desc = "Volume %s %s" % (name, index)
+        volume_id = helper.create_volume(
+            volume_name,
+            volume_desc,
+            folder_id,
+            resource,
+            volume_type,
+            volume,
+            boot=False,
+        )
         volume_idx.append(volume_id)
-        self.progress('Create volume: %s' % volume_id)
+        self.progress("Create volume: %s" % volume_id)
     volumes.insert(0, main_volume)
 
     # get networks
     self.get_session(reopen=True)
-    net_id = params.get('networks')[0]['uuid']
+    net_id = params.get("networks")[0]["uuid"]
     network = self.get_resource_with_detail(net_id)
 
     # reserve ip address
     helper.reserve_network_ip_address()
 
     # clone server from template
-    if source_type in ['image', 'volume']:
+    if source_type in ["image", "volume"]:
         # create server
-        inst = helper.clone_from_template(oid, name, folder, volume_type, volumes, network, resource_pool=None,
-                                          cluster=cluster)
+        inst = helper.clone_from_template(
+            oid,
+            name,
+            folder,
+            volume_type,
+            volumes,
+            network,
+            resource_pool=None,
+            cluster=cluster,
+        )
 
         # set server disks reference to volumes
         helper.set_volumes_ext_id(inst, volume_idx)
@@ -179,9 +202,9 @@ def task_create_server(self, options):
     # # create new server
     # elif source_type == 'volume':
     #     inst = helper.create_new(oid, name, folder, volumes, network, resource_pool=None, cluster=cluster)
-        
+
     else:
-        raise JobError('Source type %s is not supported' % source_type)
+        raise JobError("Source type %s is not supported" % source_type)
 
     # # update resource
     # self.release_session()
@@ -200,16 +223,18 @@ def task_create_server(self, options):
     # set network interface ip
     net_info = helper.setup_network(inst)
     # [{'uuid': networks[0].get('uuid'), 'ip': config.get('ip')}]
-    attrib = {
-        'subnet_pool': net_info[0]['subnet_pool'],
-        'ip': net_info[0]['ip']
-    }
-    orchestrator.add_link(name='%s-%s-network-link' % (oid, network.oid), type='network', start_resource=oid,
-                          end_resource=network.oid, attributes=attrib)
+    attrib = {"subnet_pool": net_info[0]["subnet_pool"], "ip": net_info[0]["ip"]}
+    orchestrator.add_link(
+        name="%s-%s-network-link" % (oid, network.oid),
+        type="network",
+        start_resource=oid,
+        end_resource=network.oid,
+        attributes=attrib,
+    )
 
     # setup ssh key
     helper.setup_ssh_key(inst)
-    
+
     # setup ssh password
     helper.setup_ssh_pwd(inst)
 
@@ -220,10 +245,10 @@ def task_create_server(self, options):
     # helper.reboot_windows_server(inst)
 
     # save current data in shared area
-    params['ext_id'] = inst._moId
+    params["ext_id"] = inst._moId
     self.set_shared_data(params)
-    self.progress('Update shared area')
-    
+    self.progress("Update shared area")
+
     return inst._moId
 
 
@@ -250,52 +275,56 @@ def task_patch_server(self, options):
     params = self.get_shared_data()
 
     # validate input params
-    cid = params.get('cid')
-    oid = params.get('id')
+    cid = params.get("cid")
+    oid = params.get("id")
     # volume_type = params.get('volume_type')
     # image_id = params.get('image_id')
-    self.progress('Get configuration params')
+    self.progress("Get configuration params")
 
     # get orchestrator
     self.get_session()
     orchestrator = self.get_container(cid)
     resource = orchestrator.get_resource(oid)
     folder_id = resource.parent_id
-    self.progress('Get orchestrator %s' % cid)
+    self.progress("Get orchestrator %s" % cid)
 
     helper = VsphereServerHelper(self, orchestrator, params)
 
     # get vsphere server disks
-    volumes = orchestrator.conn.server.detail(resource.ext_obj).get('volumes', [])
-    volume_idx = {str(v.get('unit_number')): v for v in volumes}
+    volumes = orchestrator.conn.server.detail(resource.ext_obj).get("volumes", [])
+    volume_idx = {str(v.get("unit_number")): v for v in volumes}
 
     # create volumes
     for index, volume in volume_idx.items():
         volume_type = helper.get_volume_type(volume).oid
-        if index == '0':
-            volume_name = '%s-root-volume' % resource.name
-            volume_desc = 'Root Volume %s' % resource.name
+        if index == "0":
+            volume_name = "%s-root-volume" % resource.name
+            volume_desc = "Root Volume %s" % resource.name
             boot = True
         else:
-            volume_name = '%s-other-volume-%s' % (resource.name, index)
-            volume_desc = 'Volume %s %s' % (resource.name, index)
+            volume_name = "%s-other-volume-%s" % (resource.name, index)
+            volume_desc = "Volume %s %s" % (resource.name, index)
             boot = False
         try:
             self.get_resource(volume_name)
-            self.progress('Volume %s already linked' % volume_name)
-            self.logger.warn('Volume %s already linked' % volume_name)
+            self.progress("Volume %s already linked" % volume_name)
+            self.logger.warn("Volume %s already linked" % volume_name)
         except:
-            config = {
-                'source_type': None,
-                'volume_size': volume.get('size')
-            }
-            volume_id = helper.create_volume(volume_name, volume_desc, folder_id, resource, volume_type, config,
-                                             boot=boot)
+            config = {"source_type": None, "volume_size": volume.get("size")}
+            volume_id = helper.create_volume(
+                volume_name,
+                volume_desc,
+                folder_id,
+                resource,
+                volume_type,
+                config,
+                boot=boot,
+            )
             self.get_session(reopen=True)
             volume_resource = self.get_resource(volume_id)
             orchestrator.update_resource(volume_resource.oid, ext_id=index)
-            volume_resource.set_configs('bootable', boot)
-            self.progress('Create volume: %s' % volume_id)
+            volume_resource.set_configs("bootable", boot)
+            self.progress("Create volume: %s" % volume_id)
 
     return resource.ext_id
 
@@ -318,24 +347,24 @@ def task_delete_server(self, options):
     :return: server physical id, [volume physical id, ..]
     """
     self.set_operation()
-    
+
     # get params from shared data
     params = self.get_shared_data()
-    self.progress('Get shared area')
-    
+    self.progress("Get shared area")
+
     # validate input params
-    cid = params.get('cid', None)
-    oid = params.get('id', None)
-    self.progress('Get configuration params')
-    
+    cid = params.get("cid", None)
+    oid = params.get("id", None)
+    self.progress("Get configuration params")
+
     # get server resource
     self.get_session()
     orchestrator = self.get_container(cid)
     resource = self.get_resource_with_detail(oid)
-    self.progress('Get orchestrator %s' % cid)
-    
-    helper = VsphereServerHelper(self, orchestrator, params)    
-    
+    self.progress("Get orchestrator %s" % cid)
+
+    helper = VsphereServerHelper(self, orchestrator, params)
+
     # get vsphere server
     conn = orchestrator.conn
     inst = conn.server.get_by_morid(resource.ext_id)
@@ -343,12 +372,12 @@ def task_delete_server(self, options):
     if inst is not None:
         # stop server
         helper.stop(inst)
-        
+
         # delete server
         helper.delete(resource, inst)
-    
+
     # update params
-    params['oid'] = oid
+    params["oid"] = oid
 
     return oid
 
@@ -372,22 +401,22 @@ def task_delete_volumes(self, options):
 
     # get params from shared data
     params = self.get_shared_data()
-    self.progress('Get shared area')
+    self.progress("Get shared area")
 
     # validate input params
-    cid = params.get('cid')
-    oid = params.get('id')
-    self.progress('Get configuration params')
+    cid = params.get("cid")
+    oid = params.get("id")
+    self.progress("Get configuration params")
 
     # get server resource
     self.get_session()
     container = self.get_container(cid)
     resource = container.get_resource(oid)
-    self.progress('Get server resource')
+    self.progress("Get server resource")
 
-    volumes, tot = resource.get_linked_resources(link_type='volume')
+    volumes, tot = resource.get_linked_resources(link_type="volume")
     volume_ids = [v.oid for v in volumes]
-    self.progress('Get server volumes: %s' % volume_ids)
+    self.progress("Get server volumes: %s" % volume_ids)
 
     # delete volumes
     for volume_id in volume_ids:
@@ -396,7 +425,7 @@ def task_delete_volumes(self, options):
 
             # delete resource
             resource.expunge_internal()
-            self.progress('Delete volume %s resource' % volume_id)
+            self.progress("Delete volume %s resource" % volume_id)
         except ApiManagerError as ex:
             self.progress(ex)
             logger.warn(ex)
@@ -420,19 +449,19 @@ def server_action(task, action, success, error):
 
     # get params from shared data
     params = task.get_shared_data()
-    task.progress('Get shared area')
+    task.progress("Get shared area")
 
     # validate input params
-    task.progress('Get configuration params: %s' % params)
-    cid = params.pop('cid')
-    oid = params.pop('id')
-    ext_id = params.pop('ext_id')
+    task.progress("Get configuration params: %s" % params)
+    cid = params.pop("cid")
+    oid = params.pop("id")
+    ext_id = params.pop("ext_id")
 
     # get server resource
     task.get_session()
     container = task.get_container(cid)
     conn = container.conn
-    task.progress('Get container %s' % cid)
+    task.progress("Get container %s" % cid)
 
     # execute action
     vs_task = action(conn, cid, oid, ext_id, **params)
@@ -448,7 +477,7 @@ def server_action(task, action, success, error):
     #         break
     #     elif status == 'ERROR':
     #         raise Exception(error)
-    # 
+    #
     #     gevent.sleep(task_local.delta)
 
     task.progress(success)
@@ -468,6 +497,7 @@ def task_server_start(self, options):
     :param sharedarea.ext_id: remote entity id
     :return: True
     """
+
     def action(conn, cid, oid, ext_id, **params):
         server = conn.server.get_by_morid(ext_id)
         task = conn.server.start(server)
@@ -477,8 +507,13 @@ def task_server_start(self, options):
         server = conn.server.get_by_morid(ext_id)
         conn.server.wait_guest_tools_is_running(server, delta=2, maxtime=180, sleep=gevent.sleep)
 
-    res = server_action(self, action, 'Start server', 'Error starting server')
-    server_action(self, guest_tool_action, 'Wait server guest tool is running', 'Error starting server')
+    res = server_action(self, action, "Start server", "Error starting server")
+    server_action(
+        self,
+        guest_tool_action,
+        "Wait server guest tool is running",
+        "Error starting server",
+    )
     return res
 
 
@@ -494,12 +529,13 @@ def task_server_stop(self, options):
     :param sharedarea.ext_id: remote entity id
     :return: True
     """
+
     def action(conn, cid, oid, ext_id, **params):
         server = conn.server.get_by_morid(ext_id)
         task = conn.server.stop(server)
         return task
 
-    res = server_action(self, action, 'Stop server', 'Error stopping server')
+    res = server_action(self, action, "Stop server", "Error stopping server")
     return res
 
 
@@ -515,12 +551,13 @@ def task_server_reboot(self, options):
     :param sharedarea.ext_id: remote entity id
     :return: True
     """
+
     def action(conn, cid, oid, ext_id, **params):
         server = conn.server.get_by_morid(ext_id)
         task = conn.server.reboot(server)
         return task
 
-    res = server_action(self, action, 'Reboot server', 'Error rebootting server')
+    res = server_action(self, action, "Reboot server", "Error rebootting server")
     return res
 
 
@@ -536,12 +573,13 @@ def task_server_pause(self, options):
     :param sharedarea.ext_id: remote entity id
     :return: True
     """
+
     def action(conn, cid, oid, ext_id, **params):
         server = conn.server.get_by_morid(ext_id)
         task = conn.server.suspend(server)
         return task
 
-    res = server_action(self, action, 'Pause server', 'Error pausing server')
+    res = server_action(self, action, "Pause server", "Error pausing server")
     return res
 
 
@@ -557,12 +595,13 @@ def task_server_unpause(self, options):
     :param sharedarea.ext_id: remote entity id
     :return: True
     """
+
     def action(conn, cid, oid, ext_id, **params):
         server = conn.server.get_by_morid(ext_id)
         task = conn.server.start(server)
         return task
 
-    res = server_action(self, action, 'Unpause server', 'Error unpausing server')
+    res = server_action(self, action, "Unpause server", "Error unpausing server")
     return res
 
 
@@ -580,9 +619,10 @@ def task_server_migrate(self, options):
     :param sharedarea.host: physical server where migrate [optional]
     :return: True
     """
+
     def action(conn, cid, oid, ext_id, **params):
-        live = params.get('live')
-        host = params.get('host', None)
+        live = params.get("live")
+        host = params.get("host", None)
         if live is True:
             conn.server.live_migrate(ext_id, host=host)
         else:
@@ -590,7 +630,7 @@ def task_server_migrate(self, options):
         task = conn.server.migrate(ext_id)
         return task
 
-    res = server_action(self, action, 'Migrate server', 'Error migrating server')
+    res = server_action(self, action, "Migrate server", "Error migrating server")
     return res
 
 
@@ -607,11 +647,12 @@ def task_server_set_flavor(self, options):
     :param sharedarea.flavor: flavor id
     :return: True
     """
+
     def set_flavor_action(conn, cid, oid, ext_id, flavor=None, **params):
         server = conn.server.get_by_morid(ext_id)
         flavor_obj = self.get_resource(flavor)
-        cpu = flavor_obj.get_attribs('vcpus')
-        ram = flavor_obj.get_attribs('ram')
+        cpu = flavor_obj.get_attribs("vcpus")
+        ram = flavor_obj.get_attribs("ram")
         task = conn.server.reconfigure(server, None, memoryMB=ram, numCPUs=cpu)
 
         return task
@@ -633,10 +674,20 @@ def task_server_set_flavor(self, options):
         server = conn.server.get_by_morid(ext_id)
         conn.server.wait_guest_tools_is_running(server, delta=2, maxtime=180, sleep=gevent.sleep)
 
-    server_action(self, stop_action, 'Stop server', 'Error stopping server')
-    res = server_action(self, set_flavor_action, 'Set flavor to server', 'Error setting flavor to server')
-    server_action(self, start_action, 'Start server', 'Error starting server')
-    server_action(self, guest_tool_action, 'Wait server guest tool is running', 'Error starting server')
+    server_action(self, stop_action, "Stop server", "Error stopping server")
+    res = server_action(
+        self,
+        set_flavor_action,
+        "Set flavor to server",
+        "Error setting flavor to server",
+    )
+    server_action(self, start_action, "Start server", "Error starting server")
+    server_action(
+        self,
+        guest_tool_action,
+        "Wait server guest tool is running",
+        "Error starting server",
+    )
 
     return res
 
@@ -655,32 +706,38 @@ def task_server_add_volume(self, options):
     :param sharedarea.volume: volume id
     :return: True
     """
+
     def action(conn, cid, oid, ext_id, volume=None, **params):
         # get volume
         volume_obj = self.get_resource(volume)
         volume_type = volume_obj.get_volume_type()
         volume_size = volume_obj.get_size()
-        datastore = volume_type.get_best_datastore(volume_size, tag='default')
+        datastore = volume_type.get_best_datastore(volume_size, tag="default")
 
         # get server
         server = conn.server.get_by_morid(ext_id)
 
         # add new disk for the volume
-        disk_unit_number = conn.server.hardware.get_available_hard_disk_unit_number(server)
-        task = conn.server.hardware.add_hard_disk(server, volume_size, datastore.ext_obj,
-                                                  disk_unit_number=disk_unit_number)
+        disk_unit_number = conn.server.get_available_hard_disk_unit_number(server)
+        task = conn.server.hardware.add_hard_disk(
+            server, volume_size, datastore.ext_obj, disk_unit_number=disk_unit_number
+        )
 
         # change volume ext_id
         volume_obj.update_internal(ext_id=disk_unit_number)
 
         # link volume id to server
         server_obj = self.get_resource(oid)
-        server_obj.add_link('%s-%s-volume-link' % (oid, volume_obj.oid), 'volume', volume_obj.oid,
-                            attributes={'boot': False})
+        server_obj.add_link(
+            "%s-%s-volume-link" % (oid, volume_obj.oid),
+            "volume",
+            volume_obj.oid,
+            attributes={"boot": False},
+        )
 
         return task
 
-    res = server_action(self, action, 'Attach volume to server', 'Error attaching volume to server')
+    res = server_action(self, action, "Attach volume to server", "Error attaching volume to server")
     return res
 
 
@@ -697,6 +754,7 @@ def task_server_del_volume(self, options):
     :param sharedarea.volume_extid: physical id of the volume
     :return: True
     """
+
     def action(conn, cid, oid, ext_id, volume=None, **params):
         # get volume
         volume_obj = self.get_resource(volume)
@@ -705,11 +763,11 @@ def task_server_del_volume(self, options):
         # get server
         server = conn.server.get_by_morid(ext_id)
 
-        # add new disk for the volume
+        # delete disk for the volume
         task = conn.server.hardware.delete_hard_disk(server, volume_extid)
 
         # change volume ext_id
-        volume_obj.update_internal(ext_id='')
+        volume_obj.update_internal(ext_id="")
 
         # delete link between volume and server
         server_obj = self.get_resource(oid)
@@ -717,5 +775,5 @@ def task_server_del_volume(self, options):
 
         return task
 
-    res = server_action(self, action, 'Detach volume from server', 'Error detaching volume from server')
+    res = server_action(self, action, "Detach volume from server", "Error detaching volume from server")
     return res

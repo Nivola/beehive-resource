@@ -6,17 +6,18 @@ from beecell.simple import id_gen
 from beehive_resource.plugins.zabbix.entity import ZabbixResource
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 
 class ZabbixHostgroup(ZabbixResource):
-    objdef = 'Zabbix.Hostgroup'
-    objuri = 'hostgroup'
-    objname = 'hostgroup'
-    objdesc = 'Zabbix hostgroup'
+    objdef = "Zabbix.Hostgroup"
+    objuri = "hostgroup"
+    objname = "hostgroup"
+    objdesc = "Zabbix hostgroup"
 
-    default_tags = ['zabbix', 'monitoring']
-    task_base_path = 'beehive_resource.plugins.zabbix.task_v2.zbx_hostgroup.ZabbixHostgroupTask.'
+    default_tags = ["zabbix", "monitoring"]
+    task_base_path = "beehive_resource.plugins.zabbix.task_v2.zbx_hostgroup.ZabbixHostgroupTask."
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -44,21 +45,37 @@ class ZabbixHostgroup(ZabbixResource):
         :raises ApiManagerError:
         """
         # query zabbix
+        from beehive_resource.plugins.zabbix.controller import ZabbixContainer
+        from beehive_resource.plugins.zabbix.controller import ZabbixManager
+
+        zabbixContainer: ZabbixContainer = container
+        zabbixManager: ZabbixManager = zabbixContainer.conn
+
         if ext_id is not None:
-            items = container.conn.group.get(ext_id)
+            items = zabbixManager.hostgroup.get(ext_id)
         else:
-            items = container.conn.group.list()
+            items = zabbixManager.hostgroup.list()
 
         # add new items to final list
         res = []
         for item in items:
-            item_id = item['groupid']
+            item_id = item["groupid"]
             if item_id not in res_ext_ids:
                 level = None
-                name = item['name']
-                internal = item['internal']
+                name = item["name"]
+                internal = item["internal"]
                 parent_id = None
-                res.append((ZabbixHostgroup, item_id, parent_id, ZabbixHostgroup.objdef, name, level, internal))
+                res.append(
+                    (
+                        ZabbixHostgroup,
+                        item_id,
+                        parent_id,
+                        ZabbixHostgroup.objdef,
+                        name,
+                        level,
+                        internal,
+                    )
+                )
 
         return res
 
@@ -70,13 +87,16 @@ class ZabbixHostgroup(ZabbixResource):
         :return: list of remote entities
         :raises ApiManagerError:
         """
+        from beehive_resource.plugins.zabbix.controller import ZabbixContainer
+        from beehive_resource.plugins.zabbix.controller import ZabbixManager
+
+        zabbixContainer: ZabbixContainer = container
+        zabbixManager: ZabbixManager = zabbixContainer.conn
+
         items = []
-        groups = container.conn.group.list()
+        groups = zabbixManager.hostgroup.list()
         for group in groups:
-            items.append({
-                'id': group['groupid'],
-                'name': group['name']
-            })
+            items.append({"id": group["groupid"], "name": group["name"]})
         return items
 
     @staticmethod
@@ -108,18 +128,18 @@ class ZabbixHostgroup(ZabbixResource):
         level = entity[5]
         internal = entity[6]
 
-        objid = '%s//%s' % (container.objid, id_gen())
+        objid = "%s//%s" % (container.objid, id_gen())
 
         res = {
-            'resource_class': resclass,
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent_id,
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent_id,
+            "tags": resclass.default_tags,
         }
 
         return res
@@ -140,17 +160,22 @@ class ZabbixHostgroup(ZabbixResource):
         :return: None
         :raises ApiManagerError:
         """
-        remote_entities = container.conn.group.list()
+        from beehive_resource.plugins.zabbix.controller import ZabbixContainer
+        from beehive_resource.plugins.zabbix.controller import ZabbixManager
+
+        zabbixContainer: ZabbixContainer = container
+        zabbixManager: ZabbixManager = zabbixContainer.conn
+        remote_entities = zabbixManager.hostgroup.list()
 
         # create index of remote objs
-        remote_entities_index = {i['groupid']: i for i in remote_entities}
+        remote_entities_index = {i["groupid"]: i for i in remote_entities}
 
         for entity in entities:
             try:
                 ext_obj = remote_entities_index.get(entity.ext_id, None)
                 entity.set_physical_entity(ext_obj)
             except:
-                container.logger.warn('', exc_info=1)
+                container.logger.warn("", exc_info=1)
 
         return entities
 
@@ -162,65 +187,74 @@ class ZabbixHostgroup(ZabbixResource):
         :raises ApiManagerError:
         """
         try:
-            ext_obj = self.container.conn.group.get(self.ext_id)
+            from beehive_resource.plugins.zabbix.controller import ZabbixContainer
+            from beehive_resource.plugins.zabbix.controller import ZabbixManager
+
+            zabbixContainer: ZabbixContainer = self.container
+            zabbixManager: ZabbixManager = zabbixContainer.conn
+
+            ext_obj = zabbixManager.hostgroup.get(self.ext_id)
             self.set_physical_entity(ext_obj)
 
             # retrieve hosts that belong to the hostgroup
-            ext_hosts = self.container.conn.group.hosts(self.ext_id).get('hosts', [])
+            ext_hosts = zabbixManager.hostgroup.hosts(self.ext_id).get("hosts", [])
             for item in ext_hosts:
-                host = self.controller.get_resource_by_extid(item['hostid'])
+                host = self.controller.get_resource_by_extid(item["hostid"])
                 self.hosts.append(host)
 
             # retrieve templates that belong to the hostgroup
-            ext_templates = self.container.conn.group.templates(self.ext_id).get('templates', [])
+            ext_templates = zabbixManager.hostgroup.templates(self.ext_id).get("templates", [])
             for item in ext_templates:
-                template = self.controller.get_resource_by_extid(item['templateid'])
+                template = self.controller.get_resource_by_extid(item["templateid"])
                 self.templates.append(template)
         except:
             # pass
-            logger.warning('', exc_info=True)
+            logger.warning("", exc_info=True)
 
     @staticmethod
     def pre_create(controller, container, *args, **kvargs):
-        """Check input params before resource creation. This function is used in container resource_factory method.
-        """
+        """Check input params before resource creation. This function is used in container resource_factory method."""
+        from beehive_resource.plugins.zabbix.controller import ZabbixContainer
+        from beehive_resource.plugins.zabbix.controller import ZabbixManager
+
+        zabbixContainer: ZabbixContainer = container
+        zabbixManager: ZabbixManager = zabbixContainer.conn
+
         # get hostgroup name from input params
-        name = kvargs.get('name')
+        name = kvargs.get("name")
 
         # check whether a hostgroup named 'name' already exists on zabbix
         found = False
-        hostgroups = container.conn.group.list()
+        hostgroups = zabbixManager.hostgroup.list()
         for item in hostgroups:
-            if item['name'] == name:
+            if item["name"] == name:
                 # hostgroup already exists, do not proceed with creation
                 found = True
                 break
 
         if not found:
             steps = [
-                ZabbixHostgroup.task_base_path + 'create_resource_pre_step',
-                ZabbixHostgroup.task_base_path + 'hostgroup_create_physical_step',
-                ZabbixHostgroup.task_base_path + 'create_resource_post_step'
+                ZabbixHostgroup.task_base_path + "create_resource_pre_step",
+                ZabbixHostgroup.task_base_path + "hostgroup_create_physical_step",
+                ZabbixHostgroup.task_base_path + "create_resource_post_step",
             ]
-            kvargs['steps'] = steps
+            kvargs["steps"] = steps
 
         return kvargs
 
     def pre_update(self, *args, **kvargs):
-        """Pre update function. This function is used in update method.
-        """
+        """Pre update function. This function is used in update method."""
         steps = [
-            ZabbixHostgroup.task_base_path + 'update_resource_pre_step',
-            ZabbixHostgroup.task_base_path + 'hostgroup_update_physical_step',
-            ZabbixHostgroup.task_base_path + 'update_resource_post_step'
+            ZabbixHostgroup.task_base_path + "update_resource_pre_step",
+            ZabbixHostgroup.task_base_path + "hostgroup_update_physical_step",
+            ZabbixHostgroup.task_base_path + "update_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
 
         return kvargs
 
     def pre_delete(self, *args, **kvargs):
-        """Pre delete function. This function is used in delete method.
-        """
+        """Pre delete function. This function is used in delete method."""
 
         # From Zabbix docs:
         # https://www.zabbix.com/documentation/current/manual/api/reference/hostgroup/delete
@@ -232,32 +266,37 @@ class ZabbixHostgroup(ZabbixResource):
         # (- it is used by a host prototype)
         # (- it is used in a global script)
         # (- it is used in a correlation condition)
+        from beehive_resource.plugins.zabbix.controller import ZabbixContainer
+        from beehive_resource.plugins.zabbix.controller import ZabbixManager
+
+        zabbixContainer: ZabbixContainer = self.container
+        zabbixManager: ZabbixManager = zabbixContainer.conn
 
         can_delete = True
 
-        ext_obj = self.container.conn.group.get(self.ext_id)
-        if ext_obj.get('internal') == 1:
+        ext_obj = zabbixManager.hostgroup.get(self.ext_id)
+        if ext_obj.get("internal") == 1:
             can_delete = False
 
         self.post_get()
 
         for host in self.hosts:
-            groups = self.container.conn.host.groups(host.ext_id).get('groups', [])
+            groups = zabbixManager.host.groups(host.ext_id).get("groups", [])
             if len(groups) <= 1:
                 can_delete = False
 
         for template in self.templates:
-            groups = self.container.conn.template.groups(template.ext_id).get('groups', [])
+            groups = zabbixManager.template.groups(template.ext_id).get("groups", [])
             if len(groups) <= 1:
                 can_delete = False
 
         if can_delete:
             steps = [
-                ZabbixHostgroup.task_base_path + 'expunge_resource_pre_step',
-                ZabbixHostgroup.task_base_path + 'hostgroup_delete_physical_step',
-                ZabbixHostgroup.task_base_path + 'expunge_resource_post_step'
+                ZabbixHostgroup.task_base_path + "expunge_resource_pre_step",
+                ZabbixHostgroup.task_base_path + "hostgroup_delete_physical_step",
+                ZabbixHostgroup.task_base_path + "expunge_resource_post_step",
             ]
-            kvargs['steps'] = steps
+            kvargs["steps"] = steps
 
         return kvargs
 
@@ -282,13 +321,12 @@ class ZabbixHostgroup(ZabbixResource):
         """
         info = ZabbixResource.detail(self)
 
-        hosts = [{'id': item.oid, 'objid': item.objid, 'name': item.name} for item in self.hosts]
-        templates = [{'id': item.oid, 'objid': item.objid, 'name': item.name} for item in self.templates]
+        hosts = [{"id": item.oid, "objid": item.objid, "name": item.name} for item in self.hosts]
+        templates = [{"id": item.oid, "objid": item.objid, "name": item.name} for item in self.templates]
         data = {
-            'hosts': hosts,
-            'templates': templates,
+            "hosts": hosts,
+            "templates": templates,
         }
-        info['details'].update(data)
+        info["details"].update(data)
 
         return info
-

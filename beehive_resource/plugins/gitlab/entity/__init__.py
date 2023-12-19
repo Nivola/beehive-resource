@@ -6,12 +6,12 @@ from beehive_resource.container import Resource, AsyncResourceV3
 
 
 def get_task(task_name):
-    return '%s.%s' % (__name__.replace('entity', 'task'), task_name)
+    return "%s.%s" % (__name__.replace("entity", "task"), task_name)
 
 
 class GitlabResource(AsyncResourceV3):
-    objdef = 'Gitlab.Resource'
-    objdesc = 'Gitlab resources'
+    objdef = "Gitlab.Resource"
+    objdesc = "Gitlab resources"
 
     def __init__(self, *args, **kvargs):
         """ """

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive.module.scheduler.tasks import job_task
 from beehive_resource.plugins.provider.task import ProviderOrchestrator
@@ -29,8 +30,8 @@ def remove_remote_resource(self, options, orchestrator_id, orchestrator_type):
     """
     params = self.get_shared_data()
     # cid = params.get('cid')
-    resource = params.get('id')
-    self.update('PROGRESS', msg='Get configuration params')
+    resource = params.get("id")
+    self.update("PROGRESS", msg="Get configuration params")
 
     # get parent resource
     self.get_session()
@@ -38,7 +39,7 @@ def remove_remote_resource(self, options, orchestrator_id, orchestrator_type):
     # container = self.get_container(cid)
 
     # get all child resources
-    childs = self.get_linked_resources(resource, link_type='relation', container_id=orchestrator_id)
+    childs = self.get_linked_resources(resource, link_type="relation", container_id=orchestrator_id)
 
     # delete all childs
     # if orchestrator_type == 'vsphere':
@@ -65,24 +66,24 @@ def compute_resource_remove_child(self, options, resource_id):
     params = self.get_shared_data()
 
     # input params
-    cid = params.get('cid')
+    cid = params.get("cid")
     # oid = params.get('oid')
-    self.update('PROGRESS', msg='Set configuration params')
+    self.update("PROGRESS", msg="Set configuration params")
 
     # get provider
     self.get_session()
     # provider = self.get_container(cid)
     resource = self.get_resource(resource_id)
-    self.update('PROGRESS', msg='Get provider %s' % cid)
+    self.update("PROGRESS", msg="Get provider %s" % cid)
 
     # delete child
     # - run celery job
     job = resource.expunge()
-    job_id = job[0]['jobid']
-    self.update('PROGRESS', msg='Remove child %s - start job %s' % (resource_id, job_id))
+    job_id = job[0]["jobid"]
+    self.update("PROGRESS", msg="Remove child %s - start job %s" % (resource_id, job_id))
 
     # - wait job complete
     res = self.wait_for_job_complete(job_id)
-    self.update('PROGRESS', msg='Remove child %s' % resource_id)
+    self.update("PROGRESS", msg="Remove child %s" % resource_id)
 
     return True

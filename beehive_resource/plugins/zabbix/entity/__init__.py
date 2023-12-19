@@ -7,12 +7,12 @@ from beehive.common.data import cache
 
 
 def get_task(task_name):
-    return '%s.%s' % (__name__.replace('entity', 'task'), task_name)
+    return "%s.%s" % (__name__.replace("entity", "task"), task_name)
 
 
 class ZabbixResource(AsyncResource):
-    objdef = 'Zabbix.Resource'
-    objdesc = 'Zabbix resources'
+    objdef = "Zabbix.Resource"
+    objdesc = "Zabbix resources"
 
     def __init__(self, *args, **kvargs):
         """ """

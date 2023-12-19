@@ -1,18 +1,18 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive_resource.plugins.vsphere.entity import VsphereResource
 
 
 class VsphereFlavor(VsphereResource):
-    objdef = 'Vsphere.DataCenter.Flavor'
-    objuri = 'flavors'
-    objname = 'flavor'
-    objdesc = 'Vsphere flavors'
+    objdef = "Vsphere.DataCenter.Flavor"
+    objuri = "flavors"
+    objname = "flavor"
+    objdesc = "Vsphere flavors"
 
-    default_tags = ['vsphere', 'flavor']
-    task_path = 'beehive_resource.plugins.vsphere.task_v2.vs_flavor.FlavorTask'
+    default_tags = ["vsphere", "flavor"]
+    task_path = "beehive_resource.plugins.vsphere.task_v2.vs_flavor.FlavorTask"
     create_task = None
     import_task = None
     update_task = None
@@ -76,15 +76,15 @@ class VsphereFlavor(VsphereResource):
         objid = None
 
         res = {
-            'resource_class': resclass,
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent_id,
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent_id,
+            "tags": resclass.default_tags,
         }
         return res
 
@@ -131,14 +131,14 @@ class VsphereFlavor(VsphereResource):
         :param kvargs.ext_id: resource ext_id
         :param kvargs.active: resource active
         :param kvargs.attribute: attributez
-        :param kvargs.tags: comma separated resource tags to assign [default='']                
+        :param kvargs.tags: comma separated resource tags to assign [default='']
         :param kvargs.core_x_socket: core per socket [default=1]
         :param kvargs.vcpus: socket number
         :param kvargs.guest_id: vsphere guest id [default=centos64Guest]
         :param kvargs.ram: ram size in GB
         :param kvargs.disk: main disk size in GB
         :param kvargs.version: virtual machine version [default=vmx-11]
-        :return: kvargs            
+        :return: kvargs
         :raises ApiManagerError:
         """
         kvargs = VsphereResource.pre_create(controller, container, *args, **kvargs)
@@ -146,15 +146,15 @@ class VsphereFlavor(VsphereResource):
         # get datacenter
         from .vs_datacenter import VsphereDatacenter
 
-        parent = controller.get_simple_resource(kvargs.get('parent'), entity_class=VsphereDatacenter)
-        kvargs['parent'] = parent.oid
-        kvargs['attribute'] = {
-            'core_x_socket': kvargs.pop('core_x_socket'),
-            'vcpus': kvargs.pop('vcpus'),
-            'guest_id': kvargs.pop('guest_id'),
-            'ram': kvargs.pop('ram'),
-            'disk': kvargs.pop('disk'),
-            'version': kvargs.pop('version'),
+        parent = controller.get_simple_resource(kvargs.get("parent"), entity_class=VsphereDatacenter)
+        kvargs["parent"] = parent.oid
+        kvargs["attribute"] = {
+            "core_x_socket": kvargs.pop("core_x_socket"),
+            "vcpus": kvargs.pop("vcpus"),
+            "guest_id": kvargs.pop("guest_id"),
+            "ram": kvargs.pop("ram"),
+            "disk": kvargs.pop("disk"),
+            "version": kvargs.pop("version"),
         }
         return kvargs
 
@@ -165,9 +165,9 @@ class VsphereFlavor(VsphereResource):
         """Get info.
 
         :return: Dictionary with capabilities.
-        :rtype: dict        
+        :rtype: dict
         :raises ApiManagerError: raise :class:`.ApiManagerError`
-        
+
         details: {
             'core_x_socket': 1,
             'vcpus': 2,
@@ -175,19 +175,19 @@ class VsphereFlavor(VsphereResource):
             'ram': 1024,
             'version': 'vmx-11',
             'disk': 10
-        }        
+        }
         """
         info = VsphereResource.info(self)
-        info['details'] = self.get_attribs()
+        info["details"] = self.get_attribs()
         return info
 
     def detail(self):
         """Get details.
 
         :return: Dictionary with resource details.
-        :rtype: dict        
+        :rtype: dict
         :raises ApiManagerError: raise :class:`.ApiManagerError`
-        
+
         details: {
             'core_x_socket': 1,
             'vcpus': 2,
@@ -195,100 +195,100 @@ class VsphereFlavor(VsphereResource):
             'ram': 1024,
             'version': 'vmx-11',
             'disk': 10
-        }        
+        }
         """
         # verify permissions
         info = VsphereResource.detail(self)
-        info['details'] = self.get_attribs()
+        info["details"] = self.get_attribs()
         return info
 
     # def add_datastore(self, datastore, tag):
     #     """Add datastore to flavor
-    # 
+    #
     #     **Parameters:**
-    # 
+    #
     #         * **datastore** (:py:class:`str`): datastore id, uuid or name
     #         * **tag** (:py:class:`str`): datastore tag
-    # 
+    #
     #     **Returns:**
-    # 
+    #
     #         True
-    # 
+    #
     #     :raises ApiManagerError: raise :class:`.ApiManagerError`
     #     """
     #     # get datastore
     #     datastore = self.controller.get_resource(datastore)
-    # 
+    #
     #     # check datastore already linked
     #     links, tot = self.controller.get_links(end_resource=datastore.oid, start_resource=self.oid)
     #     if tot > 0:
     #         raise ApiManagerError('Datastore %s already linked to flavor %s' % (datastore.uuid, self.uuid))
-    # 
+    #
     #     # link datastore
     #     self.add_link('%s-%s-ds-link' % (self.oid, datastore.oid), 'datastore.%s' % tag, datastore.oid,
     #                   attributes={})
-    # 
+    #
     #     self.logger.debug('Add datastore %s to flavor %s with tag %s' % (datastore.uuid, self.uuid, tag))
-    # 
+    #
     #     return True
-    # 
+    #
     # def del_datastore(self, datastore):
     #     """Del datastore from flavor
-    # 
+    #
     #     **Parameters:**
-    # 
+    #
     #         * **datastore** (:py:class:`str`): datastore id, uuid or name
-    # 
+    #
     #     **Returns:**
-    # 
+    #
     #         True
-    # 
+    #
     #     :raises ApiManagerError: raise :class:`.ApiManagerError`
     #     """
     #     # get datastore
     #     datastore = self.controller.get_resource(datastore)
-    # 
+    #
     #     # check datastore already linked
     #     links, tot = self.controller.get_links(end_resource=datastore.oid, start_resource=self.oid)
     #     if tot == 0:
     #         raise ApiManagerError('Datastore %s is not linked to flavor %s' % (datastore.uuid, self.uuid))
-    # 
+    #
     #     # delete link
     #     links[0].delete()
-    # 
+    #
     #     self.logger.debug('Remove datastore %s from flavor %s' % (datastore.uuid, self.uuid))
-    # 
+    #
     #     return True
-    # 
+    #
     # def get_datastores(self, tag=None):
     #     """Get datastores linked to a flavor
-    # 
+    #
     #     **Parameters:**
-    # 
+    #
     #         * **tag** (:py:class:`str`): datastore tag [optional]
-    # 
+    #
     #     **Returns:**
-    # 
+    #
     #         True
-    # 
+    #
     #     :raises ApiManagerError: raise :class:`.ApiManagerError`
     #     """
     #     res = []
-    # 
+    #
     #     link_type = 'datastore.'
     #     if tag is not None:
     #         link_type += tag
     #     else:
     #         link_type += '%'
-    # 
+    #
     #     # get links
     #     links, tot = self.controller.get_links(start_resource=self.oid, type=link_type)
-    # 
+    #
     #     for link in links:
     #         ds = link.get_end_resource()
     #         ds_tag = link.type.split('.')[1]
     #         res.append((ds, ds_tag))
-    # 
+    #
     #     self.logger.debug('Get datastores for flavor %s: %s' % (self.uuid, truncate(res)))
-    # 
+    #
     #     return res

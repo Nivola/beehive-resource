@@ -1,23 +1,23 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beecell.simple import id_gen
 from beehive_resource.plugins.vsphere.entity import VsphereResource
 
 
 class VsphereDatastore(VsphereResource):
-    objdef = 'Vsphere.DataCenter.Datastore'
-    objuri = 'datastores'
-    objname = 'datastore'
-    objdesc = 'Vsphere datastore'
-    
-    default_tags = ['vsphere']
+    objdef = "Vsphere.DataCenter.Datastore"
+    objuri = "datastores"
+    objname = "datastore"
+    objdesc = "Vsphere datastore"
+
+    default_tags = ["vsphere"]
 
     def __init__(self, *args, **kvargs):
         """ """
         VsphereResource.__init__(self, *args, **kvargs)
-        
+
         # child classes
         self.child_classes = []
 
@@ -42,9 +42,9 @@ class VsphereDatastore(VsphereResource):
         for datacenter in datacenters:
             for node in datacenter.datastoreFolder.childEntity:
                 obj_type = type(node).__name__
-                if obj_type == 'vim.Datastore':
+                if obj_type == "vim.Datastore":
                     items.append((node._moId, node.name, datacenter._moId, None))
-                elif obj_type == 'vim.StoragePod':
+                elif obj_type == "vim.StoragePod":
                     for node1 in node.childEntity:
                         items.append((node1._moId, node1.name, datacenter._moId, None))
 
@@ -55,8 +55,17 @@ class VsphereDatastore(VsphereResource):
                 parent_id = item[2]
                 parent_class = item[3]
                 resclass = VsphereDatastore
-                res.append((resclass, item[0], parent_id, resclass.objdef, item[1], parent_class))
-        
+                res.append(
+                    (
+                        resclass,
+                        item[0],
+                        parent_id,
+                        resclass.objdef,
+                        item[1],
+                        parent_class,
+                    )
+                )
+
         return res
 
     @staticmethod
@@ -71,24 +80,28 @@ class VsphereDatastore(VsphereResource):
         content = container.conn.si.RetrieveContent()
         datacenters = content.rootFolder.childEntity
         items = []
-        
+
         for datacenter in datacenters:
             for node in datacenter.datastoreFolder.childEntity:
                 obj_type = type(node).__name__
-                if obj_type == 'vim.Datastore':
-                    items.append({
-                        'id': node._moId,
-                        'name': node.name,
-                    })
-                elif obj_type == 'vim.StoragePod':
+                if obj_type == "vim.Datastore":
+                    items.append(
+                        {
+                            "id": node._moId,
+                            "name": node.name,
+                        }
+                    )
+                elif obj_type == "vim.StoragePod":
                     for node1 in node.childEntity:
-                        items.append({
-                            'id': node1._moId,
-                            'name': node1.name,
-                        })
-        
-        return items 
-    
+                        items.append(
+                            {
+                                "id": node1._moId,
+                                "name": node1.name,
+                            }
+                        )
+
+        return items
+
     @staticmethod
     def synchronize(container, entity):
         """Discover method used when synchronize beehive container with remote platform.
@@ -104,21 +117,21 @@ class VsphereDatastore(VsphereResource):
         parent_id = entity[2]
         name = entity[4]
         parent_class = entity[5]
-        
+
         parent = container.get_resource_by_extid(parent_id)
         parent_id = parent.oid
-        objid = '%s//%s' % (parent.objid, id_gen())
-        
+        objid = "%s//%s" % (parent.objid, id_gen())
+
         res = {
-            'resource_class': resclass,
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent.oid,
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent.oid,
+            "tags": resclass.default_tags,
         }
         return res
 
@@ -139,18 +152,18 @@ class VsphereDatastore(VsphereResource):
         :raises ApiManagerError:
         """
         remote_entities = container.conn.datastore.list()
-        
+
         # create index of remote objs
-        remote_entities_index = {i['obj']._moId: i for i in remote_entities}
-        
+        remote_entities_index = {i["obj"]._moId: i for i in remote_entities}
+
         for entity in entities:
             try:
                 ext_obj = remote_entities_index.get(entity.ext_id, None)
                 entity.set_physical_entity(ext_obj)
             except:
-                container.logger.warn('', exc_info=1)
+                container.logger.warn("", exc_info=1)
         return entities
-    
+
     def post_get(self):
         """Post get function. This function is used in get_entity method.
         Extend this function to extend description info returned after query.
@@ -163,7 +176,7 @@ class VsphereDatastore(VsphereResource):
             self.set_physical_entity(ext_obj)
         except:
             pass
-    
+
     #
     # info
     #
@@ -177,8 +190,8 @@ class VsphereDatastore(VsphereResource):
         info = VsphereResource.small_info(self)
         if self.ext_obj is not None:
             data = self.container.conn.datastore.detail(self.ext_obj)
-            info['size'] = data.get('size', None)
-            info['freespace'] = data.get('freespace', None)
+            info["size"] = data.get("size", None)
+            info["freespace"] = data.get("freespace", None)
         return info
 
     def info(self):
@@ -189,7 +202,7 @@ class VsphereDatastore(VsphereResource):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = VsphereResource.info(self)
-        details = info['details']
+        details = info["details"]
         if self.ext_obj is not None:
             details.update(self.container.conn.datastore.info(self.ext_obj))
         return info
@@ -202,7 +215,7 @@ class VsphereDatastore(VsphereResource):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = VsphereResource.detail(self)
-        details = info['details']
+        details = info["details"]
         if self.ext_obj is not None:
             details.update(self.container.conn.datastore.detail(self.ext_obj))
         return info
@@ -215,6 +228,6 @@ class VsphereDatastore(VsphereResource):
         freespace = None
         if self.ext_obj is not None:
             data = self.container.conn.datastore.detail(self.ext_obj)
-            freespace = data.get('freespace', None)
+            freespace = data.get("freespace", None)
 
         return freespace

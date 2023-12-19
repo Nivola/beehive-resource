@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive_resource.container import Orchestrator
 from beedrones.ontapp.client import OntapManager, OntapError
@@ -10,7 +10,7 @@ from beehive_resource.plugins.ontap.entity.volume import OntapNetappVolume
 
 
 def get_task(task_name):
-    return '%s.task.%s' % (__name__, task_name)
+    return "%s.task.%s" % (__name__, task_name)
 
 
 class OntapNetappContainer(Orchestrator):
@@ -27,17 +27,15 @@ class OntapNetappContainer(Orchestrator):
             "timeout": 5.0,
         }
     """
-    objdef = 'OntapNetapp'
-    objdesc = 'OntapNetapp container'
-    version = 'v1.0'
+
+    objdef = "OntapNetapp"
+    objdesc = "OntapNetapp container"
+    version = "v1.0"
 
     def __init__(self, *args, **kvargs):
         Orchestrator.__init__(self, *args, **kvargs)
 
-        self.child_classes = [
-            OntapNetappSvm,
-            OntapNetappVolume
-        ]
+        self.child_classes = [OntapNetappSvm, OntapNetappVolume]
 
         self.conn = None
         self.token = None
@@ -50,10 +48,10 @@ class OntapNetappContainer(Orchestrator):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         try:
-            self.__new_connection(timeout=1)
+            self.__new_connection(timeout=30)
             res = self.conn.ping()
         except:
-            self.logger.warning('ping ko', exc_info=True)
+            self.logger.warning("ping ko", exc_info=True)
             res = False
         self.container_ping = res
         return res
@@ -78,34 +76,32 @@ class OntapNetappContainer(Orchestrator):
         info = Orchestrator.info(self)
 
         res = info
-        res['details'] = {
-            'cluster': self.get_cluster_info()
+        res["details"] = {
+            "cluster": self.get_cluster_info()
             # 'version': self.conn.version()
         }
 
         return res
 
-    def __new_connection(self, timeout=5):
-        """Get zabbix connection with new token
-        """
+    def __new_connection(self, timeout=30):
+        """Get zabbix connection with new token"""
         try:
-            host = self.conn_params.get('host')
-            port = self.conn_params.get('port', 80)
-            proto = self.conn_params.get('proto', 'http')
-            user = self.conn_params.get('user')
-            pwd = self.conn_params.get('pwd')
+            host = self.conn_params.get("host")
+            port = self.conn_params.get("port", 80)
+            proto = self.conn_params.get("proto", "http")
+            user = self.conn_params.get("user")
+            pwd = self.conn_params.get("pwd")
 
             # decrypt password
             pwd = self.decrypt_data(pwd)
-            self.conn = OntapManager(host, user, pwd, port=port, proto=proto, timeout=5.0)
+            self.conn = OntapManager(host, user, pwd, port=port, proto=proto, timeout=30.0)
             self.conn.authorize()
         except OntapError as ex:
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex, code=400)
 
     def get_connection(self):
-        """Get ontap netapp connection
-        """
+        """Get ontap netapp connection"""
         if self.conn is None:
             self.__new_connection()
         else:
@@ -119,7 +115,15 @@ class OntapNetappContainer(Orchestrator):
             pass
 
     @staticmethod
-    def pre_create(controller=None, type=None, name=None, desc=None, active=None, conn=None, **kvargs):
+    def pre_create(
+        controller=None,
+        type=None,
+        name=None,
+        desc=None,
+        active=None,
+        conn=None,
+        **kvargs,
+    ):
         """Check input params
 
         :param controller: (:py:class:`ResourceController`): resource controller instance
@@ -132,14 +136,14 @@ class OntapNetappContainer(Orchestrator):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         # encrypt password
-        conn['pwd'] = controller.encrypt_data(conn['pwd'])
+        conn["pwd"] = controller.encrypt_data(conn["pwd"])
 
         kvargs = {
-            'type': type,
-            'name': name,
-            'desc': desc,
-            'active': active,
-            'conn': conn,
+            "type": type,
+            "name": name,
+            "desc": desc,
+            "active": active,
+            "conn": conn,
         }
 
         return kvargs

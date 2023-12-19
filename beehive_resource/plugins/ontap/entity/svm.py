@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beecell.simple import id_gen
 import logging
@@ -13,12 +13,12 @@ logger = logging.getLogger(__name__)
 
 
 class OntapNetappSvm(OntapNetappResource):
-    objdef = 'OntapNetapp.Svm'
-    objuri = 'svms'
-    objname = 'svm'
-    objdesc = 'OntapNetapp Svm'
+    objdef = "OntapNetapp.Svm"
+    objuri = "svms"
+    objname = "svm"
+    objdesc = "OntapNetapp Svm"
 
-    default_tags = ['ontap', 'storage']
+    default_tags = ["ontap", "storage"]
     # task_base_path = 'beehive_resource.plugins.ontap_netapp.task_v2.ontap_svm.OntapNetappSvmTask.'
 
     def __init__(self, *args, **kvargs):
@@ -113,18 +113,18 @@ class OntapNetappSvm(OntapNetappResource):
         name = entity[4]
         status = entity[6]
 
-        objid = '%s//%s' % (container.objid, id_gen())
+        objid = "%s//%s" % (container.objid, id_gen())
 
         res = {
-            'resource_class': resclass,
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent_id,
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent_id,
+            "tags": resclass.default_tags,
         }
 
         return res
@@ -160,23 +160,20 @@ class OntapNetappSvm(OntapNetappResource):
 
     @staticmethod
     def pre_create(controller, container, *args, **kvargs):
-        """Check input params before resource creation. This function is used in container resource_factory method.
-        """
-        svm_volume_id = kvargs.get('ext_id')
+        """Check input params before resource creation. This function is used in container resource_factory method."""
+        svm_volume_id = kvargs.get("ext_id")
         netapp_svm = OntapNetappSvm.get_remote_svm(controller, svm_volume_id, container, svm_volume_id)
         if netapp_svm == {}:
-            raise ApiManagerError('ontap netapp svm %s was not found' % svm_volume_id)
+            raise ApiManagerError("ontap netapp svm %s was not found" % svm_volume_id)
 
         return kvargs
 
     def pre_update(self, *args, **kvargs):
-        """Pre update function. This function is used in update method.
-        """
+        """Pre update function. This function is used in update method."""
         return kvargs
 
     def pre_delete(self, *args, **kvargs):
-        """Pre delete function. This function is used in delete method.
-        """
+        """Pre delete function. This function is used in delete method."""
         return kvargs
 
     #
@@ -191,7 +188,7 @@ class OntapNetappSvm(OntapNetappResource):
         """
         info = OntapNetappResource.info(self)
         ext_obj = self.get_remote_svm(self.controller, self.ext_id, self.container, self.ext_id)
-        info['details'] = ext_obj
+        info["details"] = ext_obj
         return info
 
     def detail(self):
@@ -208,14 +205,19 @@ class OntapNetappSvm(OntapNetappResource):
         """get ip interfaces with nfs or cifs service active"""
         res = []
         if self.ext_obj is not None:
-            ip_interfaces = dict_get(self.ext_obj, 'ip_interfaces')
-            for ip_interface in ip_interfaces:
-                services = dict_get(ip_interface, 'services')
-                if 'data_nfs' in services or 'data_cifs' in services:
-                    res.append({
-                        'name': dict_get(ip_interface, 'name'),
-                        'ip': dict_get(ip_interface, 'ip.address'),
-                    })
+            ip_interfaces = dict_get(self.ext_obj, "ip_interfaces")
+            if ip_interfaces is None:
+                raise ApiManagerError("svm %s ip_interfaces field missing" % self.oid)
+            else:
+                for ip_interface in ip_interfaces:
+                    services = dict_get(ip_interface, "services")
+                    if "data_nfs" in services or "data_cifs" in services:
+                        res.append(
+                            {
+                                "name": dict_get(ip_interface, "name"),
+                                "ip": dict_get(ip_interface, "ip.address"),
+                            }
+                        )
 
-        self.logger.debug('get svm %s ip interfaces: %s' % (self.oid, res))
+        self.logger.debug("get svm %s ip interfaces: %s" % (self.oid, res))
         return res

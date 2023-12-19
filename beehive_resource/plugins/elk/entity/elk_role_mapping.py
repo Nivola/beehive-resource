@@ -1,31 +1,33 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 import logging
 from beecell.simple import id_gen
 from beehive_resource.plugins.elk.entity import ElkResource
+
 # from beehive_resource.plugins.elk.controller import ElkContainer
 
 logger = logging.getLogger(__name__)
 
 
 class ElkRoleMapping(ElkResource):
-    objdef = 'Elk.RoleMapping'
-    objuri = 'role_mappings'
-    objname = 'role_mapping'
-    objdesc = 'Elk RoleMapping'
-    
-    default_tags = ['elk']
-    task_base_path = 'beehive_resource.plugins.elk.task_v2.elk_role_mapping.ElkRoleMappingTask.'
-    
+    objdef = "Elk.RoleMapping"
+    objuri = "role_mappings"
+    objname = "role_mapping"
+    objdesc = "Elk RoleMapping"
+
+    default_tags = ["elk"]
+    task_base_path = "beehive_resource.plugins.elk.task_v2.elk_role_mapping.ElkRoleMappingTask."
+
     def __init__(self, *args, **kvargs):
         """ """
         ElkResource.__init__(self, *args, **kvargs)
 
         # object uri
         # self.objuri = '/%s/%s/%s' % (self.container.version, self.container.objuri, ElkRoleMapping.objuri)
-        
+
     #
     # discover, synchronize
     #
@@ -49,14 +51,23 @@ class ElkRoleMapping(ElkResource):
         # add new item to final list
         res = []
         for item in remote_entities:
-            logger.debug('discover_new - item: {}'.format(item))
+            logger.debug("discover_new - item: {}".format(item))
             item_id = item  # item[0]
             if item_id not in res_ext_ids:
                 level = None
                 name = item_id
                 parent_id = None
-                res.append((ElkRoleMapping, item_id, parent_id, ElkRoleMapping.objdef, name, level))
-        
+                res.append(
+                    (
+                        ElkRoleMapping,
+                        item_id,
+                        parent_id,
+                        ElkRoleMapping.objdef,
+                        name,
+                        level,
+                    )
+                )
+
         return res
 
     @staticmethod
@@ -71,15 +82,12 @@ class ElkRoleMapping(ElkResource):
         items = []
         remote_entities = container.conn_elastic.role_mapping.list()
         for item in remote_entities:
-            logger.debug('discover_died - item: {}'.format(item))
+            logger.debug("discover_died - item: {}".format(item))
             item_id = item  # item[0]
-            items.append({
-                'id': item_id,
-                'name': item_id
-            })
+            items.append({"id": item_id, "name": item_id})
 
         return items
-    
+
     @staticmethod
     def synchronize(container, entity):
         """Discover method used when synchronize beehive container with remote platform.
@@ -94,19 +102,19 @@ class ElkRoleMapping(ElkResource):
         ext_id = entity[1]
         parent_id = entity[2]
         name = entity[4]
-        
-        objid = '%s//%s' % (container.objid, id_gen())
-        
+
+        objid = "%s//%s" % (container.objid, id_gen())
+
         res = {
-            'resource_class': resclass,
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent_id,
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent_id,
+            "tags": resclass.default_tags,
         }
 
         return res
@@ -130,19 +138,19 @@ class ElkRoleMapping(ElkResource):
         # get from elk
         # container: ElkContainer
         remote_entities = container.conn_elastic.role_mapping.list()
-        
+
         # create index of remote objs
         remote_entities_index = {i[0]: i for i in remote_entities}
-        
+
         for entity in entities:
             try:
                 ext_obj = remote_entities_index.get(entity.ext_id, None)
                 entity.set_physical_entity(ext_obj)
             except:
-                container.logger.warn('', exc_info=1)
+                container.logger.warn("", exc_info=1)
 
         return entities
-    
+
     def post_get(self):
         """Post get function. This function is used in get_entity method.
         Extend this function to extend description info returned after query.
@@ -152,7 +160,7 @@ class ElkRoleMapping(ElkResource):
         """
         ext_obj = self.get_remote_role_mapping(self.controller, self.ext_id, self.container, self.ext_id)
         self.set_physical_entity(ext_obj)
-        
+
     @staticmethod
     def pre_create(controller, container, *args, **kvargs):
         """Check input params before resource creation. This function is used in container resource_factory method.
@@ -206,11 +214,11 @@ class ElkRoleMapping(ElkResource):
         # kvargs['org_ext_id'] = org_ext_id
 
         steps = [
-            ElkRoleMapping.task_base_path + 'create_resource_pre_step',
-            ElkRoleMapping.task_base_path + 'elk_role_mapping_create_physical_step',
-            ElkRoleMapping.task_base_path + 'create_resource_post_step',
+            ElkRoleMapping.task_base_path + "create_resource_pre_step",
+            ElkRoleMapping.task_base_path + "elk_role_mapping_create_physical_step",
+            ElkRoleMapping.task_base_path + "create_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         # kvargs['sync'] = True # non fa partire i task
 
         return kvargs
@@ -219,39 +227,39 @@ class ElkRoleMapping(ElkResource):
         """Pre update function. This function is used in update method.
 
         :param args: custom params
-        :param kvargs: custom params            
-        :return: kvargs            
+        :param kvargs: custom params
+        :return: kvargs
         :raises ApiManagerError:
         """
         steps = [
-            ElkRoleMapping.task_base_path + 'update_resource_pre_step',
-            ElkRoleMapping.task_base_path + 'elk_role_mapping_update_physical_step',
-            ElkRoleMapping.task_base_path + 'update_resource_post_step',
+            ElkRoleMapping.task_base_path + "update_resource_pre_step",
+            ElkRoleMapping.task_base_path + "elk_role_mapping_update_physical_step",
+            ElkRoleMapping.task_base_path + "update_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
     def pre_delete(self, *args, **kvargs):
         """Pre delete function. This function is used in delete method.
 
         :param args: custom params
-        :param kvargs: custom params            
-        :return: kvargs            
+        :param kvargs: custom params
+        :return: kvargs
         :raises ApiManagerError:
         """
         steps = [
-            ElkRoleMapping.task_base_path + 'expunge_resource_pre_step',
-            ElkRoleMapping.task_base_path + 'elk_role_mapping_delete_physical_step',
-            ElkRoleMapping.task_base_path + 'expunge_resource_post_step',
+            ElkRoleMapping.task_base_path + "expunge_resource_pre_step",
+            ElkRoleMapping.task_base_path + "elk_role_mapping_delete_physical_step",
+            ElkRoleMapping.task_base_path + "expunge_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         # kvargs['sync'] = True # non fa partire i task
 
         return kvargs
-    
+
     #
     # info
-    #    
+    #
     def info(self):
         """Get info.
 
@@ -269,9 +277,9 @@ class ElkRoleMapping(ElkResource):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = ElkResource.detail(self)
-        
+
         if self.ext_obj is not None:
             data = {}
-            info['details'].update(data)
-        
+            info["details"].update(data)
+
         return info

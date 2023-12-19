@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 import logging
 from beecell.simple import id_gen
@@ -10,21 +10,21 @@ logger = logging.getLogger(__name__)
 
 
 class AwxProject(AwxResource):
-    objdef = 'Awx.Project'
-    objuri = 'projects'
-    objname = 'project'
-    objdesc = 'Awx Project'
-    
-    default_tags = ['awx']
-    task_base_path = 'beehive_resource.plugins.awx.task_v2.awx_project.AwxProjectTask.'
-    
+    objdef = "Awx.Project"
+    objuri = "projects"
+    objname = "project"
+    objdesc = "Awx Project"
+
+    default_tags = ["awx"]
+    task_base_path = "beehive_resource.plugins.awx.task_v2.awx_project.AwxProjectTask."
+
     def __init__(self, *args, **kvargs):
         """ """
         AwxResource.__init__(self, *args, **kvargs)
 
         # object uri
         # self.objuri = '/%s/%s/%s' % (self.container.version, self.container.objuri, AwxProject.objuri)
-        
+
     #
     # discover, synchronize
     #
@@ -47,12 +47,12 @@ class AwxProject(AwxResource):
         # add new item to final list
         res = []
         for item in remote_entities:
-            if item['id'] not in res_ext_ids:
+            if item["id"] not in res_ext_ids:
                 level = None
-                name = item['name']
+                name = item["name"]
                 parent_id = None
-                res.append((AwxProject, item['id'], parent_id, AwxProject.objdef, name, level))
-        
+                res.append((AwxProject, item["id"], parent_id, AwxProject.objdef, name, level))
+
         return res
 
     @staticmethod
@@ -67,13 +67,10 @@ class AwxProject(AwxResource):
         items = []
         remote_entities = container.conn.project.list()
         for item in remote_entities:
-            items.append({
-                'id': item['id'],
-                'name': item['name']
-            })
+            items.append({"id": item["id"], "name": item["name"]})
 
         return items
-    
+
     @staticmethod
     def synchronize(container, entity):
         """Discover method used when synchronize beehive container with remote platform.
@@ -87,20 +84,20 @@ class AwxProject(AwxResource):
         resclass = entity[0]
         ext_id = entity[1]
         parent_id = entity[2]
-        name = entity[4]   
-        
-        objid = '%s//%s' % (container.objid, id_gen())
-        
+        name = entity[4]
+
+        objid = "%s//%s" % (container.objid, id_gen())
+
         res = {
-            'resource_class': resclass,
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent_id,
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent_id,
+            "tags": resclass.default_tags,
         }
 
         return res
@@ -123,19 +120,19 @@ class AwxProject(AwxResource):
         """
         # get from awx
         remote_entities = container.conn.project.list()
-        
+
         # create index of remote objs
-        remote_entities_index = {i['id']: i for i in remote_entities}
-        
+        remote_entities_index = {i["id"]: i for i in remote_entities}
+
         for entity in entities:
             try:
                 ext_obj = remote_entities_index.get(entity.ext_id, None)
                 entity.set_physical_entity(ext_obj)
             except:
-                container.logger.warn('', exc_info=1)
+                container.logger.warn("", exc_info=1)
 
         return entities
-    
+
     def post_get(self):
         """Post get function. This function is used in get_entity method.
         Extend this function to extend description info returned after query.
@@ -145,7 +142,7 @@ class AwxProject(AwxResource):
         """
         ext_obj = self.get_remote_project(self.controller, self.ext_id, self.container, self.ext_id)
         self.set_physical_entity(ext_obj)
-        
+
     @staticmethod
     def pre_create(controller, container, *args, **kvargs):
         """Check input params before resource creation. This function is used in container resource_factory method.
@@ -169,24 +166,25 @@ class AwxProject(AwxResource):
         :return: kvargs
         :raise ApiManagerError:
         """
+
         def get_organization_id(name):
             res = container.conn.organization.list(name=name)
             if len(res) > 1:
-                msg = 'More than an organization with the same name'
+                msg = "More than an organization with the same name"
                 logger.error(msg)
                 raise Exception(msg)
-            return res[0].get('id')
+            return res[0].get("id")
 
         def get_credentials_id(name):
             res = container.conn.credential.list(name=name)
             if len(res) > 1:
-                msg = 'More than a credential with the same name'
+                msg = "More than a credential with the same name"
                 logger.error(msg)
                 raise Exception(msg)
-            return res[0].get('id')
+            return res[0].get("id")
 
-        org_name = kvargs.pop('organization')
-        scm_creds = kvargs.pop('scm_creds_name')
+        org_name = kvargs.pop("organization")
+        scm_creds = kvargs.pop("scm_creds_name")
 
         try:
             org_ext_id = get_organization_id(org_name)
@@ -195,16 +193,16 @@ class AwxProject(AwxResource):
             logger.error(ex, exc_info=True)
             raise Exception(ex)
 
-        kvargs['scm_creds'] = scm_creds_ext_id
-        kvargs['org_ext_id'] = org_ext_id
+        kvargs["scm_creds"] = scm_creds_ext_id
+        kvargs["org_ext_id"] = org_ext_id
 
         steps = [
-            AwxProject.task_base_path + 'create_resource_pre_step',
-            AwxProject.task_base_path + 'awx_project_create_physical_step',
-            AwxProject.task_base_path + 'create_resource_post_step',
+            AwxProject.task_base_path + "create_resource_pre_step",
+            AwxProject.task_base_path + "awx_project_create_physical_step",
+            AwxProject.task_base_path + "create_resource_post_step",
         ]
-        kvargs['steps'] = steps
-        kvargs['sync'] = True
+        kvargs["steps"] = steps
+        kvargs["sync"] = True
 
         return kvargs
 
@@ -212,39 +210,39 @@ class AwxProject(AwxResource):
         """Pre update function. This function is used in update method.
 
         :param args: custom params
-        :param kvargs: custom params            
-        :return: kvargs            
+        :param kvargs: custom params
+        :return: kvargs
         :raises ApiManagerError:
         """
         steps = [
-            AwxProject.task_base_path + 'update_resource_pre_step',
-            AwxProject.task_base_path + 'awx_project_update_physical_step',
-            AwxProject.task_base_path + 'update_resource_post_step',
+            AwxProject.task_base_path + "update_resource_pre_step",
+            AwxProject.task_base_path + "awx_project_update_physical_step",
+            AwxProject.task_base_path + "update_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
     def pre_delete(self, *args, **kvargs):
         """Pre delete function. This function is used in delete method.
 
         :param args: custom params
-        :param kvargs: custom params            
-        :return: kvargs            
+        :param kvargs: custom params
+        :return: kvargs
         :raises ApiManagerError:
         """
         steps = [
-            AwxProject.task_base_path + 'expunge_resource_pre_step',
-            AwxProject.task_base_path + 'awx_project_delete_physical_step',
-            AwxProject.task_base_path + 'expunge_resource_post_step',
+            AwxProject.task_base_path + "expunge_resource_pre_step",
+            AwxProject.task_base_path + "awx_project_delete_physical_step",
+            AwxProject.task_base_path + "expunge_resource_post_step",
         ]
-        kvargs['steps'] = steps
-        kvargs['sync'] = True
+        kvargs["steps"] = steps
+        kvargs["sync"] = True
 
         return kvargs
-    
+
     #
     # info
-    #    
+    #
     def info(self):
         """Get info.
 
@@ -262,9 +260,9 @@ class AwxProject(AwxResource):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = AwxResource.detail(self)
-        
+
         if self.ext_obj is not None:
             data = {}
-            info['details'].update(data)
-        
+            info["details"].update(data)
+
         return info

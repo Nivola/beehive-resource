@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 import logging
 from beecell.simple import id_gen
@@ -12,14 +13,14 @@ logger = logging.getLogger(__name__)
 
 
 class ElkSpace(ElkResource):
-    objdef = 'Elk.Space'
-    objuri = 'spaces'
-    objname = 'space'
-    objdesc = 'Elk Space'
-    
-    default_tags = ['elk']
-    task_base_path = 'beehive_resource.plugins.elk.task_v2.elk_space.ElkSpaceTask.'
-    
+    objdef = "Elk.Space"
+    objuri = "spaces"
+    objname = "space"
+    objdesc = "Elk Space"
+
+    default_tags = ["elk"]
+    task_base_path = "beehive_resource.plugins.elk.task_v2.elk_space.ElkSpaceTask."
+
     def __init__(self, *args, **kvargs):
         """ """
         ElkResource.__init__(self, *args, **kvargs)
@@ -28,7 +29,7 @@ class ElkSpace(ElkResource):
 
         # object uri
         # self.objuri = '/%s/%s/%s' % (self.container.version, self.container.objuri, ElkSpace.objuri)
-        
+
     #
     # discover, synchronize
     #
@@ -51,12 +52,12 @@ class ElkSpace(ElkResource):
         # add new item to final list
         res = []
         for item in remote_entities:
-            if item['id'] not in res_ext_ids:
+            if item["id"] not in res_ext_ids:
                 level = None
-                name = item['name']
+                name = item["name"]
                 parent_id = None
-                res.append((ElkSpace, item['id'], parent_id, ElkSpace.objdef, name, level))
-        
+                res.append((ElkSpace, item["id"], parent_id, ElkSpace.objdef, name, level))
+
         return res
 
     @staticmethod
@@ -71,13 +72,10 @@ class ElkSpace(ElkResource):
         items = []
         remote_entities = container.conn_kibana.space.list()
         for item in remote_entities:
-            items.append({
-                'id': item['id'],
-                'name': item['name']
-            })
+            items.append({"id": item["id"], "name": item["name"]})
 
         return items
-    
+
     @staticmethod
     def synchronize(container, entity):
         """Discover method used when synchronize beehive container with remote platform.
@@ -92,19 +90,19 @@ class ElkSpace(ElkResource):
         ext_id = entity[1]
         parent_id = entity[2]
         name = entity[4]
-        
-        objid = '%s//%s' % (container.objid, id_gen())
-        
+
+        objid = "%s//%s" % (container.objid, id_gen())
+
         res = {
-            'resource_class': resclass,
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent_id,
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent_id,
+            "tags": resclass.default_tags,
         }
 
         return res
@@ -127,20 +125,20 @@ class ElkSpace(ElkResource):
         """
         # get from elk
         remote_entities = container.conn_kibana.space.list()
-        
+
         # create index of remote objs
-        remote_entities_index = {i['id']: i for i in remote_entities}
-        
+        remote_entities_index = {i["id"]: i for i in remote_entities}
+
         for entity in entities:
             try:
                 ext_obj = remote_entities_index.get(entity.ext_id, None)
                 entity.set_physical_entity(ext_obj)
                 entity.get_dashboard()
             except:
-                container.logger.warn('', exc_info=1)
+                container.logger.warn("", exc_info=1)
 
         return entities
-    
+
     def post_get(self):
         """Post get function. This function is used in get_entity method.
         Extend this function to extend description info returned after query.
@@ -151,7 +149,7 @@ class ElkSpace(ElkResource):
         ext_obj = self.get_remote_space(self.controller, self.ext_id, self.container, self.ext_id)
         self.set_physical_entity(ext_obj)
         self.get_dashboard()
-        
+
     @staticmethod
     def pre_create(controller, container, *args, **kvargs):
         """Check input params before resource creation. This function is used in container resource_factory method.
@@ -176,48 +174,48 @@ class ElkSpace(ElkResource):
         :raise ApiManagerError:
         """
         steps = [
-            ElkSpace.task_base_path + 'create_resource_pre_step',
-            ElkSpace.task_base_path + 'elk_space_create_physical_step',
-            ElkSpace.task_base_path + 'create_resource_post_step',
+            ElkSpace.task_base_path + "create_resource_pre_step",
+            ElkSpace.task_base_path + "elk_space_create_physical_step",
+            ElkSpace.task_base_path + "create_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
     def pre_update(self, *args, **kvargs):
         """Pre update function. This function is used in update method.
 
         :param args: custom params
-        :param kvargs: custom params            
-        :return: kvargs            
+        :param kvargs: custom params
+        :return: kvargs
         :raises ApiManagerError:
         """
         steps = [
-            ElkSpace.task_base_path + 'update_resource_pre_step',
-            ElkSpace.task_base_path + 'elk_space_update_physical_step',
-            ElkSpace.task_base_path + 'update_resource_post_step',
+            ElkSpace.task_base_path + "update_resource_pre_step",
+            ElkSpace.task_base_path + "elk_space_update_physical_step",
+            ElkSpace.task_base_path + "update_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
     def pre_delete(self, *args, **kvargs):
         """Pre delete function. This function is used in delete method.
 
         :param args: custom params
-        :param kvargs: custom params            
-        :return: kvargs            
+        :param kvargs: custom params
+        :return: kvargs
         :raises ApiManagerError:
         """
         steps = [
-            ElkSpace.task_base_path + 'expunge_resource_pre_step',
-            ElkSpace.task_base_path + 'elk_space_delete_physical_step',
-            ElkSpace.task_base_path + 'expunge_resource_post_step',
+            ElkSpace.task_base_path + "expunge_resource_pre_step",
+            ElkSpace.task_base_path + "elk_space_delete_physical_step",
+            ElkSpace.task_base_path + "expunge_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
-    
+
     #
     # info
-    #    
+    #
     def info(self):
         """Get info.
 
@@ -226,7 +224,7 @@ class ElkSpace(ElkResource):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = ElkResource.info(self)
-        info['dashboards'] = self.dashboards
+        info["dashboards"] = self.dashboards
         return info
 
     def detail(self):
@@ -237,22 +235,25 @@ class ElkSpace(ElkResource):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = ElkResource.detail(self)
-        info['dashboards'] = self.dashboards
+        info["dashboards"] = self.dashboards
         return info
 
     def get_dashboard(self):
         """get space dashboard"""
         dashboards = self.get_remote_space_dashboards(self.controller, self.ext_id, self.container, self.ext_id)
-        self.dashboards = [{
-            'id': dict_get(d, 'id'),
-            'desc': dict_get(d, 'attributes.title'),
-            'version': dict_get(d, 'version'),
-            'namespaces': dict_get(d, 'namespaces'),
-            'score': dict_get(d, 'score'),
-            'updated_at': dict_get(d, 'updated_at'),
-        } for d in dashboards]
+        self.dashboards = [
+            {
+                "id": dict_get(d, "id"),
+                "desc": dict_get(d, "attributes.title"),
+                "version": dict_get(d, "version"),
+                "namespaces": dict_get(d, "namespaces"),
+                "score": dict_get(d, "score"),
+                "updated_at": dict_get(d, "updated_at"),
+            }
+            for d in dashboards
+        ]
 
-    @trace(op='update')
+    @trace(op="update")
     def add_dashboard(self, space_id_from, dashboard, space_id_to, index_pattern, *args, **kvargs):
         """Add dashboard
 
@@ -260,18 +261,21 @@ class ElkSpace(ElkResource):
         :return: {'taskid':..}, 202
         :raise ApiManagerError:
         """
+
         def check(*args, **kvargs):
             # add check dashboard exists
             return kvargs
 
-        kvargs.update({
-            'space_id_from': space_id_from,
-            'dashboard': dashboard,
-            'space_id_to': space_id_to,
-            'index_pattern': index_pattern
-        })
-        logger.debug('add_dashboard - after update kvargs {}'.format(kvargs))
-        
-        steps = ['beehive_resource.plugins.elk.task_v2.elk_space.ElkSpaceTask.add_dashboard_step']
-        res = self.action('add_dashboard', steps, log='Add dashboard', check=check, **kvargs)
-        return res, 'called'
+        kvargs.update(
+            {
+                "space_id_from": space_id_from,
+                "dashboard": dashboard,
+                "space_id_to": space_id_to,
+                "index_pattern": index_pattern,
+            }
+        )
+        logger.debug("add_dashboard - after update kvargs {}".format(kvargs))
+
+        steps = ["beehive_resource.plugins.elk.task_v2.elk_space.ElkSpaceTask.add_dashboard_step"]
+        res = self.action("add_dashboard", steps, log="Add dashboard", check=check, **kvargs)
+        return res, "called"

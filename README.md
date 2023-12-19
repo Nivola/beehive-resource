@@ -1,5 +1,5 @@
 # beehive-resource
-__beehive-resource__ is the project that contains the resource component of the Nivola CMP platform. 
+__beehive-resource__ is the project that contains the resource component of the nivola cmp platform. 
 Resource module exposes all the infrastructure resources that can be used from the service. Each entity that has 
 technological capabilities is a resource. A resource can be a physical server, a virtual machine, a network, an 
 Openstack Project, a monitoring metric. A resource can map/wrap a physical resource managed by a Physical Platform.

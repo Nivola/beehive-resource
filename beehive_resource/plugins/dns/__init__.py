@@ -39,17 +39,13 @@ from beehive_resource.plugins.dns.views.zones import DnsZoneAPI
 class DnsPlugin(object):
     def __init__(self, module):
         self.module = module
-    
+
     def init(self):
         service = DnsContainer(self.module.get_controller())
         service.init_object()
-    
+
     def register(self):
-        apis = [
-            DnsZoneAPI,
-            DnsRecordAAPI,
-            DnsRecordCnameAPI
-        ]
+        apis = [DnsZoneAPI, DnsRecordAAPI, DnsRecordCnameAPI]
         self.module.set_apis(apis)
-        
+
         self.module.add_container(DnsContainer.objdef, DnsContainer)

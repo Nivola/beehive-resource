@@ -1,27 +1,28 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beecell.simple import id_gen, truncate, dict_get
+from beecell.types.type_string import str2bool
 from beehive.common.apimanager import ApiManagerError
 from beehive_resource.plugins.vsphere.entity import NsxResource
 
 
 class NsxEdge(NsxResource):
-    objdef = 'Vsphere.Nsx.NsxEdge'
-    objuri = 'nsx_edges'
-    objname = 'nsx_edge'
-    objdesc = 'Vsphere Nsx edge'
-    
-    default_tags = ['vsphere', 'network']
-    task_path = 'beehive_resource.plugins.vsphere.task_v2.nsx_edge.NsxEdgeTask.'
+    objdef = "Vsphere.Nsx.NsxEdge"
+    objuri = "nsx_edges"
+    objname = "nsx_edge"
+    objdesc = "Vsphere Nsx edge"
+
+    default_tags = ["vsphere", "network"]
+    task_path = "beehive_resource.plugins.vsphere.task_v2.nsx_edge.NsxEdgeTask."
 
     def __init__(self, *args, **kvargs):
         """ """
         NsxResource.__init__(self, *args, **kvargs)
-        
+
         # child classes
-        self.child_classes = []        
+        self.child_classes = []
 
     #
     # discover, synchronize
@@ -38,11 +39,11 @@ class NsxEdge(NsxResource):
         :raises ApiManagerError:
         """
         items = []
-        
-        nsx_manager_id = container.conn.system.nsx.summary_info()['hostName']
+
+        nsx_manager_id = container.conn.system.nsx.summary_info()["hostName"]
         edges = container.conn.network.nsx.edge.list()
         for edge in edges:
-            items.append((edge['objectId'], edge['name'], nsx_manager_id, None))
+            items.append((edge["objectId"], edge["name"], nsx_manager_id, None))
 
         # add new item to final list
         res = []
@@ -51,9 +52,18 @@ class NsxEdge(NsxResource):
                 parent_id = item[2]
                 parent_class = item[3]
                 resclass = NsxEdge
-                res.append((resclass, item[0], parent_id, resclass.objdef, item[1], parent_class))
-        
-        return res 
+                res.append(
+                    (
+                        resclass,
+                        item[0],
+                        parent_id,
+                        resclass.objdef,
+                        item[1],
+                        parent_class,
+                    )
+                )
+
+        return res
 
     @staticmethod
     def discover_died(container):
@@ -67,13 +77,15 @@ class NsxEdge(NsxResource):
         items = []
         edges = container.conn.network.nsx.edge.list()
         for edge in edges:
-            items.append({
-                'id': edge['objectId'],
-                'name': edge['name'],
-            })
-        
+            items.append(
+                {
+                    "id": edge["objectId"],
+                    "name": edge["name"],
+                }
+            )
+
         return items
-    
+
     @staticmethod
     def synchronize(container, entity):
         """Discover method used when synchronize beehive container with remote platform.
@@ -84,27 +96,27 @@ class NsxEdge(NsxResource):
             'attrib': .., 'parent': .., 'tags': .. }
         :raises ApiManagerError:
         """
-        resclass  = entity[0]
+        resclass = entity[0]
         ext_id = entity[1]
         parent_id = entity[2]
         name = entity[4]
         parent_class = entity[5]
-        
+
         parent = container.get_resource_by_extid(parent_id)
         parent_id = parent.oid
-        
-        objid = '%s//%s' % (parent.objid, id_gen())
-        
+
+        objid = "%s//%s" % (parent.objid, id_gen())
+
         res = {
-            'resource_class': resclass,
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent_id,
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent_id,
+            "tags": resclass.default_tags,
         }
         return res
 
@@ -125,19 +137,19 @@ class NsxEdge(NsxResource):
         :raises ApiManagerError:
         """
         remote_entities = container.conn.network.nsx.edge.list()
-        
+
         # create index of remote objs
-        remote_entities_index = {i['id']: i for i in remote_entities}
-        
+        remote_entities_index = {i["id"]: i for i in remote_entities}
+
         for entity in entities:
             try:
                 ext_obj = remote_entities_index.get(entity.ext_id, None)
                 entity.set_physical_entity(ext_obj)
             except:
-                container.logger.warn('', exc_info=True)
+                container.logger.warn("", exc_info=True)
 
         return entities
-    
+
     def post_get(self):
         """Post get function. This function is used in get_entity method.
         Extend this function to extend description info returned after query.
@@ -150,7 +162,7 @@ class NsxEdge(NsxResource):
             self.set_physical_entity(ext_obj)
         except:
             pass
-    
+
     @staticmethod
     def pre_create(controller, container, *args, **kvargs):
         """Check input params before resource creation. This function is used  in container resource_factory method.
@@ -183,31 +195,28 @@ class NsxEdge(NsxResource):
         """
         # get parent manager
         manager = container.get_nsx_manager()
-        objid = '%s//%s' % (manager.objid, id_gen())
+        objid = "%s//%s" % (manager.objid, id_gen())
 
-        kvargs.update({
-            'objid': objid,
-            'parent': manager.oid
-        })  
+        kvargs.update({"objid": objid, "parent": manager.oid})
 
-        kvargs['datacenter'] = container.get_simple_resource(kvargs['datacenter']).ext_id
-        kvargs['cluster'] = container.get_simple_resource(kvargs['cluster']).ext_id
-        kvargs['datastore'] = container.get_simple_resource(kvargs['datastore']).ext_id
-        if kvargs.get('uplink_dvpg', None) is not None:
-            kvargs['uplink_dvpg'] = container.get_simple_resource(kvargs['uplink_dvpg']).ext_id
+        kvargs["datacenter"] = container.get_simple_resource(kvargs["datacenter"]).ext_id
+        kvargs["cluster"] = container.get_simple_resource(kvargs["cluster"]).ext_id
+        kvargs["datastore"] = container.get_simple_resource(kvargs["datastore"]).ext_id
+        if kvargs.get("uplink_dvpg", None) is not None:
+            kvargs["uplink_dvpg"] = container.get_simple_resource(kvargs["uplink_dvpg"]).ext_id
         else:
-            kvargs['uplink_dvpg'] = None
-        kvargs['size'] = kvargs.get('size', 'compact')
+            kvargs["uplink_dvpg"] = None
+        kvargs["size"] = kvargs.get("size", "compact")
 
         steps = [
-            NsxEdge.task_path + 'create_resource_pre_step',
-            NsxEdge.task_path + 'nsx_edge_create_step',
-            NsxEdge.task_path + 'create_resource_post_step'
+            NsxEdge.task_path + "create_resource_pre_step",
+            NsxEdge.task_path + "nsx_edge_create_step",
+            NsxEdge.task_path + "create_resource_post_step",
         ]
-        kvargs['steps'] = steps
-        
+        kvargs["steps"] = steps
+
         return kvargs
-    
+
     def pre_update(self, *args, **kvargs):
         """Pre update function. This function is used in update method.
 
@@ -217,12 +226,12 @@ class NsxEdge(NsxResource):
         :raises ApiManagerError:
         """
         steps = [
-            NsxEdge.task_path + 'update_resource_pre_step',
-            NsxEdge.task_path + 'update_resource_post_step'
+            NsxEdge.task_path + "update_resource_pre_step",
+            NsxEdge.task_path + "update_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
-    
+
     def pre_delete(self, *args, **kvargs):
         """Pre delete function. This function is used in delete method.
 
@@ -232,21 +241,21 @@ class NsxEdge(NsxResource):
         :raises ApiManagerError:
         """
         steps = [
-            NsxEdge.task_path + 'expunge_resource_pre_step',
-            NsxEdge.task_path + 'nsx_edge_delete_step',
-            NsxEdge.task_path + 'expunge_resource_post_step'
+            NsxEdge.task_path + "expunge_resource_pre_step",
+            NsxEdge.task_path + "nsx_edge_delete_step",
+            NsxEdge.task_path + "expunge_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
-    
+
     #
     # info
-    #    
+    #
     def info(self):
         """Get info.
-        
+
         :return: Dictionary with capabilities.
-        :rtype: dict        
+        :rtype: dict
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = NsxResource.info(self)
@@ -254,20 +263,20 @@ class NsxEdge(NsxResource):
 
     def detail(self):
         """Get details.
-        
+
         :return: Dictionary with resource details.
-        :rtype: dict        
+        :rtype: dict
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         # verify permissions
         info = NsxResource.detail(self)
         try:
             if self.ext_obj is not None:
-                details = info['details']
+                details = info["details"]
                 details.update(self.container.conn.network.nsx.edge.info(self.ext_obj))
         except Exception as ex:
             self.logger.warn(ex)
-        
+
         return info
 
     #
@@ -275,13 +284,13 @@ class NsxEdge(NsxResource):
     #
     def set_password(self, pwd):
         """set edge admin password
-        
+
         :param pwd: admin password
-        :return: 
+        :return:
         """
         if self.container is not None:
             self.container.conn.network.nsx.edge.reset_password(self.ext_id, pwd)
-            self.logger.info('set edge %s admin password' % self.oid)
+            self.logger.info("set edge %s admin password" % self.oid)
 
     #
     # vnic
@@ -295,11 +304,11 @@ class NsxEdge(NsxResource):
         resp = []
         if self.container is not None:
             res = self.container.conn.network.nsx.edge.vnics(self.ext_obj)
-            resp = [r for r in res if dict_get(r, 'isConnected') == 'false']
+            resp = [r for r in res if dict_get(r, "isConnected") == "false"]
         if len(resp) == 0:
-            raise ApiManagerError('no available edge %s vnic index found' % self.oid)
+            raise ApiManagerError("no available edge %s vnic index found" % self.oid)
 
-        return resp[0]['index']
+        return resp[0]["index"]
 
     def get_vnics(self, portgroup=None, index=None, vnic_type=None):
         """get vnics
@@ -315,13 +324,13 @@ class NsxEdge(NsxResource):
             resp = res
             if portgroup is not None:
                 portgroup = self.container.get_simple_resource(portgroup).ext_id
-                resp = [r for r in res if r.get('portgroupId') == portgroup]
+                resp = [r for r in res if r.get("portgroupId") == portgroup]
             if index is not None:
-                resp = [r for r in res if r.get('index') == index]
+                resp = [r for r in res if r.get("index") == index]
             if vnic_type is not None:
-                resp = [r for r in res if r.get('type') == vnic_type]
+                resp = [r for r in res if r.get("type") == vnic_type]
 
-        self.logger.info('get edge %s vnics: %s' % (self.oid, truncate(resp)))
+        self.logger.info("get edge %s vnics: %s" % (self.oid, truncate(resp)))
         return resp
 
     def get_vnic_primary_ip(self, vnic_id):
@@ -331,7 +340,7 @@ class NsxEdge(NsxResource):
         :return: ip address string, None otherwise
         """
         vnic = self.get_vnics(index=vnic_id)[0]
-        return dict_get(vnic, 'addressGroups.addressGroup.primaryAddress')
+        return dict_get(vnic, "addressGroups.addressGroup.primaryAddress")
 
     def add_vnic(self, index, vnic_type, portgroup, ip_address):
         """add vnic
@@ -345,15 +354,15 @@ class NsxEdge(NsxResource):
         if self.container is not None:
             portgroup = self.container.get_simple_resource(portgroup).ext_id
             data = {
-                'index': index,
-                'type': vnic_type,
-                'portgroupId': portgroup,
-                'addressGroups': [{
-                    'primaryAddress': ip_address
-                }]
+                "index": index,
+                "type": vnic_type,
+                "portgroupId": portgroup,
+                "addressGroups": [{"primaryAddress": ip_address}],
             }
+            self.logger.debug("add edge: %s - data: %s" % (self.oid, data))
+            self.logger.debug("add edge: %s - ip_address: %s" % (self.oid, ip_address))
             self.container.conn.network.nsx.edge.vnic_add(self.ext_id, data)
-            self.logger.info('add edge %s vnic %s' % (self.oid, index))
+            self.logger.info("add edge %s vnic %s" % (self.oid, index))
 
     def update_vnic(self, index, **kwargs):
         """update existing vnic
@@ -364,7 +373,7 @@ class NsxEdge(NsxResource):
         """
         if self.container is not None:
             self.container.conn.network.nsx.edge.vnic_update(self.ext_id, index, **kwargs)
-            self.logger.info('update edge %s vnic %s' % (self.oid, index))
+            self.logger.info("update edge %s vnic %s" % (self.oid, index))
 
     def del_vnic(self, index):
         """delete vnic
@@ -374,7 +383,7 @@ class NsxEdge(NsxResource):
         """
         if self.container is not None:
             self.container.conn.network.nsx.edge.vnic_del(self.ext_id, index)
-            self.logger.info('delete edge %s vnic %s' % (self.oid, index))
+            self.logger.info("delete edge %s vnic %s" % (self.oid, index))
 
     #
     # firewall
@@ -387,7 +396,7 @@ class NsxEdge(NsxResource):
         res = None
         if self.ext_obj is not None:
             res = self.container.conn.network.nsx.edge.firewall(self.ext_obj)
-            self.logger.info('get edge %s firewall config: %s' % (self.oid, truncate(res)))
+            self.logger.info("get edge %s firewall config: %s" % (self.oid, truncate(res)))
         return res
 
     def get_firewall_rules(self):
@@ -398,7 +407,7 @@ class NsxEdge(NsxResource):
         """
         res = []
         if self.ext_obj is not None:
-            res = self.get_firewall_config().get('rules', [])
+            res = self.get_firewall_config().get("rules", [])
         return res
 
     def get_firewall_rule(self, name=None):
@@ -411,15 +420,38 @@ class NsxEdge(NsxResource):
         if self.ext_obj is not None:
             rules = self.container.conn.network.nsx.edge.firewall_rules(self.ext_obj)
             for rule in rules:
-                if rule.get('name') == name:
-                    rule_id = rule.get('id')
-                    self.logger.info('get edge %s firewall rule: %s' % (self.oid, rule_id))
-
-        self.logger.warning('no edge %s firewall rule found' % self.oid)
+                if rule.get("name") == name:
+                    rule_id = rule.get("id")
+                    self.logger.info("get firewall rule %s on nsx edge %s" % (self.oid, rule_id))
+        self.logger.warning("no firewall rule found on nsx edge %s" % self.oid)
         return rule_id
 
-    def add_firewall_rule(self, name, desc=None, action='accept', enabled=True, logged=False, direction=None,
-                          source=None, dest=None, appl=None):
+    def get_firewall_rule_by_id(self, rule_id):
+        """get edge firewall rule
+
+        :param rule_id: rule id
+        :return:
+        """
+        res = None
+        if self.ext_obj is not None:
+            res = self.container.conn.network.nsx.edge.firewall_rule(self.ext_obj, rule_id)
+            self.logger.info("get edge %s firewall rule: %s" % (self.oid, rule_id))
+
+        self.logger.warning("no edge %s firewall rule found" % self.oid)
+        return res
+
+    def add_firewall_rule(
+        self,
+        name,
+        desc=None,
+        action="accept",
+        enabled=True,
+        logged=False,
+        direction=None,
+        source=None,
+        dest=None,
+        appl=None,
+    ):
         """add edge firewall rule
 
         :param name: rule name
@@ -441,17 +473,90 @@ class NsxEdge(NsxResource):
             if desc is None:
                 desc = name
             if source:
-                source = source.split(',')
+                source = source.split(",")
             if dest:
-                dest = dest.split(',')
+                dest = dest.split(",")
             if appl:
-                appl = appl.split(',')
+                appl = appl.split(",")
 
-            # self.container.conn.network.nsx.edge.get(self.oid)
-            res = self.container.conn.network.nsx.edge.firewall_rule_add(self.ext_id, name, action, direction=direction,
-                                                                         desc=desc, enabled=enabled, source=source,
-                                                                         dest=dest, application=appl, logged=logged)
-            self.logger.info('create firewall rule %s' % name)
+            res = self.container.conn.network.nsx.edge.firewall_rule_add(
+                self.ext_id,
+                name,
+                action,
+                direction=direction,
+                desc=desc,
+                enabled=enabled,
+                source=source,
+                dest=dest,
+                application=appl,
+                logged=logged,
+            )
+            self.logger.info("create firewall rule %s" % name)
+        return res
+
+    def update_firewall_rule(
+        self,
+        rule,
+        name=None,
+        desc=None,
+        action=None,
+        direction=None,
+        enabled=None,
+        source_add=None,
+        source_del=None,
+        dest_add=None,
+        dest_del=None,
+        appl=None,
+        logged=None,
+    ):
+        """update edge firewall rule
+
+        :param rule: rule (external) id
+        :param name:
+        :param desc:
+        :param action:
+        :param direction:
+        :param enabled:
+        :param source_add:
+        :param source_del:
+        :param dest_add:
+        :param dest_del:
+        :param appl:
+        :param logged:
+        :return:
+        """
+        res = None
+        if self.ext_obj is not None:
+            if name:
+                desc = name
+            if source_add:
+                source_add = source_add.split(",")
+            if source_del:
+                source_del = source_del.split(",")
+            if dest_add:
+                dest_add = dest_add.split(",")
+            if dest_del:
+                dest_del = dest_del.split(",")
+            if appl:
+                appl = appl.split(",")
+
+            res = self.container.conn.network.nsx.edge.firewall_rule_update(
+                self.ext_id,
+                rule,
+                name=name,
+                action=action,
+                direction=direction,
+                desc=desc,
+                enabled=enabled,
+                source_add=source_add,
+                source_del=source_del,
+                dest_add=dest_add,
+                dest_del=dest_del,
+                appl=appl,
+                logged=logged,
+            )
+
+            self.logger.info("update firewall rule %s" % rule)
         return res
 
     def del_firewall_rule(self, rule):
@@ -463,7 +568,7 @@ class NsxEdge(NsxResource):
         res = None
         if self.ext_obj is not None:
             res = self.container.conn.network.nsx.edge.firewall_rule_delete(self.ext_id, rule)
-            self.logger.info('delete firewall rule %s' % rule)
+            self.logger.info("delete firewall rule %s" % rule)
         return res
 
     #
@@ -478,11 +583,20 @@ class NsxEdge(NsxResource):
         if self.ext_obj is not None:
             # edge = self.container.conn.network.nsx.edge.get(self.oid)
             res = self.container.conn.network.nsx.edge.nat(self.ext_obj)
-            self.logger.info('get edge %s nat config: %s' % (self.oid, truncate(res)))
+            self.logger.info("get edge %s nat config: %s" % (self.oid, truncate(res)))
         return res
 
-    def get_nat_rule(self, desc=None, action=None, original_address=None, translated_address=None, original_port=None,
-                     translated_port=None, protocol=None, vnic=None):
+    def get_nat_rule(
+        self,
+        desc=None,
+        action=None,
+        original_address=None,
+        translated_address=None,
+        original_port=None,
+        translated_port=None,
+        protocol=None,
+        vnic=None,
+    ):
         """add edge nat rule
 
         :param desc: rule description [optional]
@@ -499,15 +613,29 @@ class NsxEdge(NsxResource):
         if self.ext_obj is not None:
             rules = self.container.conn.network.nsx.edge.nat(self.ext_obj)
             for rule in rules:
-                if rule.get('description') == desc:
-                    rule_id = rule.get('ruleId')
-                    self.logger.info('get edge %s nat rule: %s' % (self.oid, rule_id))
-        self.logger.warning('no edge %s nat rule found' % self.oid)
+                if rule.get("description") == desc:
+                    rule_id = rule.get("ruleId")
+                    self.logger.info("get edge %s nat rule: %s" % (self.oid, rule_id))
+        self.logger.warning("no edge %s nat rule found" % self.oid)
         return rule_id
 
-    def add_nat_rule(self, desc, action, original_address, translated_address, enabled=True, logged=True,
-                     original_port=None, translated_port=None, protocol=None, vnic=None, dnat_match_source_address=None,
-                     dnat_match_source_port=None, snat_match_dest_address=None, snat_match_dest_port=None):
+    def add_nat_rule(
+        self,
+        desc,
+        action,
+        original_address,
+        translated_address,
+        enabled=True,
+        logged=True,
+        original_port=None,
+        translated_port=None,
+        protocol=None,
+        vnic=None,
+        dnat_match_source_address=None,
+        dnat_match_source_port=None,
+        snat_match_dest_address=None,
+        snat_match_dest_port=None,
+    ):
         """add edge nat rule
 
         :param desc: rule description
@@ -528,16 +656,24 @@ class NsxEdge(NsxResource):
         """
         res = None
         if self.ext_obj is not None:
-            self.container.conn.network.nsx.edge.nat_rule_add(self.ext_id, desc, action, original_address,
-                                                              translated_address, logged=logged, enabled=enabled,
-                                                              protocol=protocol, vnic=vnic,
-                                                              translated_port=translated_port,
-                                                              original_port=original_port,
-                                                              dnat_match_source_address=dnat_match_source_address,
-                                                              dnat_match_source_port=dnat_match_source_port,
-                                                              snat_match_destination_address=snat_match_dest_address,
-                                                              snat_match_destination_port=snat_match_dest_port)
-            self.logger.info('create edge %s nat rule %s' % (self.oid, desc))
+            self.container.conn.network.nsx.edge.nat_rule_add(
+                self.ext_id,
+                desc,
+                action,
+                original_address,
+                translated_address,
+                logged=logged,
+                enabled=enabled,
+                protocol=protocol,
+                vnic=vnic,
+                translated_port=translated_port,
+                original_port=original_port,
+                dnat_match_source_address=dnat_match_source_address,
+                dnat_match_source_port=dnat_match_source_port,
+                snat_match_destination_address=snat_match_dest_address,
+                snat_match_destination_port=snat_match_dest_port,
+            )
+            self.logger.info("create edge %s nat rule %s" % (self.oid, desc))
             res = True
         return res
 
@@ -551,7 +687,7 @@ class NsxEdge(NsxResource):
         if self.ext_obj is not None:
             # self.container.conn.network.nsx.edge.get(self.oid)
             self.container.conn.network.nsx.edge.nat_rule_delete(self.ext_id, rule)
-            self.logger.info('delete edge %s nat rule %s' % (self.oid, rule))
+            self.logger.info("delete edge %s nat rule %s" % (self.oid, rule))
             res = True
         return res
 
@@ -567,7 +703,7 @@ class NsxEdge(NsxResource):
         if self.ext_obj is not None:
             # edge = self.container.conn.network.nsx.edge.get(self.oid)
             res = self.container.conn.network.nsx.edge.route(self.ext_obj)
-            self.logger.info('get edge %s router config: %s' % (self.oid, truncate(res)))
+            self.logger.info("get edge %s router config: %s" % (self.oid, truncate(res)))
         return res
 
     def get_router_static_config(self):
@@ -578,7 +714,7 @@ class NsxEdge(NsxResource):
         res = None
         if self.ext_obj is not None:
             res = self.container.conn.network.nsx.edge.route_static_get(self.ext_id)
-            self.logger.info('get edge %s router static config: %s' % (self.oid, truncate(res)))
+            self.logger.info("get edge %s router static config: %s" % (self.oid, truncate(res)))
         return res
 
     def add_default_route(self, gateway, vnic=0, mtu=1500):
@@ -592,7 +728,7 @@ class NsxEdge(NsxResource):
         res = None
         if self.ext_obj is not None:
             self.container.conn.network.nsx.edge.route_default_add(self.ext_id, gateway, mtu=mtu, vnic=vnic)
-            self.logger.info('add edge %s default route' % self.oid)
+            self.logger.info("add edge %s default route" % self.oid)
             res = True
         return res
 
@@ -608,9 +744,10 @@ class NsxEdge(NsxResource):
         """
         res = None
         if self.ext_obj is not None:
-            self.container.conn.network.nsx.edge.route_static_add(self.ext_id, desc, network, next_hop, mtu=mtu,
-                                                                  vnic=vnic)
-            self.logger.info('create edge %s static route' % self.oid)
+            self.container.conn.network.nsx.edge.route_static_add(
+                self.ext_id, desc, network, next_hop, mtu=mtu, vnic=vnic
+            )
+            self.logger.info("create edge %s static route" % self.oid)
             res = True
         return res
 
@@ -622,7 +759,7 @@ class NsxEdge(NsxResource):
         res = None
         if self.ext_obj is not None:
             self.container.conn.network.nsx.edge.route_static_del_all(self.ext_id)
-            self.logger.info('delete edge %s static route' % self.oid)
+            self.logger.info("delete edge %s static route" % self.oid)
             res = True
         return res
 
@@ -634,7 +771,7 @@ class NsxEdge(NsxResource):
         res = []
         if self.ext_obj is not None:
             res = self.container.conn.network.nsx.edge.route_static_get(self.ext_id)
-            self.logger.info('get edge %s router static config: %s' % (self.oid, truncate(res)))
+            self.logger.info("get edge %s router static config: %s" % (self.oid, truncate(res)))
         return res
 
     def add_route(self, route):
@@ -643,12 +780,12 @@ class NsxEdge(NsxResource):
         :param route: route configuration {'destination':.., 'nexthop':..}
         :return:
         """
-        destination = route['destination']
-        nexthop = route['nexthop']
+        destination = route["destination"]
+        nexthop = route["nexthop"]
         if self.ext_obj is not None:
-            desc = 'route-to-%s-by-%s' % (destination, nexthop)
+            desc = "route-to-%s-by-%s" % (destination, nexthop)
             self.container.conn.network.nsx.edge.route_static_add(self.ext_id, desc, destination, nexthop)
-            self.logger.info('create edge %s static route' % self.oid)
+            self.logger.info("create edge %s static route" % self.oid)
             return True
         return False
 
@@ -658,12 +795,12 @@ class NsxEdge(NsxResource):
         :param route: route configuration {'destination':.., 'nexthop':..}
         :return:
         """
-        destination = route['destination']
-        nexthop = route['nexthop']
+        destination = route["destination"]
+        nexthop = route["nexthop"]
         if self.ext_obj is not None:
-            desc = 'route-to-%s-by-%s' % (destination, nexthop)
+            desc = "route-to-%s-by-%s" % (destination, nexthop)
             self.container.conn.network.nsx.edge.route_static_del(self.ext_id, destination, nexthop)
-            self.logger.info('delete edge %s static route' % self.oid)
+            self.logger.info("delete edge %s static route" % self.oid)
             return True
         return False
 
@@ -697,23 +834,36 @@ class NsxEdge(NsxResource):
 
         :return:
         """
-        res = None
+        status = None
         if self.ext_obj is not None:
-            res = self.container.conn.network.nsx.edge.lb.config_update(self.ext_id, enabled=True, logging=True,
-                                                                        log_level='INFO')
-            self.logger.info('enable lb on edge %s' % self.oid)
-        return res
+            self.container.conn.network.nsx.edge.lb.config_update(
+                self.ext_id, enabled=True, logging=True, log_level="INFO"
+            )
+            status = self.is_lb_enabled()
+        return status
 
     def disable_lb(self):
         """Disable load balancer functionality on network edge
 
         :return:
         """
-        res = None
+        status = None
         if self.ext_obj is not None:
-            res = self.container.conn.network.nsx.edge.lb.config_update(self.ext_id, enabled=False, logging=False)
-            self.logger.info('disable lb on edge %s' % self.oid)
-        return res
+            self.container.conn.network.nsx.edge.lb.config_update(self.ext_id, enabled=False, logging=False)
+            status = self.is_lb_enabled()
+        return status
+
+    def is_lb_enabled(self):
+        """Get load balancer status
+
+        :return: True (enabled), False (disabled), None otherwise
+        """
+        status = None
+        if self.ext_obj is not None:
+            status = self.container.conn.network.nsx.edge.lb.config_get(self.ext_id).get("enabled")
+            status = str2bool(status)
+            self.logger.info("Load balancer enabled: %s" % status)
+        return status
 
     def get_lb_monitors(self):
         """List network edge load balancer health monitors
@@ -734,7 +884,7 @@ class NsxEdge(NsxResource):
         res = None
         if self.ext_obj is not None:
             res = self.container.conn.network.nsx.edge.lb.monitor_get(self.ext_obj, monitor)
-            self.logger.info('get lb monitor %s' % monitor)
+            self.logger.info("get lb monitor %s" % monitor)
         return res
 
     def add_lb_monitor(self, **kvargs):
@@ -755,27 +905,60 @@ class NsxEdge(NsxResource):
         """
         res = None
         if self.ext_obj is not None:
-            name = kvargs.get('name')
-            monitor_type = kvargs.get('protocol')
+            name = kvargs.get("name")
+            monitor_type = kvargs.get("protocol")
             hm_params = {
-                'interval': kvargs.get('interval'),
-                'timeout': kvargs.get('timeout'),
-                'max_retries': kvargs.get('max_retries'),
-                'method': kvargs.get('method'),
-                'url': kvargs.get('request_uri'),
-                'expected': kvargs.get('expected'),
-                'send': kvargs.get('send'),
-                'receive': kvargs.get('receive'),
-                'extension': kvargs.get('extension'),
+                "interval": kvargs.get("interval"),
+                "timeout": kvargs.get("timeout"),
+                "max_retries": kvargs.get("max_retries"),
+                "method": kvargs.get("method"),
+                "url": kvargs.get("request_uri"),
+                "expected": kvargs.get("expected"),
+                "send": kvargs.get("send"),
+                "receive": kvargs.get("receive"),
+                "extension": kvargs.get("extension"),
             }
 
-            # remove keys with None values
+            # ignore keys with None values
             filtered = {k: v for k, v in hm_params.items() if v is not None}
             hm_params.clear()
             hm_params.update(filtered)
 
             res = self.container.conn.network.nsx.edge.lb.monitor_add(self.ext_id, name, monitor_type, **hm_params)
-            self.logger.info('create lb health monitor %s' % res.get('ext_id'))
+            self.logger.info("create lb health monitor %s" % res.get("ext_id"))
+        return res
+
+    def update_lb_monitor(self, hm_ext_id, **kvargs):
+        """Update network edge load balancer monitor
+
+        :param hm_ext_id: health monitor external id
+        :param kvargs.monitor_type: the protocol the load balancer uses when performing health checks on backend servers
+        :param kvargs.interval: interval in seconds in which a server is to be tested
+        :param kvargs.timeout: maximum time in seconds within which a response from the server must be received
+        :param kvargs.max_retries: maximum number of times the server is tested before it is declared down
+        :param kvargs.method: method to send the health check request to the server
+        :param kvargs.request_uri: URL to send GET or POST requests
+        :param kvargs.expected: expected string, e.g. 200 in case of success
+        :return:
+        """
+        res = None
+        if self.ext_obj is not None:
+            hm_params = {
+                "interval": kvargs.get("interval"),
+                "timeout": kvargs.get("timeout"),
+                "maxRetries": kvargs.get("max_retries"),
+                "method": kvargs.get("method"),
+                "url": kvargs.get("request_uri"),
+                "expected": kvargs.get("expected"),
+            }
+
+            # ignore keys with None values
+            filtered = {k: v for k, v in hm_params.items() if v is not None}
+            hm_params.clear()
+            hm_params.update(filtered)
+
+            res = self.container.conn.network.nsx.edge.lb.monitor_update(self.ext_id, hm_ext_id, **hm_params)
+            self.logger.info("update lb health monitor %s" % hm_ext_id)
         return res
 
     def del_lb_monitor(self, monitor):
@@ -787,7 +970,7 @@ class NsxEdge(NsxResource):
         res = False
         if self.ext_obj is not None:
             res = self.container.conn.network.nsx.edge.lb.monitor_del(self.ext_id, monitor)
-            self.logger.info('delete lb monitor %s' % monitor)
+            self.logger.info("delete lb monitor %s" % monitor)
         return res
 
     def get_lb_pools(self):
@@ -808,7 +991,7 @@ class NsxEdge(NsxResource):
         res = None
         if self.ext_obj is not None:
             res = self.container.conn.network.nsx.edge.lb.pool_get(self.ext_id, pool)
-            self.logger.info('get lb pool %s' % pool)
+            self.logger.info("get lb pool %s" % pool)
         return res
 
     def add_lb_pool(self, **kvargs):
@@ -822,34 +1005,65 @@ class NsxEdge(NsxResource):
         """
         res = None
         if self.ext_obj is not None:
-            name = kvargs.get('name')
-            balancing_algorithm = kvargs.get('balancing_algorithm')
+            name = kvargs.get("name")
+            balancing_algorithm = kvargs.get("balancing_algorithm")
             pool_params = {
-                'description': kvargs.get('desc'),
-                'monitor_id': kvargs.get('monitor_id'),
+                "description": kvargs.get("desc"),
+                "monitor_id": kvargs.get("monitor_id"),
+                "transparent": kvargs.get("transparent"),
             }
 
-            # remove keys with None values
+            # ignore keys with None values
             filtered = {k: v for k, v in pool_params.items() if v is not None}
             pool_params.clear()
             pool_params.update(filtered)
 
-            res = self.container.conn.network.nsx.edge.lb.pool_add(self.ext_id, name, balancing_algorithm,
-                                                                   **pool_params)
-            self.logger.info('create lb pool %s' % res.get('ext_id'))
+            res = self.container.conn.network.nsx.edge.lb.pool_add(
+                self.ext_id, name, balancing_algorithm, **pool_params
+            )
+            self.logger.info("create lb pool %s" % res.get("ext_id"))
         return res
 
-    def populate_lb_pool(self, pool, members):
+    def add_lb_pool_members(self, pool_ext_id, members):
         """Add members to pool
 
-        :param pool: pool external id
+        :param pool_ext_id: pool external id
         :param members: list of members to be added
         :return:
         """
         res = None
         if self.ext_obj is not None:
-            res = self.container.conn.network.nsx.edge.lb.pool_members_add(self.ext_id, pool, members)
-            self.logger.info('populate lb pool with members %s' % ', '.join(member.get('name') for member in members))
+            res = self.container.conn.network.nsx.edge.lb.pool_members_add(self.ext_id, pool_ext_id, members)
+        return res
+
+    def del_lb_pool_members(self, pool_ext_id, members):
+        """Remove members from pool
+
+        :param pool_ext_id: pool external id
+        :param members: list of members to be removed
+        :return:
+        """
+        res = None
+        if self.ext_obj is not None:
+            res = self.container.conn.network.nsx.edge.lb.pool_members_del(self.ext_id, pool_ext_id, members)
+        return res
+
+    def update_lb_pool(self, pool_ext_id, **kvargs):
+        """Update network edge load balancer pool
+
+        :param pool_ext_id: pool external id
+        :param kvargs.balancing_algorithm: the algorithm used to balance backend nodes
+        :return:
+        """
+        res = None
+        if self.ext_obj is not None:
+            pool_params = {
+                "algorithm": kvargs.get("balancing_algorithm"),
+                "transparent": kvargs.get("transparent"),
+            }
+
+            res = self.container.conn.network.nsx.edge.lb.pool_update(self.ext_id, pool_ext_id, **pool_params)
+            self.logger.info("update lb pool %s" % pool_ext_id)
         return res
 
     def del_lb_pool(self, pool):
@@ -861,7 +1075,7 @@ class NsxEdge(NsxResource):
         res = False
         if self.ext_obj is not None:
             res = self.container.conn.network.nsx.edge.lb.pool_del(self.ext_id, pool)
-            self.logger.info('delete lb pool %s' % pool)
+            self.logger.info("delete lb pool %s" % pool)
         return res
 
     def get_lb_app_profiles(self):
@@ -882,32 +1096,32 @@ class NsxEdge(NsxResource):
         res = None
         if self.ext_obj is not None:
             res = self.container.conn.network.nsx.edge.lb.app_profile_get(self.ext_id, profile)
-            self.logger.info('get lb application profile %s' % profile)
+            self.logger.info("get lb application profile %s" % profile)
         return res
 
     @staticmethod
     def __traffic_type_mapping(traffic_type: str) -> dict:
         mapper = {
-            'http': {
-                'template': 'http',
-                'ssl_passthrough': None,
-                'server_ssl_enabled': None,
+            "http": {
+                "template": "http",
+                "ssl_passthrough": None,
+                "server_ssl_enabled": None,
             },
-            'ssl-passthrough': {
-                'template': 'https',
-                'ssl_passthrough': True,
-                'server_ssl_enabled': False
+            "ssl-passthrough": {
+                "template": "https",
+                "ssl_passthrough": True,
+                "server_ssl_enabled": False,
             },
-            'https-offloading': {
-                'template': 'https',
-                'ssl_passthrough': False,
-                'server_ssl_enabled': False,
+            "https-offloading": {
+                "template": "https",
+                "ssl_passthrough": False,
+                "server_ssl_enabled": False,
             },
-            'https-end-to-end': {
-                'template': 'https',
-                'ssl_passthrough': False,
-                'server_ssl_enabled': True
-            }
+            "https-end-to-end": {
+                "template": "https",
+                "ssl_passthrough": False,
+                "server_ssl_enabled": True,
+            },
         }
         return mapper.get(traffic_type)
 
@@ -921,26 +1135,26 @@ class NsxEdge(NsxResource):
         """
         res = None
         if self.ext_obj is not None:
-            name = kvargs.get('name')
-            traffic_type = kvargs.get('traffic_type')
+            name = kvargs.get("name")
+            traffic_type = kvargs.get("traffic_type")
             d = self.__traffic_type_mapping(traffic_type)
-            template = d.get('template').upper()
+            template = d.get("template").upper()
             ap_params = {
-                'ssl_passthrough': d.get('ssl_passthrough'),
-                'server_ssl_enabled': d.get('server_ssl_enabled'),
-                'http_redirect_url': kvargs.get('http_redirect_url'),
-                'persistence': kvargs.get('persistence'),
-                'expire': kvargs.get('expire'),
-                'cookie_name': kvargs.get('cookie_name'),
-                'cookie_mode': kvargs.get('cookie_mode'),
-                'insert_x_forwarded_for': kvargs.get('insert_x_forwarded_for'),
-                'client_ssl_service_certificate': kvargs.get('client_ssl_service_certificate'),
-                'client_ssl_ca_certificate': kvargs.get('client_ssl_ca_certificate'),
-                'client_ssl_cipher': kvargs.get('client_ssl_cipher'),
-                'client_auth': kvargs.get('client_auth'),
-                'server_ssl_service_certificate': kvargs.get('server_ssl_service_certificate'),
-                'server_ssl_ca_certificate': kvargs.get('server_ssl_ca_certificate'),
-                'server_ssl_cipher': kvargs.get('server_ssl_cipher'),
+                "ssl_passthrough": d.get("ssl_passthrough"),
+                "server_ssl_enabled": d.get("server_ssl_enabled"),
+                "http_redirect_url": kvargs.get("http_redirect_url"),
+                "persistence": kvargs.get("persistence"),
+                "expire": kvargs.get("expire"),
+                "cookie_name": kvargs.get("cookie_name"),
+                "cookie_mode": kvargs.get("cookie_mode"),
+                "insert_x_forwarded_for": kvargs.get("insert_x_forwarded_for"),
+                "client_ssl_service_certificate": kvargs.get("client_ssl_service_certificate"),
+                "client_ssl_ca_certificate": kvargs.get("client_ssl_ca_certificate"),
+                "client_ssl_cipher": kvargs.get("client_ssl_cipher"),
+                "client_auth": kvargs.get("client_auth"),
+                "server_ssl_service_certificate": kvargs.get("server_ssl_service_certificate"),
+                "server_ssl_ca_certificate": kvargs.get("server_ssl_ca_certificate"),
+                "server_ssl_cipher": kvargs.get("server_ssl_cipher"),
             }
 
             # remove keys whose value is None
@@ -949,7 +1163,40 @@ class NsxEdge(NsxResource):
             ap_params.update(filtered)
 
             res = self.container.conn.network.nsx.edge.lb.app_profile_add(self.ext_id, name, template, **ap_params)
-            self.logger.info('create lb application profile %s' % res.get('ext_id'))
+            self.logger.info("create lb application profile %s" % res.get("ext_id"))
+        return res
+
+    def update_lb_app_profile(self, ap_ext_id, **kvargs):
+        """Update network edge load balancer application profile
+
+        :param ap_ext_id: application profile external id
+        :param kvargs.traffic_type:
+        :param kvargs.method: persistence method
+        :param kvargs.cookie_name:
+        :param kvargs.cookie_mode:
+        :param kvargs.expire_time:
+        :param kvargs.insert_x_forwarded_for:
+        :param kvargs.url_redirect:
+        :return:
+        """
+        res = None
+        if self.ext_obj is not None:
+            ap_params = {
+                "method": dict_get(kvargs, "persistence.method"),
+                "cookieName": dict_get(kvargs, "persistence.cookie_name"),
+                "cookieMode": dict_get(kvargs, "persistence.cookie_mode"),
+                "expire": dict_get(kvargs, "persistence.expire_time"),
+                "insertXForwardedFor": kvargs.get("insert_x_forwarded_for"),
+                "http_redirect_url": kvargs.get("url_redirect"),
+            }
+
+            # ignore keys with None values
+            filtered = {k: v for k, v in ap_params.items() if v is not None}
+            ap_params.clear()
+            ap_params.update(filtered)
+
+            res = self.container.conn.network.nsx.edge.lb.app_profile_update(self.ext_id, ap_ext_id, **ap_params)
+            self.logger.info("update lb application profile %s" % ap_ext_id)
         return res
 
     def del_lb_app_profile(self, profile):
@@ -961,7 +1208,7 @@ class NsxEdge(NsxResource):
         res = False
         if self.ext_obj is not None:
             res = self.container.conn.network.nsx.edge.lb.app_profile_del(self.ext_id, profile)
-            self.logger.info('delete lb application profile %s' % profile)
+            self.logger.info("delete lb application profile %s" % profile)
         return res
 
     def get_lb_virt_servers(self):
@@ -982,7 +1229,7 @@ class NsxEdge(NsxResource):
         res = None
         if self.ext_obj is not None:
             res = self.container.conn.network.nsx.edge.lb.virt_server_get(self.ext_id, virt_srv)
-            self.logger.info('get lb virtual server %s' % virt_srv)
+            self.logger.info("get lb virtual server %s" % virt_srv)
         return res
 
     def add_lb_virt_server(self, **kvargs):
@@ -993,18 +1240,18 @@ class NsxEdge(NsxResource):
         """
         res = None
         if self.ext_obj is not None:
-            name = kvargs.get('name')
-            ip_address = dict_get(kvargs, 'vip.ip')
-            protocol = kvargs.get('protocol')
-            port = kvargs.get('port')
-            app_profile = kvargs.get('app_profile_id')
-            pool = kvargs.get('pool_id')
+            name = kvargs.get("name")
+            ip_address = dict_get(kvargs, "vip.ip")
+            protocol = kvargs.get("protocol")
+            port = kvargs.get("port")
+            app_profile = kvargs.get("app_profile_id")
+            pool = kvargs.get("pool_id")
             vs_params = {
-                'desc': kvargs.get('desc'),
-                'max_conn': kvargs.get('max_conn'),
-                'max_conn_rate': kvargs.get('max_conn_rate'),
-                'enable': True,
-                'acceleration_enabled': False
+                "desc": kvargs.get("desc"),
+                "max_conn": kvargs.get("max_conn"),
+                "max_conn_rate": kvargs.get("max_conn_rate"),
+                "enable": True,
+                "acceleration_enabled": False,
             }
 
             # remove keys whose value is None
@@ -1012,9 +1259,45 @@ class NsxEdge(NsxResource):
             vs_params.clear()
             vs_params.update(filtered)
 
-            res = self.container.conn.network.nsx.edge.lb.virt_server_add(self.ext_id, name, ip_address, protocol,
-                                                                          port, app_profile, pool, **vs_params)
-            self.logger.info('create lb virtual server %s' % res.get('ext_id'))
+            res = self.container.conn.network.nsx.edge.lb.virt_server_add(
+                self.ext_id,
+                name,
+                ip_address,
+                protocol,
+                port,
+                app_profile,
+                pool,
+                **vs_params,
+            )
+            self.logger.info("create lb virtual server %s" % res.get("ext_id"))
+        return res
+
+    def update_lb_virt_server(self, vs_ext_id, **kvargs):
+        """Update network edge load balancer virtual server
+
+        :param vs_ext_id: virtual server external id
+        :param kvargs.protocol:
+        :param kvargs.port:
+        :param kvargs.max_conn:
+        :param kvargs.max_conn_rate:
+        :return: dict {'ext_id': '<ext_id>'} in case of success; None otherwise
+        """
+        res = None
+        if self.ext_obj is not None:
+            vs_params = {
+                "protocol": kvargs.get("protocol"),
+                "port": kvargs.get("port"),
+                "connectionLimit": kvargs.get("max_conn"),
+                "connectionRateLimit": kvargs.get("max_conn_rate"),
+            }
+
+            # ignore keys with None values
+            filtered = {k: v for k, v in vs_params.items() if v is not None}
+            vs_params.clear()
+            vs_params.update(filtered)
+
+            res = self.container.conn.network.nsx.edge.lb.virt_server_update(self.ext_id, vs_ext_id, **vs_params)
+            self.logger.info("update lb pool %s" % res.get("ext_id"))
         return res
 
     def del_lb_virt_server(self, virt_server):
@@ -1026,5 +1309,5 @@ class NsxEdge(NsxResource):
         res = False
         if self.ext_obj is not None:
             res = self.container.conn.network.nsx.edge.lb.virt_server_del(self.ext_id, virt_server)
-            self.logger.info('delete lb virtual server %s' % virt_server)
+            self.logger.info("delete lb virtual server %s" % virt_server)
         return res

@@ -12,9 +12,9 @@ logger = getLogger(__name__)
 
 
 class ZabbixHostgroupTask(AbstractResourceTask):
-    """Hostgroup task
-    """
-    name = 'zbx_hostgroup_task'
+    """Hostgroup task"""
+
+    name = "zbx_hostgroup_task"
     entity_class = ZabbixHostgroup
 
     @staticmethod
@@ -27,22 +27,25 @@ class ZabbixHostgroupTask(AbstractResourceTask):
         :param dict params: step params
         :return: oid, params
         """
-        cid = params.get('cid')
-        oid = params.get('id')
-        name = params.get('name')
-        task.progress(step_id, msg='Get configuration params')
+        cid = params.get("cid")
+        oid = params.get("id")
+        name = params.get("name")
+        task.progress(step_id, msg="Get configuration params")
 
         # create hostgroup
-        container = task.get_container(cid)
-        conn = container.conn
-        inst = conn.group.add(name)  # example of response: inst = {'groupids': ['42']}
-        inst_id = inst['groupids'][0]
-        task.progress(step_id, msg='Create hostgroup %s' % inst_id)
+        from beehive_resource.plugins.zabbix.controller import ZabbixContainer
+        from beehive_resource.plugins.zabbix.controller import ZabbixManager
+
+        zabbixContainer: ZabbixContainer = task.get_container(cid)
+        zabbixManager: ZabbixManager = zabbixContainer.conn
+        inst = zabbixManager.hostgroup.add(name)  # example of response: inst = {'groupids': ['42']}
+        inst_id = inst["groupids"][0]
+        task.progress(step_id, msg="Create hostgroup %s" % inst_id)
 
         # save current data in shared area
-        params['ext_id'] = inst_id
-        params['attrib'] = {}
-        task.progress(step_id, msg='Update shared area')
+        params["ext_id"] = inst_id
+        params["attrib"] = {}
+        task.progress(step_id, msg="Update shared area")
 
         return oid, params
 
@@ -56,24 +59,27 @@ class ZabbixHostgroupTask(AbstractResourceTask):
         :param dict params: step params
         :return: oid, params
         """
-        cid = params.get('cid')
-        oid = params.get('id')
-        name = params.get('name')
-        task.progress(step_id, msg='Get configuration params')
+        cid = params.get("cid")
+        oid = params.get("id")
+        name = params.get("name")
+        task.progress(step_id, msg="Get configuration params")
 
-        container = task.get_container(cid)
-        conn = container.conn
-        resource = container.get_simple_resource(oid)
+        from beehive_resource.plugins.zabbix.controller import ZabbixContainer
+        from beehive_resource.plugins.zabbix.controller import ZabbixManager
+
+        zabbixContainer: ZabbixContainer = task.get_container(cid)
+        zabbixManager: ZabbixManager = zabbixContainer.conn
+        resource = zabbixContainer.get_simple_resource(oid)
 
         if resource.is_ext_id_valid() is True:
             try:
                 # check whether hostgroup exists
-                conn.group.get(resource.ext_id)
+                zabbixManager.hostgroup.get(resource.ext_id)
                 # update hostgroup
-                conn.group.update(resource.ext_id, name)
-                task.progress(step_id, msg='Update hostgroup %s' % resource.ext_id)
+                zabbixManager.hostgroup.update(resource.ext_id, name)
+                task.progress(step_id, msg="Update hostgroup %s" % resource.ext_id)
             except:
-                task.progress(step_id, msg='Hostgroup %s does not exist anymore' % resource.ext_id)
+                task.progress(step_id, msg="Hostgroup %s does not exist anymore" % resource.ext_id)
 
         return oid, params
 
@@ -87,24 +93,27 @@ class ZabbixHostgroupTask(AbstractResourceTask):
         :param dict params: step params
         :return: oid, params
         """
-        cid = params.get('cid')
-        oid = params.get('id')
+        cid = params.get("cid")
+        oid = params.get("id")
 
-        container = task.get_container(cid)
-        conn = container.conn
-        resource = container.get_simple_resource(oid)
+        from beehive_resource.plugins.zabbix.controller import ZabbixContainer
+        from beehive_resource.plugins.zabbix.controller import ZabbixManager
+
+        zabbixContainer: ZabbixContainer = task.get_container(cid)
+        zabbixManager: ZabbixManager = zabbixContainer.conn
+        resource = zabbixContainer.get_simple_resource(oid)
 
         if resource.is_ext_id_valid() is True:
             try:
                 # check if hostgroup exists
-                conn.group.get(resource.ext_id)
+                zabbixManager.hostgroup.get(resource.ext_id)
                 # delete hostgroup
-                conn.group.delete(resource.ext_id)
-                task.progress(step_id, msg='Delete hostgroup %s' % resource.ext_id)
+                zabbixManager.hostgroup.delete(resource.ext_id)
+                task.progress(step_id, msg="Delete hostgroup %s" % resource.ext_id)
                 # reset ext_id
                 resource.update_internal(ext_id=None)
             except:
-                task.progress(step_id, msg='Hostgroup %s does not exist anymore' % resource.ext_id)
+                task.progress(step_id, msg="Hostgroup %s does not exist anymore" % resource.ext_id)
 
         return oid, params
 

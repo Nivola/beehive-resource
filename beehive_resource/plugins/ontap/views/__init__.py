@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive_resource.view import ResourceApiView
 from beehive_resource.plugins.ontap.controller import OntapNetappContainer
@@ -16,6 +16,6 @@ class OntapNetappApiView(ResourceApiView):
 
 
 class OntapNetappAPI(ApiView):
-    """
-    """
-    base = 'nrs/ontap'
+    """ """
+
+    base = "nrs/ontap"

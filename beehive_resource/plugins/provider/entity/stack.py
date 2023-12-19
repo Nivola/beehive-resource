@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from datetime import datetime
 
@@ -19,13 +20,13 @@ from beehive_resource.plugins.provider.entity.zone import AvailabilityZoneChildR
 
 
 class ComputeStack(ComputeProviderResource):
-    """Compute stack
-    """
-    objdef = 'Provider.ComputeZone.ComputeStack'
-    objuri = '%s/stacks/%s'
-    objname = 'stack'
-    objdesc = 'Provider ComputeStack'
-    task_path = 'beehive_resource.plugins.provider.task_v2.stack.StackTask.'
+    """Compute stack"""
+
+    objdef = "Provider.ComputeZone.ComputeStack"
+    objuri = "%s/stacks/%s"
+    objname = "stack"
+    objdesc = "Provider ComputeStack"
+    task_path = "beehive_resource.plugins.provider.task_v2.stack.StackTask."
 
     def __init__(self, *args, **kvargs):
         ComputeProviderResource.__init__(self, *args, **kvargs)
@@ -34,14 +35,14 @@ class ComputeStack(ComputeProviderResource):
 
     def get_stack_type(self):
         """Return stack type. Example: app_stack, sql_stack"""
-        return self.get_attribs('stack_type')
+        return self.get_attribs("stack_type")
 
     def get_stack_engine(self):
         """Return stack engine info"""
         return {
-            'engine': self.get_attribs('engine'),
-            'version': self.get_attribs('version'),
-            'engine_configs': self.get_attribs('engine_configs'),
+            "engine": self.get_attribs("engine"),
+            "version": self.get_attribs("version"),
+            "engine_configs": self.get_attribs("engine_configs"),
         }
 
     def get_runstate(self):
@@ -54,7 +55,7 @@ class ComputeStack(ComputeProviderResource):
             remote_stack = zone_stack.get_remote_stack()
             if remote_stack is not None:
                 runstate.append(remote_stack.get_status().lower())
-        return ','.join(runstate)
+        return ",".join(runstate)
 
     def info(self):
         """Get infos.
@@ -89,8 +90,9 @@ class ComputeStack(ComputeProviderResource):
         :raise ApiManagerError:
         """
         resource_ids = [e.oid for e in entities]
-        zone_stacks_all = controller.get_directed_linked_resources_internal(resource_ids, link_type='relation%',
-                                                                            run_customize=False)
+        zone_stacks_all = controller.get_directed_linked_resources_internal(
+            resource_ids, link_type="relation%", run_customize=False
+        )
 
         # index zone stacks
         zone_stacks_all_idx = {}
@@ -98,10 +100,12 @@ class ComputeStack(ComputeProviderResource):
             zone_stacks_all_idx.update({z.oid: z for z in zs})
 
         # get all the physical stacks related to zone stacks
-        physical_stacks = controller.get_directed_linked_resources_internal(list(zone_stacks_all_idx.keys()),
-                                                                            link_type='relation',
-                                                                            run_customize=True,
-                                                                            objdef=OpenstackHeatStack.objdef)
+        physical_stacks = controller.get_directed_linked_resources_internal(
+            list(zone_stacks_all_idx.keys()),
+            link_type="relation",
+            run_customize=True,
+            objdef=OpenstackHeatStack.objdef,
+        )
         for zone_id, zone_stack in zone_stacks_all_idx.items():
             physical_stack = physical_stacks.get(zone_id, None)
             if physical_stack is not None:
@@ -121,7 +125,7 @@ class ComputeStack(ComputeProviderResource):
         get_resources = self.controller.get_directed_linked_resources_internal
 
         resource_ids = [self.oid]
-        zone_stacks_all = get_resources(resource_ids, link_type='relation%', run_customize=False)
+        zone_stacks_all = get_resources(resource_ids, link_type="relation%", run_customize=False)
         self.zone_stacks = zone_stacks_all.get(self.oid, [])
 
         # index zone stacks
@@ -129,8 +133,12 @@ class ComputeStack(ComputeProviderResource):
         for z in self.zone_stacks:
             zone_stacks_idx[z.oid] = z
 
-        physical_stacks = get_resources(list(zone_stacks_idx.keys()), link_type='relation', run_customize=True,
-                                        objdef=OpenstackHeatStack.objdef)
+        physical_stacks = get_resources(
+            list(zone_stacks_idx.keys()),
+            link_type="relation",
+            run_customize=True,
+            objdef=OpenstackHeatStack.objdef,
+        )
 
         for zone_id, zone_stack in zone_stacks_idx.items():
             physical_stack = physical_stacks.get(zone_id, None)
@@ -147,7 +155,7 @@ class ComputeStack(ComputeProviderResource):
         for zone_stack in self.zone_stacks:
             res[zone_stack.parent_id] = zone_stack.resources()
 
-        self.logger.debug2('Get stack %s resources: %s' % (self.uuid, res))
+        self.logger.debug2("Get stack %s resources: %s" % (self.uuid, res))
         return res
 
     def get_quotas(self):
@@ -157,29 +165,29 @@ class ComputeStack(ComputeProviderResource):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         quotas = {
-            'instances': 1,
-            'cores': 0,
-            'ram': 0,
-            'blocks': 0,
-            'volumes': 0,
-            'snapshots': 0
+            "instances": 1,
+            "cores": 0,
+            "ram": 0,
+            "blocks": 0,
+            "volumes": 0,
+            "snapshots": 0,
         }
         for zone_stack in self.zone_stacks:
             for resource in zone_stack.resources():
                 if isinstance(resource, OpenstackVolume):
                     resource.post_get()
-                    quotas['blocks'] += resource.get_size()
-                    quotas['volumes'] += 1
+                    quotas["blocks"] += resource.get_size()
+                    quotas["volumes"] += 1
                     # quotas['snapshots'] += len(resource.list_snapshots())
                 elif isinstance(resource, OpenstackServer):
                     resource.post_get()
                     if resource.is_running() is True:
                         flavor = resource.get_flavor()
-                        quotas['instances'] += 1
-                        quotas['cores'] += flavor.get('cpu', 0)
-                        quotas['ram'] += flavor.get('memory', 0) / 1024
+                        quotas["instances"] += 1
+                        quotas["cores"] += flavor.get("cpu", 0)
+                        quotas["ram"] += flavor.get("memory", 0) / 1024
 
-        self.logger.debug2('Get resource %s quotas: %s' % (self.uuid, quotas))
+        self.logger.debug2("Get resource %s quotas: %s" % (self.uuid, quotas))
         return quotas
 
     def resources(self):
@@ -191,11 +199,13 @@ class ComputeStack(ComputeProviderResource):
         res = []
         for zone_stack in self.zone_stacks:
             resources = [z.small_info() for z in zone_stack.resources()]
-            res.append({
-                'availability_zone': zone_stack.parent_id,
-                'internal_resources': zone_stack.internal_resources(),
-                'resources': resources
-            })
+            res.append(
+                {
+                    "availability_zone": zone_stack.parent_id,
+                    "internal_resources": zone_stack.internal_resources(),
+                    "resources": resources,
+                }
+            )
         return res
 
     def inputs(self):
@@ -204,14 +214,11 @@ class ComputeStack(ComputeProviderResource):
         :return: list of inputs for each stack child
         :raise ApiManagerError:
         """
-        objs, total = self.get_linked_resources(link_type_filter='relation%')
+        objs, total = self.get_linked_resources(link_type_filter="relation%")
         res = []
         for obj in objs:
             obj.post_get()
-            res.append({
-                'availability_zone': obj.parent_id,
-                'inputs': obj.inputs()
-            })
+            res.append({"availability_zone": obj.parent_id, "inputs": obj.inputs()})
         return res
 
     def outputs(self):
@@ -220,14 +227,11 @@ class ComputeStack(ComputeProviderResource):
         :return: list of outputs for each stack child
         :raise ApiManagerError:
         """
-        objs, total = self.get_linked_resources(link_type_filter='relation%')
+        objs, total = self.get_linked_resources(link_type_filter="relation%")
         res = []
         for obj in objs:
             obj.post_get()
-            res.append({
-                'availability_zone': obj.parent_id,
-                'outputs': obj.outputs()
-            })
+            res.append({"availability_zone": obj.parent_id, "outputs": obj.outputs()})
         return res
 
     def get_all_servers(self):
@@ -247,7 +251,7 @@ class ComputeStack(ComputeProviderResource):
                     except:
                         res[str(zone_stack.parent_id)] = [resource]
 
-        self.logger.debug('Get all stack %s servers: %s' % (self.uuid, truncate(res)))
+        self.logger.debug("Get all stack %s servers: %s" % (self.uuid, truncate(res)))
         return res
 
     @staticmethod
@@ -283,67 +287,77 @@ class ComputeStack(ComputeProviderResource):
         :raise ApiManagerError:
         """
         # get zone
-        compute_zone_id = kvargs.get('parent')
+        compute_zone_id = kvargs.get("parent")
         compute_zone = container.get_simple_resource(compute_zone_id)
         compute_zone.check_active()
         compute_zone.set_container(container)
         multi_avz = True
 
         # get global parameters
-        parameters = kvargs.get('parameters')
+        parameters = kvargs.get("parameters")
 
         # check template
         templates = []
         availability_zones = ComputeProviderResource.get_active_availability_zones(compute_zone, multi_avz)
-        for template in kvargs.get('templates'):
+        for template in kvargs.get("templates"):
             # template['orchestrator_id'] = controller.get_container(template.pop('orchestrator')).oid
             # get site id
-            site = controller.get_resource(template.pop('availability_zone'), entity_class=Site, run_customize=False)
-            template['site_id'] = site.oid
+            site = controller.get_resource(
+                template.pop("availability_zone"),
+                entity_class=Site,
+                run_customize=False,
+            )
+            template["site_id"] = site.oid
             try:
                 zone = ComputeProviderResource.get_active_availability_zone(compute_zone, site)
-                template['availability_zone_id'] = zone
-                template['parameters'].update(parameters)
+                template["availability_zone_id"] = zone
+                template["parameters"].update(parameters)
                 templates.append(template)
             except:
-                controller.logger.warn('Availability zone in site %s is not ACTIVE' % site.uuid)
+                controller.logger.warn("Availability zone in site %s is not ACTIVE" % site.uuid)
 
-        kvargs['orchestrator_tag'] = kvargs.get('orchestrator_tag', 'default')
+        kvargs["orchestrator_tag"] = kvargs.get("orchestrator_tag", "default")
 
         # create job workflow
         steps = [
-            ComputeStack.task_path + 'create_resource_pre_step',
-            ComputeStack.task_path + 'link_compute_stack_step'
+            ComputeStack.task_path + "create_resource_pre_step",
+            ComputeStack.task_path + "link_compute_stack_step",
         ]
         for template in templates:
             stack_id = id_gen()
 
-            steps.append({
-                'step': ComputeStack.task_path + 'create_zone_stack_step',
-                'args': [template, stack_id]
-            })
+            steps.append(
+                {
+                    "step": ComputeStack.task_path + "create_zone_stack_step",
+                    "args": [template, stack_id],
+                }
+            )
 
             # append create twins steps
-            current_availability_zone = template['availability_zone_id']
+            current_availability_zone = template["availability_zone_id"]
 
             # remove temporarily current availability zone id
             availability_zones.remove(current_availability_zone)
 
             for availability_zone in availability_zones:
-                steps.append({
-                    'step': ComputeStack.task_path + 'create_zone_stack_twins_step',
-                    'args': [availability_zone, stack_id]
-                })
+                steps.append(
+                    {
+                        "step": ComputeStack.task_path + "create_zone_stack_twins_step",
+                        "args": [availability_zone, stack_id],
+                    }
+                )
 
             # restore removed availability zone id
             availability_zones.append(current_availability_zone)
 
-        steps.extend([
-            ComputeStack.task_path + 'manage_compute_stack_step',
-            ComputeStack.task_path + 'register_dns_compute_stack_step',
-            ComputeStack.task_path + 'create_resource_post_step'
-        ])
-        kvargs['steps'] = steps
+        steps.extend(
+            [
+                ComputeStack.task_path + "manage_compute_stack_step",
+                ComputeStack.task_path + "register_dns_compute_stack_step",
+                ComputeStack.task_path + "create_resource_post_step",
+            ]
+        )
+        kvargs["steps"] = steps
 
         return kvargs
 
@@ -361,20 +375,20 @@ class ComputeStack(ComputeProviderResource):
         :raise ApiManagerError:
         """
         # get stacks
-        stacks, total = self.get_linked_resources(link_type_filter='relation%')
+        stacks, total = self.get_linked_resources(link_type_filter="relation%")
 
         childs = [p.oid for p in stacks]
 
         # create task workflow
         steps = [
-            ComputeStack.task_path + 'expunge_resource_pre_step',
-            ComputeStack.task_path + 'unmanage_compute_stack_step',
-            ComputeStack.task_path + 'unregister_dns_compute_stack_step',
+            ComputeStack.task_path + "expunge_resource_pre_step",
+            ComputeStack.task_path + "unmanage_compute_stack_step",
+            ComputeStack.task_path + "unregister_dns_compute_stack_step",
         ]
         for child in childs:
-            steps.append({'step': ComputeStack.task_path + 'remove_child_step', 'args': [child]})
-        steps.append(ComputeStack.task_path + 'expunge_resource_post_step')
-        kvargs['steps'] = steps
+            steps.append({"step": ComputeStack.task_path + "remove_child_step", "args": [child]})
+        steps.append(ComputeStack.task_path + "expunge_resource_post_step")
+        kvargs["steps"] = steps
 
         return kvargs
 
@@ -388,10 +402,10 @@ class ComputeStack(ComputeProviderResource):
         :return: kvargs
         :raise ApiManagerError:
         """
-        self.verify_permisssions(action='update')
+        self.verify_permisssions(action="update")
 
         res = action(self.controller, self, *args, **kvargs)
-        self.logger.debug('Send action %s to stack %s' % (action.__name__, self.uuid))
+        self.logger.debug("Send action %s to stack %s" % (action.__name__, self.uuid))
         return res
 
     #
@@ -417,59 +431,59 @@ class ComputeStack(ComputeProviderResource):
 
         }
         """
-        prefix = ''
-        if self.get_stack_type() == 'sql_stack':
-            if self.get_stack_engine().get('engine') == 'mysql':
-                prefix = 'db_mysql_'
-            elif self.get_stack_engine().get('engine') == 'postgres':
-                prefix = 'db_pgsql_'
-        elif self.get_stack_type() == 'app_stack':
-            if self.get_stack_engine().get('engine') == 'apache-php':
-                prefix = 'app_php_'
+        prefix = ""
+        if self.get_stack_type() == "sql_stack":
+            if self.get_stack_engine().get("engine") == "mysql":
+                prefix = "db_mysql_"
+            elif self.get_stack_engine().get("engine") == "postgres":
+                prefix = "db_pgsql_"
+        elif self.get_stack_type() == "app_stack":
+            if self.get_stack_engine().get("engine") == "apache-php":
+                prefix = "app_php_"
 
         metrics = {
-            '%svcpu' % prefix: 0,
-            '%sgbram' % prefix: 0,
-            '%sgbdisk_low' % prefix: 0,
-            '%sgbdisk_hi' % prefix: 0
+            "%svcpu" % prefix: 0,
+            "%sgbram" % prefix: 0,
+            "%sgbdisk_low" % prefix: 0,
+            "%sgbdisk_hi" % prefix: 0,
         }
 
         metric_units = {
-            '%svcpu' % prefix: '#',
-            '%sgbram' % prefix: 'GB',
-            '%sgbdisk_low' % prefix: 'GB',
-            '%sgbdisk_hi' % prefix: 'GB',
+            "%svcpu" % prefix: "#",
+            "%sgbram" % prefix: "GB",
+            "%sgbdisk_low" % prefix: "GB",
+            "%sgbdisk_hi" % prefix: "GB",
         }
 
         for zone_stack in self.zone_stacks:
             for resource in zone_stack.resources():
                 if isinstance(resource, OpenstackVolume):
                     resource.post_get()
-                    metrics['%sgbdisk_low' % prefix] += resource.get_size()
+                    metrics["%sgbdisk_low" % prefix] += resource.get_size()
                 elif isinstance(resource, OpenstackServer):
                     resource.post_get()
                     if resource.is_running() is True:
                         flavor = resource.get_flavor()
-                        metrics['%svcpu' % prefix] += flavor.get('cpu', 0)
-                        metrics['%sgbram' % prefix] += flavor.get('memory', 0) / 1024
+                        metrics["%svcpu" % prefix] += flavor.get("cpu", 0)
+                        metrics["%sgbram" % prefix] += flavor.get("memory", 0) / 1024
 
-        metrics = [{'key': k, 'value': v, 'type': 1, 'unit': metric_units.get(k)} for k, v in metrics.items()]
+        metrics = [{"key": k, "value": v, "type": 1, "unit": metric_units.get(k)} for k, v in metrics.items()]
         res = {
-            'id': self.oid,
-            'uuid': self.uuid,
-            'resource_uuid': self.uuid,
-            'type': self.objdef,
-            'metrics': metrics,
-            'extraction_date': format_date(datetime.today())
+            "id": self.oid,
+            "uuid": self.uuid,
+            "resource_uuid": self.uuid,
+            "type": self.objdef,
+            "metrics": metrics,
+            "extraction_date": format_date(datetime.today()),
         }
 
-        self.logger.debug('Get compute stack %s metrics: %s' % (self.uuid, res))
+        self.logger.debug("Get compute stack %s metrics: %s" % (self.uuid, res))
         return res
 
     #
     # manage through ssh module
     #
-    @trace(op='update')
+    @trace(op="update")
     def is_managed(self, *args, **kvargs):
         """Check compute stack is managed with ssh module.
 
@@ -477,7 +491,7 @@ class ComputeStack(ComputeProviderResource):
         :raise ApiManagerError:
         """
         # check authorization
-        self.verify_permisssions('update')
+        self.verify_permisssions("update")
 
         for avz_id, servers in self.get_all_servers().items():
             avz = self.controller.get_resource(avz_id)
@@ -485,20 +499,20 @@ class ComputeStack(ComputeProviderResource):
             for server in servers:
                 try:
                     # fqdn = '%s.%s' % (server.name, dns_zone)
-                    fqdn = server.name.replace('_', '-')
+                    fqdn = server.name.replace("_", "-")
                     self.api_client.get_ssh_node(fqdn)
                 except BeehiveApiClientError as ex:
                     if ex.code == 404:
-                        self.logger.error('Server %s is not managed by ssh module' % server.uuid)
-                        self.logger.error('Compute stack %s is not managed by ssh module' % self.uuid)
+                        self.logger.error("Server %s is not managed by ssh module" % server.uuid)
+                        self.logger.error("Compute stack %s is not managed by ssh module" % self.uuid)
                         return False
                     else:
                         raise
-        self.logger.debug('Compute stack %s is managed by ssh module' % self.uuid)
+        self.logger.debug("Compute stack %s is managed by ssh module" % self.uuid)
         return True
 
-    @trace(op='update')
-    def manage(self, user=None, key=None, password='', *args, **kvargs):
+    @trace(op="update")
+    def manage(self, user=None, key=None, password="", *args, **kvargs):
         """Manage compute instance with ssh module. Create group in ssh module where register server.
 
         :param user: ssh node user
@@ -508,7 +522,7 @@ class ComputeStack(ComputeProviderResource):
         :raise ApiManagerError:
         """
         # check authorization
-        self.verify_permisssions('update')
+        self.verify_permisssions("update")
 
         # check compute zone is managed by ssh module
         compute_zone = self.get_parent()
@@ -516,13 +530,16 @@ class ComputeStack(ComputeProviderResource):
 
         for avz_id, servers in self.get_all_servers().items():
             for server in servers:
-                fqdn = server.name.replace('_', '-')
-                server_details = server.detail().get('details')
+                fqdn = server.name.replace("_", "-")
+                server_details = server.detail().get("details")
 
                 try:
                     res = self.api_client.get_ssh_node(fqdn)
-                    uuid = res.get('uuid')
-                    self.logger.warning('Compute stack %s is already managed by ssh module' % self.uuid, exc_info=1)
+                    uuid = res.get("uuid")
+                    self.logger.warning(
+                        "Compute stack %s is already managed by ssh module" % self.uuid,
+                        exc_info=1,
+                    )
                     return uuid
                 except BeehiveApiClientError as ex:
                     if ex.code == 404:
@@ -533,21 +550,30 @@ class ComputeStack(ComputeProviderResource):
                 keys = compute_zone.get_ssh_keys(oid=key)
 
                 # get networks
-                server_nets = server_details['networks']
+                server_nets = server_details["networks"]
                 server_net = server_nets[0]
-                fixed_ip = server_net['fixed_ips'][0]
-                ip_address = fixed_ip['ip_address']
+                fixed_ip = server_net["fixed_ips"][0]
+                ip_address = fixed_ip["ip_address"]
 
                 # create ssh node
-                uuid = self.api_client.add_ssh_node(fqdn, server.desc, ip_address, group, user, key=key,
-                                                    attribute='', password=password)
-                self.logger.debug('Compute stack %s server %s is now managed by ssh group %s' %
-                                  (self.uuid, server.uuid, uuid))
+                uuid = self.api_client.add_ssh_node(
+                    fqdn,
+                    server.desc,
+                    ip_address,
+                    group,
+                    user,
+                    key=key,
+                    attribute="",
+                    password=password,
+                )
+                self.logger.debug(
+                    "Compute stack %s server %s is now managed by ssh group %s" % (self.uuid, server.uuid, uuid)
+                )
 
-        self.logger.debug('Compute stack %s is now managed by ssh' % self.uuid)
+        self.logger.debug("Compute stack %s is now managed by ssh" % self.uuid)
         return self.uuid
 
-    @trace(op='update')
+    @trace(op="update")
     def unmanage(self, *args, **kvargs):
         """Unmanage compute instance with ssh module. Remove group in ssh module where register server.
 
@@ -555,33 +581,37 @@ class ComputeStack(ComputeProviderResource):
         :raise ApiManagerError:
         """
         # check authorization
-        self.verify_permisssions('update')
+        self.verify_permisssions("update")
 
         for avz_id, servers in self.get_all_servers().items():
             for server in servers:
-                fqdn = server.name.replace('_', '-')
+                fqdn = server.name.replace("_", "-")
 
                 try:
                     res = self.api_client.get_ssh_node(fqdn)
-                    uuid = res.get('uuid')
+                    uuid = res.get("uuid")
                 except BeehiveApiClientError as ex:
                     if ex.code == 404:
-                        self.logger.warning('Compute stack %s is not managed by ssh module' % self.uuid, exc_info=1)
+                        self.logger.warning(
+                            "Compute stack %s is not managed by ssh module" % self.uuid,
+                            exc_info=1,
+                        )
                     else:
                         raise
 
                 self.api_client.delete_ssh_node(fqdn)
 
-                self.logger.debug('Compute stack %s server %s is now unmanaged by ssh module' %
-                                  (self.uuid, server.uuid))
+                self.logger.debug(
+                    "Compute stack %s server %s is now unmanaged by ssh module" % (self.uuid, server.uuid)
+                )
 
-        self.logger.debug('Compute instance %s is now unmanaged by ssh module' % self.uuid)
+        self.logger.debug("Compute instance %s is now unmanaged by ssh module" % self.uuid)
         return True
 
     #
     # dns
     #
-    @trace(op='update')
+    @trace(op="update")
     def get_dns_recorda(self, *args, **kvargs):
         """Get compute instance dns recorda.
 
@@ -592,7 +622,7 @@ class ComputeStack(ComputeProviderResource):
         :raise ApiManagerError:
         """
         # check authorization
-        self.verify_permisssions('use')
+        self.verify_permisssions("use")
 
         res = []
         for avz_id, servers in self.get_all_servers().items():
@@ -600,25 +630,27 @@ class ComputeStack(ComputeProviderResource):
             zone_name = avz.get_site().get_dns_zone()
 
             for server in servers:
-                fqdn = server.name.replace('_', '-')
-                fqdn = fqdn.split('.')
+                fqdn = server.name.replace("_", "-")
+                fqdn = fqdn.split(".")
                 name = fqdn[0]
                 zone = self.controller.get_resource(zone_name, entity_class=DnsZone)
 
-                recordas, tot = self.controller.get_resources(name=name, parent=zone.oid, entity_class=DnsRecordA,
-                                                              objdef=DnsRecordA.objdef,
-                                                              parents={zone.oid: {'id': zone.oid,
-                                                                                  'uuid': zone.uuid,
-                                                                                  'name': zone.name}})
+                recordas, tot = self.controller.get_resources(
+                    name=name,
+                    parent=zone.oid,
+                    entity_class=DnsRecordA,
+                    objdef=DnsRecordA.objdef,
+                    parents={zone.oid: {"id": zone.oid, "uuid": zone.uuid, "name": zone.name}},
+                )
                 if tot > 0:
                     recorda = recordas[0]
                     recorda.post_get()
                     res.append(recorda)
 
-                    self.logger.debug('Stack server %s recorda %s' % (server.uuid, res))
+                    self.logger.debug("Stack server %s recorda %s" % (server.uuid, res))
         return res
 
-    @trace(op='update')
+    @trace(op="update")
     def set_dns_recorda(self, force=True, ttl=30):
         """Set compute instance dns recorda.
 
@@ -628,29 +660,29 @@ class ComputeStack(ComputeProviderResource):
         :raise ApiManagerError:
         """
         # check authorization
-        self.verify_permisssions('update')
+        self.verify_permisssions("update")
 
         try:
             res = []
             for avz_id, servers in self.get_all_servers().items():
                 for server in servers:
-                    fqdn = server.name.replace('_', '-')
-                    fqdn = fqdn.split('.')
+                    fqdn = server.name.replace("_", "-")
+                    fqdn = fqdn.split(".")
 
                     # if server has no zone name in fqdn bypass dns task
                     if len(fqdn) == 1:
                         continue
 
                     name = fqdn[0]
-                    zone_name = '.'.join(fqdn[1:])
+                    zone_name = ".".join(fqdn[1:])
 
                     # get networks
                     try:
-                        server_details = server.detail().get('details')
-                        fixed_ip = server_details['networks'][0]['fixed_ips'][0]
-                        ip_addr = fixed_ip['ip_address']
+                        server_details = server.detail().get("details")
+                        fixed_ip = server_details["networks"][0]["fixed_ips"][0]
+                        ip_addr = fixed_ip["ip_address"]
                     except:
-                        raise ApiManagerError('Server %s ip can not be found' % server.uuid)
+                        raise ApiManagerError("Server %s ip can not be found" % server.uuid)
 
                     # get zone
                     try:
@@ -659,26 +691,40 @@ class ComputeStack(ComputeProviderResource):
                         continue
 
                     # check recorda already exixts
-                    recordas, tot = self.controller.get_resources(name=name, parent=zone.oid, entity_class=DnsRecordA,
-                                                                  objdef=DnsRecordA.objdef,
-                                                                  parents={zone.oid: {'id': zone.oid,
-                                                                                      'uuid': zone.uuid,
-                                                                                      'name': zone.name}})
+                    recordas, tot = self.controller.get_resources(
+                        name=name,
+                        parent=zone.oid,
+                        entity_class=DnsRecordA,
+                        objdef=DnsRecordA.objdef,
+                        parents={
+                            zone.oid: {
+                                "id": zone.oid,
+                                "uuid": zone.uuid,
+                                "name": zone.name,
+                            }
+                        },
+                    )
                     if tot == 0:
-                        rec = zone.resource_factory(DnsRecordA, name, desc=name, ip_addr=ip_addr, ttl=ttl,
-                                                    force=force)[0]
-                        self.logger.debug('Create stack server %s recorda %s' % (server.uuid, rec.get('uuid')))
-                        res.append(rec.get('uuid'))
+                        rec = zone.resource_factory(
+                            DnsRecordA,
+                            name,
+                            desc=name,
+                            ip_addr=ip_addr,
+                            ttl=ttl,
+                            force=force,
+                        )[0]
+                        self.logger.debug("Create stack server %s recorda %s" % (server.uuid, rec.get("uuid")))
+                        res.append(rec.get("uuid"))
                     else:
-                        self.logger.error('Recorda for stack server %s already exist' % server.uuid)
-                        raise ApiManagerError('Recorda for stack server %s already exist' % server.uuid)
+                        self.logger.error("Recorda for stack server %s already exist" % server.uuid)
+                        raise ApiManagerError("Recorda for stack server %s already exist" % server.uuid)
         except:
-            self.logger.error('', exc_info=1)
+            self.logger.error("", exc_info=1)
             raise
 
         return res
 
-    @trace(op='update')
+    @trace(op="update")
     def unset_dns_recorda(self):
         """Unset compute instance dns recorda.
 
@@ -686,21 +732,21 @@ class ComputeStack(ComputeProviderResource):
         :raise ApiManagerError:
         """
         # check authorization
-        self.verify_permisssions('update')
+        self.verify_permisssions("update")
 
         try:
             res = []
             for avz_id, servers in self.get_all_servers().items():
                 for server in servers:
-                    fqdn = server.name.replace('_', '-')
-                    fqdn = fqdn.split('.')
+                    fqdn = server.name.replace("_", "-")
+                    fqdn = fqdn.split(".")
 
                     # if server has no zone name in fqdn bypass dns task
                     if len(fqdn) == 1:
                         continue
 
                     name = fqdn[0]
-                    zone_name = '.'.join(fqdn[1:])
+                    zone_name = ".".join(fqdn[1:])
 
                     # get zone
                     try:
@@ -709,35 +755,43 @@ class ComputeStack(ComputeProviderResource):
                         continue
 
                     # check recorda already exixts
-                    recordas, tot = self.controller.get_resources(name=name, parent=zone.oid, entity_class=DnsRecordA,
-                                                                  objdef=DnsRecordA.objdef,
-                                                                  parents={zone.oid: {'id': zone.oid,
-                                                                                      'uuid': zone.uuid,
-                                                                                      'name': zone.name}})
+                    recordas, tot = self.controller.get_resources(
+                        name=name,
+                        parent=zone.oid,
+                        entity_class=DnsRecordA,
+                        objdef=DnsRecordA.objdef,
+                        parents={
+                            zone.oid: {
+                                "id": zone.oid,
+                                "uuid": zone.uuid,
+                                "name": zone.name,
+                            }
+                        },
+                    )
                     if tot == 0:
-                        self.logger.warn('Recorda for stack server %s does not exist' % server.uuid)
+                        self.logger.warn("Recorda for stack server %s does not exist" % server.uuid)
 
                     else:
                         uuid = recordas[0].uuid
                         recordas[0].delete()
-                        self.logger.debug('Delete stack server %s recorda %s' % (server.uuid, uuid))
+                        self.logger.debug("Delete stack server %s recorda %s" % (server.uuid, uuid))
 
                         res.append(uuid)
         except:
-            self.logger.error('', exc_info=1)
+            self.logger.error("", exc_info=1)
             raise
 
         return res
 
 
 class Stack(AvailabilityZoneChildResource):
-    """Availability Zone Stack
-    """
-    objdef = 'Provider.Region.Site.AvailabilityZone.Stack'
-    objuri = '%s/stacks/%s'
-    objname = 'zone_stack'
-    objdesc = 'Provider Availability Zone Stack'
-    task_path = 'beehive_resource.plugins.provider.task_v2.stack.StackTask.'
+    """Availability Zone Stack"""
+
+    objdef = "Provider.Region.Site.AvailabilityZone.Stack"
+    objuri = "%s/stacks/%s"
+    objname = "zone_stack"
+    objdesc = "Provider Availability Zone Stack"
+    task_path = "beehive_resource.plugins.provider.task_v2.stack.StackTask."
 
     def __init__(self, *args, **kvargs):
         AvailabilityZoneChildResource.__init__(self, *args, **kvargs)
@@ -750,8 +804,7 @@ class Stack(AvailabilityZoneChildResource):
         return False
 
     def get_remote_stack(self):
-        """Get remote stack
-        """
+        """Get remote stack"""
         return self.physical_stack
 
     def set_remote_stack(self, remote_stack):
@@ -782,7 +835,7 @@ class Stack(AvailabilityZoneChildResource):
         if self.physical_stack is not None:
             obj_ress, total = self.physical_stack.get_stack_resources()
             resources = obj_ress
-        self.logger.debug(U'Get stack resources : %s' % truncate(resources))
+        self.logger.debug("Get stack resources : %s" % truncate(resources))
         return resources
 
     def internal_resources(self):
@@ -795,7 +848,7 @@ class Stack(AvailabilityZoneChildResource):
         if self.physical_stack is not None:
             obj_ress = self.physical_stack.get_stack_internal_resources()
             resources.extend(obj_ress)
-        self.logger.debug(U'Get stack internal resources : %s' % truncate(resources))
+        self.logger.debug("Get stack internal resources : %s" % truncate(resources))
         return resources
 
     def inputs(self):
@@ -828,7 +881,7 @@ class Stack(AvailabilityZoneChildResource):
         :raise ApiManagerError:
         """
         if self.physical_stack is not None:
-            res = self.physical_stack.get_output(key).get('output_value', None)
+            res = self.physical_stack.get_output(key).get("output_value", None)
             return res
         return []
 
@@ -879,34 +932,32 @@ class Stack(AvailabilityZoneChildResource):
         :param kvargs.orchestrators.vsphere: {..}
         :param kvargs.orchestrators.openstack: {..}
         """
-        orchestrator_tag = kvargs.get('orchestrator_tag', 'default')
+        orchestrator_tag = kvargs.get("orchestrator_tag", "default")
         # templates = kvargs.get('templates')
 
         # get zone
-        zone = container.get_resource(kvargs.get('parent'))
+        zone = container.get_resource(kvargs.get("parent"))
 
         # select remote orchestrators
         orchestrator_idx = zone.get_orchestrators_by_tag(orchestrator_tag)
 
         # index orchestrator by type
-        orchestrator_idx = {item['type']: item for item in orchestrator_idx.values()}
+        orchestrator_idx = {item["type"]: item for item in orchestrator_idx.values()}
 
         # set container
-        params = {
-            'orchestrators': orchestrator_idx
-        }
+        params = {"orchestrators": orchestrator_idx}
         kvargs.update(params)
 
         # create job workflow
         steps = [
-            Stack.task_path + 'create_resource_pre_step',
-            Stack.task_path + 'link_stack_step',
-            Stack.task_path + 'create_stack_step',
-            Stack.task_path + 'create_twins_step',
-            Stack.task_path + 'create_resource_post_step',
+            Stack.task_path + "create_resource_pre_step",
+            Stack.task_path + "link_stack_step",
+            Stack.task_path + "create_stack_step",
+            Stack.task_path + "create_twins_step",
+            Stack.task_path + "create_resource_post_step",
         ]
-        kvargs['steps'] = steps
-        kvargs['sync'] = True
+        kvargs["steps"] = steps
+        kvargs["sync"] = True
 
         return kvargs
 

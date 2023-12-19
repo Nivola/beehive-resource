@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beecell.simple import truncate
 from beehive.common.apimanager import ApiManagerError
@@ -8,13 +8,13 @@ from beehive_resource.plugins.vsphere.entity import VsphereResource
 
 
 class VsphereVolumeType(VsphereResource):
-    objdef = 'Vsphere.DataCenter.VolumeType'
-    objuri = 'volumetypes'
-    objname = 'volumetype'
-    objdesc = 'Vsphere volumetypes'
+    objdef = "Vsphere.DataCenter.VolumeType"
+    objuri = "volumetypes"
+    objname = "volumetype"
+    objdesc = "Vsphere volumetypes"
 
-    default_tags = ['vsphere', 'volumetype']
-    task_path = 'beehive_resource.plugins.vsphere.task_v2.vs_volumetype.VolumeTypeTask.'
+    default_tags = ["vsphere", "volumetype"]
+    task_path = "beehive_resource.plugins.vsphere.task_v2.vs_volumetype.VolumeTypeTask."
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -70,15 +70,15 @@ class VsphereVolumeType(VsphereResource):
         objid = None
 
         res = {
-            'resource_class': resclass,
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent_id,
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent_id,
+            "tags": resclass.default_tags,
         }
         return res
 
@@ -133,17 +133,15 @@ class VsphereVolumeType(VsphereResource):
         # get datacenter
         from .vs_datacenter import VsphereDatacenter
 
-        parent = controller.get_simple_resource(kvargs.get('parent'), entity_class=VsphereDatacenter)
-        kvargs['parent'] = parent.oid
-        kvargs['attribute'] = {
-            'disk_iops': kvargs.pop('disk_iops')
-        }
+        parent = controller.get_simple_resource(kvargs.get("parent"), entity_class=VsphereDatacenter)
+        kvargs["parent"] = parent.oid
+        kvargs["attribute"] = {"disk_iops": kvargs.pop("disk_iops")}
 
         steps = [
-            VsphereVolumeType.task_path + 'create_resource_pre_step',
-            VsphereVolumeType.task_path + 'create_resource_post_step'
+            VsphereVolumeType.task_path + "create_resource_pre_step",
+            VsphereVolumeType.task_path + "create_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
     #
@@ -156,7 +154,7 @@ class VsphereVolumeType(VsphereResource):
         :raise ApiManagerError:
         """
         info = VsphereResource.info(self)
-        info['details'] = self.get_attribs()
+        info["details"] = self.get_attribs()
         return info
 
     def detail(self):
@@ -167,7 +165,7 @@ class VsphereVolumeType(VsphereResource):
         """
         # verify permissions
         info = VsphereResource.detail(self)
-        info['details'] = self.get_attribs()
+        info["details"] = self.get_attribs()
         return info
 
     def add_datastore(self, datastore, tag):
@@ -184,13 +182,17 @@ class VsphereVolumeType(VsphereResource):
         # check datastore already linked
         links, tot = self.controller.get_links(end_resource=datastore.oid, start_resource=self.oid)
         if tot > 0:
-            raise ApiManagerError('Datastore %s already linked to volumetype %s' % (datastore.uuid, self.uuid))
+            raise ApiManagerError("Datastore %s already linked to volumetype %s" % (datastore.uuid, self.uuid))
 
         # link datastore
-        self.add_link('%s-%s-ds-link' % (self.oid, datastore.oid), 'datastore.%s' % tag, datastore.oid,
-                      attributes={})
+        self.add_link(
+            "%s-%s-ds-link" % (self.oid, datastore.oid),
+            "datastore.%s" % tag,
+            datastore.oid,
+            attributes={},
+        )
 
-        self.logger.debug('Add datastore %s to volumetype %s with tag %s' % (datastore.uuid, self.uuid, tag))
+        self.logger.debug("Add datastore %s to volumetype %s with tag %s" % (datastore.uuid, self.uuid, tag))
 
         return True
 
@@ -207,12 +209,12 @@ class VsphereVolumeType(VsphereResource):
         # check datastore already linked
         links, tot = self.controller.get_links(end_resource=datastore.oid, start_resource=self.oid)
         if tot == 0:
-            raise ApiManagerError('Datastore %s is not linked to volumetype %s' % (datastore.uuid, self.uuid))
+            raise ApiManagerError("Datastore %s is not linked to volumetype %s" % (datastore.uuid, self.uuid))
 
         # delete link
         links[0].expunge()
 
-        self.logger.debug('Remove datastore %s from volumetype %s' % (datastore.uuid, self.uuid))
+        self.logger.debug("Remove datastore %s from volumetype %s" % (datastore.uuid, self.uuid))
 
         return True
 
@@ -225,11 +227,11 @@ class VsphereVolumeType(VsphereResource):
         """
         res = []
 
-        link_type = 'datastore.'
+        link_type = "datastore."
         if tag is not None:
             link_type += tag
         else:
-            link_type += '%'
+            link_type += "%"
 
         # get links
         links, tot = self.controller.get_links(start_resource=self.oid, type=link_type, size=-1)
@@ -237,10 +239,10 @@ class VsphereVolumeType(VsphereResource):
         for link in links:
             ds = link.get_end_resource()
             ds.post_get()
-            ds_tag = link.type.split('.')[1]
+            ds_tag = link.type.split(".")[1]
             res.append((ds, ds_tag))
 
-        self.logger.debug('Get datastores for volumetype %s: %s' % (self.uuid, truncate(res)))
+        self.logger.debug("Get datastores for volumetype %s: %s" % (self.uuid, truncate(res)))
 
         return res
 
@@ -251,7 +253,7 @@ class VsphereVolumeType(VsphereResource):
         :return: True
         :raise ApiManagerError:
         """
-        link_type = 'datastore.%'
+        link_type = "datastore.%"
 
         # get links
         links, tot = self.controller.get_links(start_resource=self.oid, type=link_type, size=-1)
@@ -259,10 +261,10 @@ class VsphereVolumeType(VsphereResource):
         for link in links:
             ds = link.get_end_resource()
             if ds.name == datastore:
-                self.logger.debug('Volume type %s has datastore %s' % (self.uuid, datastore))
+                self.logger.debug("Volume type %s has datastore %s" % (self.uuid, datastore))
                 return True
 
-        self.logger.debug('Volume type %s has not datastore %s' % (self.uuid, datastore))
+        self.logger.debug("Volume type %s has not datastore %s" % (self.uuid, datastore))
         return False
 
     def get_best_datastore(self, size, tag=None):
@@ -275,26 +277,45 @@ class VsphereVolumeType(VsphereResource):
         """
         res = []
 
-        link_type = 'datastore.'
+        link_type = "datastore."
         if tag is not None:
             link_type += tag
         else:
-            link_type += '%'
+            link_type += "%"
 
         # get links
-        links, tot = self.controller.get_links(start_resource=self.oid, type=link_type, size=-1)
+        from beehive_resource.controller import ResourceController
+
+        resourceController: ResourceController = self.controller
+        links, tot = resourceController.get_links(start_resource=self.oid, type=link_type, size=-1)
+        if len(links) == 0:
+            raise ApiManagerError(
+                "No available datastore was found for volume type - oid: %s - link_type: %s" % (self.oid, link_type)
+            )
+
+        if len(links) == 0:
+            raise ApiManagerError("No available datastore was found")
 
         best_datastore = None
         for link in links:
-            datastore = link.get_end_resource()
+            from beehive_resource.container import ResourceLink, Resource
+
+            link: ResourceLink
+            datastore: Resource = link.get_end_resource()
             datastore.post_get()
-            if datastore.get_free_space() > size:
+            self.logger.debug(
+                "datastore oid: %s - type: %s - free_space: %s - size %s"
+                % (datastore.oid, type(datastore), datastore.get_free_space(), size)
+            )
+
+            free_space = datastore.get_free_space()
+            if free_space is not None and free_space > size:
                 best_datastore = datastore
                 break
 
         if best_datastore is None:
-            raise ApiManagerError('No available datastore was found for requested size of %s' % size)
+            raise ApiManagerError("No available datastore was found for requested size of %s" % size)
 
-        self.logger.debug('Get best datastores: %s' % best_datastore.uuid)
+        self.logger.debug("Get best datastores: %s" % best_datastore.uuid)
 
         return best_datastore

@@ -1,26 +1,26 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beecell.simple import id_gen
 from beehive_resource.plugins.vsphere.entity import VsphereResource
 
 
 class VsphereDvpg(VsphereResource):
-    objdef = 'Vsphere.DataCenter.Folder.Dvpg'
-    objuri = 'dvpgs'
-    objname = 'dvpg'
-    objdesc = 'Vsphere dvpgs'
-    
-    default_tags = ['vsphere', 'network']
-    task_path = 'beehive_resource.plugins.vsphere.task_v2.vs_dvpg.DvpgTask.'
-    
+    objdef = "Vsphere.DataCenter.Folder.Dvpg"
+    objuri = "dvpgs"
+    objname = "dvpg"
+    objdesc = "Vsphere dvpgs"
+
+    default_tags = ["vsphere", "network"]
+    task_path = "beehive_resource.plugins.vsphere.task_v2.vs_dvpg.DvpgTask."
+
     def __init__(self, *args, **kvargs):
         """ """
         VsphereResource.__init__(self, *args, **kvargs)
-        
+
         # child classes
-        self.child_classes = []        
+        self.child_classes = []
 
     #
     # discover, synchronize
@@ -32,34 +32,34 @@ class VsphereDvpg(VsphereResource):
         :param container: client used to comunicate with remote platform
         :param ext_id: remote platform entity id
         :param res_ext_ids: list of remote platform entity ids from beehive resources
-        :return: list of tuple (resource class, ext_id, parent_id, resource class objdef, name, parent_class)         
-           
+        :return: list of tuple (resource class, ext_id, parent_id, resource class objdef, name, parent_class)
+
         :raises ApiManagerError:
         """
         from .vs_folder import VsphereFolder
         from .vs_datacenter import VsphereDatacenter
-        
+
         items = []
 
         def append_node(node, parent, parent_class):
             obj_type = type(node).__name__
-            if obj_type == 'vim.Folder':
+            if obj_type == "vim.Folder":
                 # get childs
-                if hasattr(node, 'childEntity'):
+                if hasattr(node, "childEntity"):
                     childs = node.childEntity
                     for c in childs:
                         append_node(c, node._moId, VsphereFolder)
-                        
-            if obj_type == 'vim.dvs.VmwareDistributedVirtualSwitch':
+
+            if obj_type == "vim.dvs.VmwareDistributedVirtualSwitch":
                 for portgroup in node.portgroup:
                     items.append((portgroup._moId, portgroup.name, parent, parent_class))
-        
+
         # query vsphere
         content = container.conn.si.RetrieveContent()
-        datacenters = content.rootFolder.childEntity        
+        datacenters = content.rootFolder.childEntity
         for datacenter in datacenters:
             append_node(datacenter.networkFolder, datacenter._moId, VsphereDatacenter)
-        
+
         # add new item to final list
         res = []
         for item in items:
@@ -67,8 +67,17 @@ class VsphereDvpg(VsphereResource):
                 parent_id = item[2]
                 parent_class = item[3]
                 resclass = VsphereDvpg
-                res.append((resclass, item[0], parent_id, resclass.objdef, item[1], parent_class))
-        
+                res.append(
+                    (
+                        resclass,
+                        item[0],
+                        parent_id,
+                        resclass.objdef,
+                        item[1],
+                        parent_class,
+                    )
+                )
+
         return res
 
     @staticmethod
@@ -83,28 +92,30 @@ class VsphereDvpg(VsphereResource):
         content = container.conn.si.RetrieveContent()
         datacenters = content.rootFolder.childEntity
         items = []
-        
+
         def append_node(node):
             obj_type = type(node).__name__
-            if obj_type == 'vim.Folder':
+            if obj_type == "vim.Folder":
                 # get childs
-                if hasattr(node, 'childEntity'):
+                if hasattr(node, "childEntity"):
                     childs = node.childEntity
                     for c in childs:
                         append_node(c)
-                        
-            if obj_type == 'vim.dvs.VmwareDistributedVirtualSwitch':
+
+            if obj_type == "vim.dvs.VmwareDistributedVirtualSwitch":
                 for portgroup in node.portgroup:
-                    items.append({
-                        'id': portgroup._moId,
-                        'name': portgroup.name,
-                    })
-        
+                    items.append(
+                        {
+                            "id": portgroup._moId,
+                            "name": portgroup.name,
+                        }
+                    )
+
         for datacenter in datacenters:
             append_node(datacenter.networkFolder)
-        
-        return items     
-    
+
+        return items
+
     @staticmethod
     def synchronize(container, entity):
         """Discover method used when synchronize beehive container with remote platform.
@@ -116,33 +127,33 @@ class VsphereDvpg(VsphereResource):
         :raises ApiManagerError:
         """
         from .vs_folder import VsphereFolder
-        
-        resclass  = entity[0]
+
+        resclass = entity[0]
         ext_id = entity[1]
         parent_id = entity[2]
         name = entity[4]
         parent_class = entity[5]
-        
+
         parent = container.get_resource_by_extid(parent_id)
         parent_id = parent.oid
-        
+
         # get parent folder
         if parent_class == VsphereFolder:
-            objid = '%s//%s' % (parent.objid, id_gen())
+            objid = "%s//%s" % (parent.objid, id_gen())
         # get parent datacenter
         else:
-            objid = '%s//none//%s' % (parent.objid, id_gen()) 
-        
+            objid = "%s//none//%s" % (parent.objid, id_gen())
+
         res = {
-            'resource_class': resclass,
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent_id,
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent_id,
+            "tags": resclass.default_tags,
         }
         return res
 
@@ -151,35 +162,35 @@ class VsphereDvpg(VsphereResource):
     #
     @staticmethod
     def customize_list(controller, entities, container, *args, **kvargs):
-        """Post list function. Extend this function to execute some operation after entity was created. Used only for 
+        """Post list function. Extend this function to execute some operation after entity was created. Used only for
         synchronous creation.
 
         :param controller: controller instance
         :param entities: list of entities
         :param container: container instance
         :param args: custom params
-        :param kvargs: custom params            
-        :return: None            
+        :param kvargs: custom params
+        :return: None
         :raises ApiManagerError:
         """
         remote_entities = container.conn.network.list_networks()
-        
+
         # create index of remote objs
-        remote_entities_index = {i['obj']._moId:i for i in remote_entities}      
-        
+        remote_entities_index = {i["obj"]._moId: i for i in remote_entities}
+
         for entity in entities:
             try:
                 ext_obj = remote_entities_index.get(entity.ext_id, None)
                 entity.set_physical_entity(ext_obj)
             except:
-                container.logger.warn('', exc_info=1)
+                container.logger.warn("", exc_info=1)
         return entities
-    
+
     def post_get(self):
         """Post get function. This function is used in get_entity method.
         Extend this function to extend description info returned after query.
 
-        :return:            
+        :return:
         :raises ApiManagerError:
         """
         try:
@@ -187,7 +198,7 @@ class VsphereDvpg(VsphereResource):
             self.set_physical_entity(ext_obj)
         except:
             pass
-        
+
     @staticmethod
     def pre_create(controller, container, *args, **kvargs):
         """Check input params before resource creation. This function is used  in container resource_factory method.
@@ -204,39 +215,42 @@ class VsphereDvpg(VsphereResource):
         :param kvargs.ext_id: resource ext_id
         :param kvargs.active: resource active
         :param kvargs.attribute: attributez
-        :param kvargs.tags: comma separated resource tags to assign [default='']                
+        :param kvargs.tags: comma separated resource tags to assign [default='']
         :param kvargs.physical_network: dvs id, uuid or name
         :param kvargs.network_type: only vlan is supported
-        :param kvargs.segmentation_id: An isolated segment on he physical network. 
-            The network_type attribute defines the segmentation model. 
-            For example, if the network_type value is vlan, this ID is a 
+        :param kvargs.segmentation_id: An isolated segment on he physical network.
+            The network_type attribute defines the segmentation model.
+            For example, if the network_type value is vlan, this ID is a
             vlan identifier. If the network_type value is gre, this ID is a gre key.
-        :param kvargs.numports: port group intial ports number       
-        :return: kvargs            
+        :param kvargs.numports: port group intial ports number
+        :return: kvargs
         :raises ApiManagerError:
         """
-        dvs = kvargs.pop('physical_network', None)
-        
+        dvs = kvargs.pop("physical_network", None)
+
         # check dvs
         from beehive_resource.plugins.vsphere.entity.vs_dvs import VsphereDvs
+
         dvs = container.get_resource(dvs, entity_class=VsphereDvs)
-        
+
         # get parent folder
         folder = container.get_resource(dvs.parent_id)
-        
-        kvargs.update({
-            'objid': '%s//%s' % (folder.objid, id_gen()),
-            'parent': folder.oid,
-            'desc': 'Dvpg %s' % kvargs['name'],
-            'dvs_ext_id': dvs.ext_id
-        })
+
+        kvargs.update(
+            {
+                "objid": "%s//%s" % (folder.objid, id_gen()),
+                "parent": folder.oid,
+                "desc": "Dvpg %s" % kvargs["name"],
+                "dvs_ext_id": dvs.ext_id,
+            }
+        )
 
         steps = [
-            VsphereDvpg.task_path + 'create_resource_pre_step',
-            VsphereDvpg.task_path + 'dvpg_create_physical_step',
-            VsphereDvpg.task_path + 'create_resource_post_step'
+            VsphereDvpg.task_path + "create_resource_pre_step",
+            VsphereDvpg.task_path + "dvpg_create_physical_step",
+            VsphereDvpg.task_path + "create_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
     def pre_update(self, *args, **kvargs):
@@ -248,11 +262,11 @@ class VsphereDvpg(VsphereResource):
         :raises ApiManagerError:
         """
         steps = [
-            VsphereDvpg.task_path + 'update_resource_pre_step',
-            VsphereDvpg.task_path + 'dvpg_update_physical_step',
-            VsphereDvpg.task_path + 'update_resource_post_step'
+            VsphereDvpg.task_path + "update_resource_pre_step",
+            VsphereDvpg.task_path + "dvpg_update_physical_step",
+            VsphereDvpg.task_path + "update_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
     def pre_delete(self, *args, **kvargs):
@@ -264,16 +278,16 @@ class VsphereDvpg(VsphereResource):
         :raises ApiManagerError:
         """
         steps = [
-            VsphereDvpg.task_path + 'expunge_resource_pre_step',
-            VsphereDvpg.task_path + 'dvpg_delete_physical_step',
-            VsphereDvpg.task_path + 'expunge_resource_post_step'
+            VsphereDvpg.task_path + "expunge_resource_pre_step",
+            VsphereDvpg.task_path + "dvpg_delete_physical_step",
+            VsphereDvpg.task_path + "expunge_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
-    
+
     #
     # info
-    #    
+    #
     def info(self):
         """Get info.
 
@@ -294,9 +308,9 @@ class VsphereDvpg(VsphereResource):
         # verify permissions
         info = VsphereResource.detail(self)
         if self.ext_obj is not None:
-            details = info['details']
+            details = info["details"]
             data = self.container.conn.network.detail_network(self.ext_obj)
-            data['dvs'] = self.container.get_resource_by_extid(data['dvs']).small_info()
+            data["dvs"] = self.container.get_resource_by_extid(data["dvs"]).small_info()
             details.update(data)
         return info
 
@@ -307,5 +321,5 @@ class VsphereDvpg(VsphereResource):
         """
         ext_obj = self.container.conn.network.get_network(self.ext_id)
         data = self.container.conn.network.detail_network(ext_obj)
-        dvs = self.container.get_resource_by_extid(data['dvs'])
+        dvs = self.container.get_resource_by_extid(data["dvs"])
         return dvs

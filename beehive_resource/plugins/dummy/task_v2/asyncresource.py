@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from logging import getLogger
 from gevent import sleep
@@ -13,11 +13,11 @@ logger = getLogger(__name__)
 
 
 class AsyncResourceTask(AbstractResourceTask):
-    """AsyncResource task
-    """
-    name = 'asyncresource_task'
+    """AsyncResource task"""
+
+    name = "asyncresource_task"
     entity_class = DummyAsyncResource
-    
+
     def __init__(self, *args, **kwargs):
         super(AsyncResourceTask, self).__init__(*args, **kwargs)
 
@@ -37,7 +37,7 @@ class AsyncResourceTask(AbstractResourceTask):
 
 class AsyncResourceAddTask(AsyncResourceTask):
     """AsyncResourceAdd task
-    
+
     :param cid: container id
     :param id: resource id
     :param uuid: resource uuid
@@ -48,17 +48,18 @@ class AsyncResourceAddTask(AsyncResourceTask):
     :param ext_id: physical id
     :param active: active
     :param attribute: attribute
-    :param tags: list of tags to add    
+    :param tags: list of tags to add
     """
-    name = 'asyncresource_add_task'
-    
+
+    name = "asyncresource_add_task"
+
     def __init__(self, *args, **kwargs):
         super(AsyncResourceAddTask, self).__init__(*args, **kwargs)
 
         self.steps = [
             AsyncResourceTask.create_resource_pre_step,
             AsyncResourceTask.asyncresource_wait_step,
-            AsyncResourceTask.create_resource_post_step
+            AsyncResourceTask.create_resource_post_step,
         ]
 
 
@@ -69,9 +70,10 @@ class AsyncResourceUpdateTask(AsyncResourceTask):
     :param id: resource id
     :param uuid: resource uuid
     :param objid: resource objid
-    :param ext_id: physical id    
+    :param ext_id: physical id
     """
-    name = 'asyncresource_update_task'
+
+    name = "asyncresource_update_task"
 
     def __init__(self, *args, **kwargs):
         super(AsyncResourceUpdateTask, self).__init__(*args, **kwargs)
@@ -79,7 +81,7 @@ class AsyncResourceUpdateTask(AsyncResourceTask):
         self.steps = [
             AsyncResourceTask.update_resource_pre_step,
             AsyncResourceTask.asyncresource_wait_step,
-            AsyncResourceTask.update_resource_post_step
+            AsyncResourceTask.update_resource_post_step,
         ]
 
 
@@ -89,9 +91,10 @@ class AsyncResourceExpungeTask(AsyncResourceTask):
     :param cid: container id
     :param id: resource id
     :param uuid: resource uuid
-    :param objid: resource objid 
+    :param objid: resource objid
     """
-    name = 'asyncresource_expunge_task'
+
+    name = "asyncresource_expunge_task"
 
     def __init__(self, *args, **kwargs):
         super(AsyncResourceExpungeTask, self).__init__(*args, **kwargs)
@@ -99,7 +102,7 @@ class AsyncResourceExpungeTask(AsyncResourceTask):
         self.steps = [
             AsyncResourceTask.expunge_resource_pre_step,
             AsyncResourceTask.asyncresource_wait_step,
-            AsyncResourceTask.expunge_resource_post_step
+            AsyncResourceTask.expunge_resource_post_step,
         ]
 
 

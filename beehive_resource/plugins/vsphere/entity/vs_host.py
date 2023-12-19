@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beecell.simple import truncate, id_gen
 from beehive.common.apimanager import ApiManagerError
@@ -9,17 +9,17 @@ from beehive.common.data import trace
 
 
 class VsphereHost(VsphereResource):
-    objdef = 'Vsphere.DataCenter.Cluster.Host'
-    objuri = 'hosts'
-    objname = 'host'
-    objdesc = 'Vsphere hosts'
-    
-    default_tags = ['vsphere']
-    
+    objdef = "Vsphere.DataCenter.Cluster.Host"
+    objuri = "hosts"
+    objname = "host"
+    objdesc = "Vsphere hosts"
+
+    default_tags = ["vsphere"]
+
     def __init__(self, *args, **kvargs):
         """ """
         VsphereResource.__init__(self, *args, **kvargs)
-        
+
         # child classes
         self.child_classes = []
 
@@ -33,13 +33,13 @@ class VsphereHost(VsphereResource):
         :param container: client used to comunicate with remote platform
         :param ext_id: remote platform entity id
         :param res_ext_ids: list of remote platform entity ids from beehive resources
-        :return: list of tuple (resource class, ext_id, parent_id, resource class objdef, name, parent_class)         
-           
+        :return: list of tuple (resource class, ext_id, parent_id, resource class objdef, name, parent_class)
+
         :raises ApiManagerError:
         """
         from .vs_cluster import VsphereCluster
         from .vs_datacenter import VsphereDatacenter
-        
+
         # query vsphere
         content = container.conn.si.RetrieveContent()
         datacenters = content.rootFolder.childEntity
@@ -47,10 +47,10 @@ class VsphereHost(VsphereResource):
         for datacenter in datacenters:
             for node in datacenter.hostFolder.childEntity:
                 obj_type = type(node).__name__
-                if obj_type == 'vim.ClusterComputeResource':
+                if obj_type == "vim.ClusterComputeResource":
                     for host in node.host:
                         items.append((host._moId, host.name, node._moId, VsphereCluster))
-                elif obj_type == 'vim.HostSystem':
+                elif obj_type == "vim.HostSystem":
                     items.append((node._moId, node.name, datacenter._moId, VsphereDatacenter))
 
         # add new item to final list
@@ -60,8 +60,17 @@ class VsphereHost(VsphereResource):
                 parent_id = item[2]
                 parent_class = item[3]
                 resclass = VsphereHost
-                res.append((resclass, item[0], parent_id, resclass.objdef, item[1], parent_class))
-        
+                res.append(
+                    (
+                        resclass,
+                        item[0],
+                        parent_id,
+                        resclass.objdef,
+                        item[1],
+                        parent_class,
+                    )
+                )
+
         return res
 
     @staticmethod
@@ -76,18 +85,18 @@ class VsphereHost(VsphereResource):
         content = container.conn.si.RetrieveContent()
         datacenters = content.rootFolder.childEntity
         items = []
-              
+
         for datacenter in datacenters:
             for node in datacenter.hostFolder.childEntity:
                 obj_type = type(node).__name__
-                if obj_type == 'vim.ClusterComputeResource':
+                if obj_type == "vim.ClusterComputeResource":
                     for host in node.host:
-                        items.append({'id': host._moId, 'name': host.name})
-                elif obj_type == 'vim.HostSystem':
-                    items.append({'id': node._moId, 'name': node.name})
-        
+                        items.append({"id": host._moId, "name": host.name})
+                elif obj_type == "vim.HostSystem":
+                    items.append({"id": node._moId, "name": node.name})
+
         return items
-    
+
     @staticmethod
     def synchronize(container, entity):
         """Discover method used when synchronize beehive container with remote platform.
@@ -99,32 +108,32 @@ class VsphereHost(VsphereResource):
         :raises ApiManagerError:
         """
         from .vs_cluster import VsphereCluster
-        
+
         resclass = entity[0]
         ext_id = entity[1]
         parent_id = entity[2]
         name = entity[4]
         parent_class = entity[5]
-        
+
         parent = container.get_resource_by_extid(parent_id)
         parent_id = parent.oid
 
         if parent_class == VsphereCluster:
-            objid = '%s//%s' % (parent.objid, id_gen())
+            objid = "%s//%s" % (parent.objid, id_gen())
         # get parent datacenter
         else:
-            objid = '%s//none//%s' % (parent.objid, id_gen())
-        
+            objid = "%s//none//%s" % (parent.objid, id_gen())
+
         res = {
-            'resource_class': resclass,
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent_id,
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent_id,
+            "tags": resclass.default_tags,
         }
         return res
 
@@ -133,35 +142,35 @@ class VsphereHost(VsphereResource):
     #
     @staticmethod
     def customize_list(controller, entities, container, *args, **kvargs):
-        """Post list function. Extend this function to execute some operation after entity was created. Used only for 
+        """Post list function. Extend this function to execute some operation after entity was created. Used only for
         synchronous creation.
 
         :param controller: controller instance
         :param entities: list of entities
         :param container: container instance
         :param args: custom params
-        :param kvargs: custom params            
-        :return: None            
+        :param kvargs: custom params
+        :return: None
         :raises ApiManagerError:
         """
         remote_entities = container.conn.cluster.host.list()
-        
+
         # create index of remote objs
-        remote_entities_index = {i['obj']._moId: i for i in remote_entities}
-        
+        remote_entities_index = {i["obj"]._moId: i for i in remote_entities}
+
         for entity in entities:
             try:
                 ext_obj = remote_entities_index.get(entity.ext_id, None)
                 entity.set_physical_entity(ext_obj)
             except:
-                container.logger.warn('', exc_info=1)
+                container.logger.warn("", exc_info=1)
         return entities
-    
+
     def post_get(self):
         """Post get function. This function is used in get_entity method.
         Extend this function to extend description info returned after query.
 
-        :return:            
+        :return:
         :raises ApiManagerError:
         """
         try:
@@ -169,15 +178,15 @@ class VsphereHost(VsphereResource):
             self.set_physical_entity(ext_obj)
         except:
             pass
-    
+
     #
     # info
-    #    
+    #
     def info(self):
         """Get info.
 
         :return: Dictionary with capabilities.
-        :rtype: dict        
+        :rtype: dict
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = VsphereResource.info(self)
@@ -188,27 +197,27 @@ class VsphereHost(VsphereResource):
         """Get details.
 
         :return: Dictionary with resource details.
-        :rtype: dict        
+        :rtype: dict
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         # verify permissions
         info = VsphereResource.detail(self)
         if self.ext_obj is not None:
-            details = info['details']
+            details = info["details"]
             data = self.container.conn.cluster.host.detail(self.ext_obj)
             details.update(data)
-        
+
         return info
-    
+
     #
     # custom info
     #
-    @trace(op='hardware.use')
+    @trace(op="hardware.use")
     def get_hardware(self):
         """Get details.
-        
+
         :return:
-        
+
             {"biosInfo": {"biosVersion": "6.0.7", "dynamicProperty": [], "dynamicType": None,
                           "releaseDate": 1313625600},
              "cpuFeature": [{"dynamicProperty": [],
@@ -322,65 +331,65 @@ class VsphereHost(VsphereResource):
                                                         ...],
                              "uuid": "4c4c4544-0054-5410-805a-c4c04f35354a",
                              "vendor": "Dell Inc."}}
-        
+
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        self.verify_permisssions('use')
-        
+        self.verify_permisssions("use")
+
         try:
             data = {}
             if self.ext_obj is not None:
                 data = self.container.conn.cluster.host.hardware(self.ext_obj)
-            
+
             return data
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            raise ApiManagerError(ex)      
+            raise ApiManagerError(ex)
 
-    @trace(op='runtime.use')
+    @trace(op="runtime.use")
     def get_runtime(self):
         """Get details.
-        
+
         :return: {"boot_time": 1454517716, "maintenance": False, "power_state": "poweredOn"}
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        self.verify_permisssions('use')
-        
+        self.verify_permisssions("use")
+
         try:
             data = {}
             if self.ext_obj is not None:
                 data = self.container.conn.cluster.host.runtime(self.ext_obj)
-            
+
             return data
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            raise ApiManagerError(ex)      
+            raise ApiManagerError(ex)
 
-    @trace(op='configuration.use')
+    @trace(op="configuration.use")
     def get_configuration(self):
         """Get details.
-        
+
         :return:
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        self.verify_permisssions('use')
-        
+        self.verify_permisssions("use")
+
         try:
             data = {}
             if self.ext_obj is not None:
                 data = self.container.conn.cluster.host.configuration(self.ext_obj)
-            
+
             return data
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            raise ApiManagerError(ex)   
+            raise ApiManagerError(ex)
 
-    @trace(op='usage.use')
+    @trace(op="usage.use")
     def get_usage(self):
         """Get details.
-        
+
         :return:
-        
+
             {
                 "distributedCpuFairness": 2863,
                 "distributedMemoryFairness": 1071,
@@ -390,27 +399,27 @@ class VsphereHost(VsphereResource):
                 "overallMemoryUsage": 19011,
                 "uptime": 5266303
             }
-        
+
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        self.verify_permisssions('use')
-        
+        self.verify_permisssions("use")
+
         try:
             data = {}
             if self.ext_obj is not None:
                 data = self.container.conn.cluster.host.usage(self.ext_obj)
-            
+
             return data
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            raise ApiManagerError(ex)      
-    
-    @trace(op='services.use')
+            raise ApiManagerError(ex)
+
+    @trace(op="services.use")
     def get_services(self):
         """Get service.
-        
+
         :return:
-        
+
             {
                 "dynamicProperty": [],
                 "dynamicType": None,
@@ -433,35 +442,35 @@ class VsphereHost(VsphereResource):
                 },...
                 ]
             }
-        
+
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        self.verify_permisssions('use')
-        
+        self.verify_permisssions("use")
+
         try:
             if self.ext_obj is not None:
                 data = self.container.conn.cluster.host.services(self.ext_obj)
 
-            self.logger.debug('Get host %s services: %s...' % (self.oid, truncate(data)))
+            self.logger.debug("Get host %s services: %s..." % (self.oid, truncate(data)))
             return data
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            raise ApiManagerError(ex)  
-    
-    @trace(op='physical-nics.use')
+            raise ApiManagerError(ex)
+
+    @trace(op="physical-nics.use")
     def get_physical_nics(self):
         """Get physical nics.
-        
+
         :return:
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        self.verify_permisssions('use')
-        
+        self.verify_permisssions("use")
+
         try:
             res = self.ext_obj.config.network.pnic
 
-            self.logger.debug('Get host %s physical mics: %s...' % (self.oid, truncate(res)))
+            self.logger.debug("Get host %s physical mics: %s..." % (self.oid, truncate(res)))
             return res
         except ApiManagerError as ex:
             self.logger.error(ex, exc_info=True)
-            raise ApiManagerError(ex, code=ex.code)     
+            raise ApiManagerError(ex, code=ex.code)

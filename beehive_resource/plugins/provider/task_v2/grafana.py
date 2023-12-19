@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from logging import getLogger
 import ujson as json
@@ -8,14 +9,15 @@ from beecell.simple import import_class
 from beehive.common.task_v2 import TaskError
 from beehive_resource.plugins.grafana.entity.grafana_folder import GrafanaFolder
 from beehive_resource.plugins.grafana.entity.grafana_team import GrafanaTeam
-from beehive_resource.plugins.grafana.entity.grafana_alert_notification import GrafanaAlertNotification
+from beehive_resource.plugins.grafana.entity.grafana_alert_notification import (
+    GrafanaAlertNotification,
+)
 from beehive_resource.plugins.provider.task_v2 import AbstractProviderHelper
 
 logger = getLogger(__name__)
 
 
 class ProviderGrafana(AbstractProviderHelper):
-
     def create_project(self):
         """Create grafana project
 
@@ -34,36 +36,47 @@ class ProviderGrafana(AbstractProviderHelper):
         try:
             # get all child resources
             resources = []
-            self.progress('Start removing childs %s' % childs)
+            self.progress("Start removing childs %s" % childs)
             for child in childs:
                 definition = child.objdef
                 child_id = child.id
                 attribs = json.loads(child.attribute)
                 link_attr = json.loads(child.link_attr)
-                reuse = link_attr.get('reuse', False)
+                reuse = link_attr.get("reuse", False)
 
                 # get child resource
                 entity_class = import_class(child.objclass)
-                child = entity_class(self.controller, oid=child.id, objid=child.objid, name=child.name,
-                                     active=child.active, desc=child.desc, model=child)
+                child = entity_class(
+                    self.controller,
+                    oid=child.id,
+                    objid=child.objid,
+                    name=child.name,
+                    active=child.active,
+                    desc=child.desc,
+                    model=child,
+                )
                 child.container = self.container
 
                 if reuse is True:
                     continue
 
                 try:
-                    if definition in [GrafanaFolder.objdef, GrafanaTeam.objdef, GrafanaAlertNotification.objdef ]:
+                    if definition in [
+                        GrafanaFolder.objdef,
+                        GrafanaTeam.objdef,
+                        GrafanaAlertNotification.objdef,
+                    ]:
                         prepared_task, code = child.expunge(sync=True)
-                        self.run_sync_task(prepared_task, msg='remove child %s' % child.oid)
+                        self.run_sync_task(prepared_task, msg="remove child %s" % child.oid)
 
                     resources.append(child_id)
-                    self.progress('Delete child %s' % child_id)
+                    self.progress("Delete child %s" % child_id)
                 except:
-                    self.logger.error('Can not delete grafana child %s' % child_id, exc_info=True)
-                    self.progress('Can not delete grafana child %s' % child_id)
+                    self.logger.error("Can not delete grafana child %s" % child_id, exc_info=True)
+                    self.progress("Can not delete grafana child %s" % child_id)
                     raise
 
-            self.progress('Stop removing childs %s' % childs)
+            self.progress("Stop removing childs %s" % childs)
             return resources
         except Exception as ex:
             self.logger.error(ex, exc_info=True)

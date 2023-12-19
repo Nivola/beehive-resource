@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from .controller import OpenstackContainer
 from beehive_resource.plugins.openstack.views.ops_system import OpenstackSystemAPI
@@ -14,22 +14,28 @@ from beehive_resource.plugins.openstack.views.ops_network import OpenstackNetwor
 from beehive_resource.plugins.openstack.views.ops_port import OpenstackPortAPI
 from beehive_resource.plugins.openstack.views.ops_subnet import OpenstackSubnetAPI
 from beehive_resource.plugins.openstack.views.ops_volume import OpenstackVolumeAPI
-from beehive_resource.plugins.openstack.views.ops_security_group import OpenstackSecurityGroupAPI
+from beehive_resource.plugins.openstack.views.ops_security_group import (
+    OpenstackSecurityGroupAPI,
+)
 from beehive_resource.plugins.openstack.views.ops_router import OpenstackRouterAPI
 from beehive_resource.plugins.openstack.views.ops_stack import OpenstackStackAPI
-from beehive_resource.plugins.openstack.views.ops_stack_template import OpenstackStackTemplateAPI
+from beehive_resource.plugins.openstack.views.ops_stack_template import (
+    OpenstackStackTemplateAPI,
+)
 from beehive_resource.plugins.openstack.views.ops_share import OpenstackShareAPI
-from beehive_resource.plugins.openstack.views.ops_volume_type import OpenstackVolumeTypeAPI
+from beehive_resource.plugins.openstack.views.ops_volume_type import (
+    OpenstackVolumeTypeAPI,
+)
 
 
 class OpenstackPlugin(object):
     def __init__(self, module):
         self.module = module
-    
+
     def init(self):
         service = OpenstackContainer(self.module.get_controller())
-        service.init_object()     
-    
+        service.init_object()
+
     def register(self):
         apis = [
             OpenstackSystemAPI,
@@ -51,5 +57,5 @@ class OpenstackPlugin(object):
             OpenstackVolumeTypeAPI,
         ]
         self.module.set_apis(apis)
-        
+
         self.module.add_container(OpenstackContainer.objdef, OpenstackContainer)

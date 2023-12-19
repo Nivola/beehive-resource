@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive_resource.container import Resource
 from beehive_resource.plugins.provider.entity.aggregate import ComputeProviderResource
@@ -8,17 +9,18 @@ from beehive_resource.plugins.provider.entity.instance import ComputeInstance
 from beehive_resource.plugins.provider.entity.zone import AvailabilityZoneChildResource
 
 from logging import getLogger
+
 logger = getLogger(__name__)
 
 
 class AppliedComputeCustomization(ComputeProviderResource):
-    """Applied compute customization
-    """
-    objdef = 'Provider.ComputeZone.ComputeCustomization.AppliedComputeCustomization'
-    objuri = '%s/customizations/%s/applied/%s'
-    objname = 'applied_customization'
-    objdesc = 'Provider AppliedComputeCustomization'
-    task_base_path = 'beehive_resource.plugins.provider.task_v2.applied_customization.AppliedComputeCustomizationTask.'
+    """Applied compute customization"""
+
+    objdef = "Provider.ComputeZone.ComputeCustomization.AppliedComputeCustomization"
+    objuri = "%s/customizations/%s/applied/%s"
+    objname = "applied_customization"
+    objdesc = "Provider AppliedComputeCustomization"
+    task_base_path = "beehive_resource.plugins.provider.task_v2.applied_customization.AppliedComputeCustomizationTask."
 
     def __init__(self, *args, **kvargs):
         ComputeProviderResource.__init__(self, *args, **kvargs)
@@ -47,8 +49,8 @@ class AppliedComputeCustomization(ComputeProviderResource):
         info = Resource.detail(self)
         if self.physical_job_template is not None:
             job_template = self.physical_job_template.info()
-            job_template['last_job'] = self.physical_job_template.get_last_job()
-            info['job_template'] = job_template
+            job_template["last_job"] = self.physical_job_template.get_last_job()
+            info["job_template"] = job_template
 
         return info
 
@@ -78,7 +80,7 @@ class AppliedComputeCustomization(ComputeProviderResource):
         # self.logger.debug2('Get compute instance availability zones: %s' % self.availability_zone)
 
         # get main zone applied costomization
-        res = self.controller.get_directed_linked_resources_internal(resources=[self.oid], link_type='relation%')
+        res = self.controller.get_directed_linked_resources_internal(resources=[self.oid], link_type="relation%")
         zone_insts = res.get(self.oid, None)
         zone_inst = None
         if zone_insts is not None and len(zone_insts) > 0:
@@ -86,7 +88,7 @@ class AppliedComputeCustomization(ComputeProviderResource):
 
         # get job template
         if zone_inst is not None:
-            job_templates, tot = zone_inst.get_linked_resources(link_type='relation')
+            job_templates, tot = zone_inst.get_linked_resources(link_type="relation")
             if tot > 0:
                 self.physical_job_template = job_templates[0]
                 self.physical_job_template.post_get()
@@ -113,15 +115,18 @@ class AppliedComputeCustomization(ComputeProviderResource):
         :return: kvargs
         :raise ApiManagerError:
         """
-        compute_customization_id = kvargs.get('parent')
-        compute_zone_id = kvargs.get('compute_zone')
-        instances = kvargs.pop('instances')
+        compute_customization_id = kvargs.get("parent")
+        compute_zone_id = kvargs.get("compute_zone")
+        instances = kvargs.pop("instances")
 
         # get compute customization
-        from beehive_resource.plugins.provider.entity.customization import ComputeCustomization
+        from beehive_resource.plugins.provider.entity.customization import (
+            ComputeCustomization,
+        )
 
-        compute_customization = controller.get_simple_resource(compute_customization_id,
-                                                               entity_class=ComputeCustomization)
+        compute_customization = controller.get_simple_resource(
+            compute_customization_id, entity_class=ComputeCustomization
+        )
 
         # get compute zone
         compute_zone = controller.get_simple_resource(compute_zone_id)
@@ -134,26 +139,26 @@ class AppliedComputeCustomization(ComputeProviderResource):
         # get instances
         instance_sites = []
         for instance in instances:
-            obj = controller.get_simple_resource(instance.get('id'))
+            obj = controller.get_simple_resource(instance.get("id"))
             # obj = controller.get_simple_resource(instance.get('id'), entity_class=ComputeInstance)
             obj.check_active()
-            instance['id'] = obj.oid
-            site_id = obj.get_attribs().get('availability_zone', None)
+            instance["id"] = obj.oid
+            site_id = obj.get_attribs().get("availability_zone", None)
             if site_id not in instance_sites:
                 instance_sites.append(site_id)
 
         params = {
-            'orchestrator_tag': kvargs.get('orchestrator_tag', 'default'),
-            'compute_customization_id': compute_customization_id,
-            'compute_zone_id': compute_zone.oid,
-            'availability_zones': [avz for avz in availability_zones],
-            'instances': instances
+            "orchestrator_tag": kvargs.get("orchestrator_tag", "default"),
+            "compute_customization_id": compute_customization_id,
+            "compute_zone_id": compute_zone.oid,
+            "availability_zones": [avz for avz in availability_zones],
+            "instances": instances,
         }
         kvargs.update(params)
 
         # create task workflow
         steps = [
-            AppliedComputeCustomization.task_base_path + 'create_resource_pre_step',
+            AppliedComputeCustomization.task_base_path + "create_resource_pre_step",
         ]
         for availability_zone in availability_zones:
             # get project
@@ -166,14 +171,14 @@ class AppliedComputeCustomization(ComputeProviderResource):
             project = zone_customization.get_awx_project().name
 
             step = {
-                'step': AppliedComputeCustomization.task_base_path + 'create_zone_customization_step',
-                'args': [availability_zone, project]
+                "step": AppliedComputeCustomization.task_base_path + "create_zone_customization_step",
+                "args": [availability_zone, project],
             }
             steps.append(step)
 
-        steps.append(AppliedComputeCustomization.task_base_path + 'create_resource_post_step')
-        kvargs['steps'] = steps
-        logger.debug('+++++ AppliedComputeCustomization - pre_create - kvargs: %s' % kvargs)
+        steps.append(AppliedComputeCustomization.task_base_path + "create_resource_post_step")
+        kvargs["steps"] = steps
+        logger.debug("+++++ AppliedComputeCustomization - pre_create - kvargs: %s" % kvargs)
 
         return kvargs
 
@@ -195,23 +200,23 @@ class AppliedComputeCustomization(ComputeProviderResource):
         # TODO
 
         # get applied customizations
-        applied_customs, total = self.get_linked_resources(link_type_filter='relation%')
+        applied_customs, total = self.get_linked_resources(link_type_filter="relation%")
         childs = [e.oid for e in applied_customs]
 
         # create task workflow
-        kvargs['steps'] = self.group_remove_step(childs)
+        kvargs["steps"] = self.group_remove_step(childs)
 
         return kvargs
 
 
 class AppliedCustomization(AvailabilityZoneChildResource):
-    """Availability Zone Applied Customization
-    """
-    objdef = 'Provider.Region.Site.AvailabilityZone.AppliedCustomization'
-    objuri = '%s/customizations/%s/applied/%s'
-    objname = 'applied_customization'
-    objdesc = 'Provider Availability Zone AppliedCustomization'
-    task_base_path = 'beehive_resource.plugins.provider.task_v2.applied_customization.AppliedCustomizationTask.'
+    """Availability Zone Applied Customization"""
+
+    objdef = "Provider.Region.Site.AvailabilityZone.AppliedCustomization"
+    objuri = "%s/customizations/%s/applied/%s"
+    objname = "applied_customization"
+    objdesc = "Provider Availability Zone AppliedCustomization"
+    task_base_path = "beehive_resource.plugins.provider.task_v2.applied_customization.AppliedCustomizationTask."
 
     def __init__(self, *args, **kvargs):
         AvailabilityZoneChildResource.__init__(self, *args, **kvargs)
@@ -239,29 +244,29 @@ class AppliedCustomization(AvailabilityZoneChildResource):
         :return: kvargs
         :raise ApiManagerError:
         """
-        avz_id = kvargs.get('parent')
-        orchestrator_tag = kvargs.get('orchestrator_tag', 'default')
+        avz_id = kvargs.get("parent")
+        orchestrator_tag = kvargs.get("orchestrator_tag", "default")
 
         # get availability_zone
-        avz = container.get_simple_resource(avz_id)
+        from beehive_resource.plugins.provider.entity.site import Site
+
+        avz: Site = container.get_simple_resource(avz_id)
 
         # select remote orchestrator
-        orchestrator = avz.get_orchestrators_by_tag(orchestrator_tag, select_types=['awx'])
+        orchestrator = avz.get_orchestrators_by_tag(orchestrator_tag, select_types=["awx"])
 
         # set container
-        params = {
-            'orchestrator': list(orchestrator.values())[0]
-        }
+        params = {"orchestrator": list(orchestrator.values())[0]}
         kvargs.update(params)
 
         # create task workflow
         steps = [
-            AppliedCustomization.task_base_path + 'create_resource_pre_step',
-            AppliedCustomization.task_base_path + 'create_awx_job_template_step',
-            AppliedCustomization.task_base_path + 'create_resource_post_step',
+            AppliedCustomization.task_base_path + "create_resource_pre_step",
+            AppliedCustomization.task_base_path + "create_awx_job_template_step",
+            AppliedCustomization.task_base_path + "create_resource_post_step",
         ]
-        kvargs['steps'] = steps
-        kvargs['sync'] = True
+        kvargs["steps"] = steps
+        kvargs["sync"] = True
 
         return kvargs
 
@@ -279,8 +284,8 @@ class AppliedCustomization(AvailabilityZoneChildResource):
         :raise ApiManagerError:
         """
         # select physical orchestrator
-        orchestrator_idx = self.get_orchestrators(select_types=['awx'])
-        kvargs['steps'] = self.group_remove_step(orchestrator_idx)
-        kvargs['sync'] = True
+        orchestrator_idx = self.get_orchestrators(select_types=["awx"])
+        kvargs["steps"] = self.group_remove_step(orchestrator_idx)
+        kvargs["sync"] = True
 
         return kvargs

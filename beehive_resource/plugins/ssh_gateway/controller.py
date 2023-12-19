@@ -1,65 +1,81 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-
-from beehive.common.apimanager import ApiManagerError
-from beehive_resource.container import Orchestrator
-from .entity.ssh_gateway_configuration import SshGatewayConfiguration
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from typing import TypeVar
-T_SSHGWCONT = TypeVar('T_SSHGWCONT',bound="SshGatewayContainer")
+from base64 import b64decode
+from six import ensure_binary, ensure_text
+from beehive_resource.container import Orchestrator
+from beehive.common.apimanager import ApiManagerError
+from beedrones.ssh_gateway.client import SshGwManager, SshGwError
+
+T_SSHGWCONT = TypeVar("T_SSHGWCONT", bound="SshGatewayContainer")
+
 
 class SshGatewayContainer(Orchestrator):
     """Ssh gateway container
     :param connection: json string like {}
     """
-    objdef = 'SshGateway'
-    objdesc = 'Ssh Gateway Container'
-    objuri = 'nrs/sshgateway'
-    version = 'v1.0'
-    
+
+    objdef = "SshGateway"
+    objdesc = "Ssh Gateway Container"
+    objuri = "nrs/sshgateway"
+    version = "v1.0"
+
     def __init__(self, *args, **kvargs):
         Orchestrator.__init__(self, *args, **kvargs)
-        
-        self.child_classes = [
-            SshGatewayConfiguration
-        ]
+        self.conn: SshGwManager = None
 
-        self.conn = None
-        
+    def _get_connection(self):
+        """
+        Obtain SshGwManager Object
+        """
+        if self.conn is None:
+            try:
+                pwd = self.conn_params.get("pwd")
+                pwd = self.decrypt_data(pwd)
+                user = self.conn_params.get("user")
+                port = self.conn_params.get("port")
+                hosts = self.conn_params.get("hosts")
+
+                self.conn = SshGwManager(
+                    gw_hosts=hosts,
+                    gw_port=port,
+                    gw_user=user,
+                    gw_pwd=pwd,
+                    redis_manager=self.controller.redis_identity_manager,
+                    redis_uri=None,
+                )
+            except SshGwError as ex:
+                raise ApiManagerError(ex) from ex
+
+        return self.conn
+
     def ping(self):
         """Ping container.
-        
+
         :return: True if ping ok
         :rtype: bool
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        res = False
-        try:
-           # decrypt password
-            pwd = self.conn_params.get('pwd')
-            pwd = self.decrypt_data(pwd)
-            user = self.conn_params.get('user')
-            port = self.conn_params.get('port')
-            hosts = self.conn_params.get('hosts')
+        res_redis = False
+        res_hosts = False
 
-            for h in hosts:
-                # TODO
-                res = True
-                # try reaching them in order
-                # as soon as I get a reply, success
-                # self.conn = beedrones method
-                #res = self.conn.ping()
+        res_redis = self._get_connection().ping_db()
+        if not res_redis:
+            self.logger.warning("ssh gw redis db ping ko")
 
-                # maybe simple flask api running on port to check service status and/or restart it
-                # or just specific ssh user+psw to execute remote scripts
-                if res:
-                    break
-        except:
-            self.logger.warning('ping ko', exc_info=True)
-        self.container_ping = res
-        return res
-            
+        res_hosts = self._get_connection().ping_hosts()
+        if not res_hosts:
+            self.logger.warning("ssh gw hosts ping ko")
+
+        if res_hosts and res_redis:
+            self.container_ping = True
+        else:
+            self.container_ping = False
+        return self.container_ping
+
     @staticmethod
     def pre_create(controller=None, type=None, name=None, desc=None, active=None, conn=None, **kvargs):
         """Check input params
@@ -70,37 +86,63 @@ class SshGatewayContainer(Orchestrator):
         :param desc: container desc
         :param active: container active
         :param conn: container connection
-        :return: kvargs            
+        :return: kvargs
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        
         # encrypt pwd
-        conn['pwd'] = controller.encrypt_data(conn['pwd'])
+        conn["pwd"] = controller.encrypt_data(conn["pwd"])
 
         kvargs = {
-            'type': type,
-            'name': name,
-            'desc': desc,
-            'active': active,
-            'conn': conn,
+            "type": type,
+            "name": name,
+            "desc": desc,
+            "active": active,
+            "conn": conn,
         }
         return kvargs
-    
+
     def pre_change(self, **kvargs):
         """Check input params
 
-        :param kvargs: custom params            
-        :return: kvargs            
-        :raises ApiManagerError: raise :class:`.ApiManagerError`
-        """
-        return kvargs
-    
-    def pre_clean(self, **kvargs):
-        """Check input params
-        
-        :param kvargs: custom params            
-        :return: kvargs            
+        :param kvargs: custom params
+        :return: kvargs
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         return kvargs
 
+    def pre_clean(self, **kvargs):
+        """Check input params
+
+        :param kvargs: custom params
+        :return: kvargs
+        :raises ApiManagerError: raise :class:`.ApiManagerError`
+        """
+        return kvargs
+
+    def activate_for_user(self, user, fqdn, port):
+        """
+        activate ssh gw connection
+        :param user: e.g. abcd@domnt.csi.it
+        :param fqdn: destination fqdn
+        :param port: port number
+        :return: private key
+        :
+        """
+        try:
+            private_key_b64 = self._get_connection().redis_update_ssh_gw_entry(user=user, host=fqdn, port=port)
+            private_key = ensure_text(b64decode(ensure_binary(private_key_b64)))
+        except SshGwError as ex:
+            raise ApiManagerError(ex) from ex
+
+        command_example = (
+            "ssh -L <local_port>:"
+            + fqdn
+            + ":"
+            + str(port)
+            + " "
+            + user
+            + "@"
+            + self.conn_params.get("hosts")[0]
+            + " -i <keyfile>"
+        )
+        return private_key, command_example

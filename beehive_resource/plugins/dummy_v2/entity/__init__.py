@@ -1,15 +1,15 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive_resource.container import AsyncResourceV3
 
 
 class DummyAbstractResourceV2(AsyncResourceV3):
-    objdef = 'DummyV2.Resource'
-    objuri = 'dummyresource'
-    objname = 'dummyresource'
-    objdesc = 'Dummy resource V2'
+    objdef = "DummyV2.Resource"
+    objuri = "dummyresource"
+    objname = "dummyresource"
+    objdesc = "Dummy resource V2"
 
     #
     # internal list, get, create, update, delete
@@ -27,9 +27,9 @@ class DummyAbstractResourceV2(AsyncResourceV3):
         :return: None
         :raises ApiManagerError:
         """
-        container.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        container.logger.warn('I am the customize_list')
-        container.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        container.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        container.logger.warn("I am the customize_list")
+        container.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         return entities
 
     def post_get(self):
@@ -39,9 +39,9 @@ class DummyAbstractResourceV2(AsyncResourceV3):
         :return:
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        self.logger.warn('I am the post_get')
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        self.logger.warn("I am the post_get")
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         pass
 
     #
@@ -72,11 +72,10 @@ class DummyAbstractResourceV2(AsyncResourceV3):
     #
     @staticmethod
     def pre_create(controller, container, *args, **kvargs):
-        """check input params before resource creation.
-        """
-        container.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        container.logger.warn('I am the pre_create')
-        container.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        """check input params before resource creation."""
+        container.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        container.logger.warn("I am the pre_create")
+        container.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         return kvargs
 
     @staticmethod
@@ -89,9 +88,9 @@ class DummyAbstractResourceV2(AsyncResourceV3):
         :return: kvargs
         :raises ApiManagerError: raise :class:`ApiManagerError`
         """
-        controller.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        controller.logger.warn('I am the post_create')
-        controller.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        controller.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        controller.logger.warn("I am the post_create")
+        controller.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         return None
 
     #
@@ -99,11 +98,10 @@ class DummyAbstractResourceV2(AsyncResourceV3):
     #
     @staticmethod
     def pre_import(controller, container, *args, **kvargs):
-        """check input params before resource creation.
-        """
-        container.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        container.logger.warn('I am the pre_import')
-        container.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        """check input params before resource creation."""
+        container.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        container.logger.warn("I am the pre_import")
+        container.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         return kvargs
 
     @staticmethod
@@ -116,9 +114,9 @@ class DummyAbstractResourceV2(AsyncResourceV3):
         :return: kvargs
         :raises ApiManagerError: raise :class:`ApiManagerError`
         """
-        controller.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        controller.logger.warn('I am the post_import')
-        controller.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        controller.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        controller.logger.warn("I am the post_import")
+        controller.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         return None
 
     #
@@ -126,11 +124,10 @@ class DummyAbstractResourceV2(AsyncResourceV3):
     #
     @staticmethod
     def pre_clone(controller, container, *args, **kvargs):
-        """check input params before resource creation.
-        """
-        container.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        container.logger.warn('I am the pre_clone')
-        container.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        """check input params before resource creation."""
+        container.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        container.logger.warn("I am the pre_clone")
+        container.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         return kvargs
 
     @staticmethod
@@ -143,20 +140,19 @@ class DummyAbstractResourceV2(AsyncResourceV3):
         :return: kvargs
         :raises ApiManagerError: raise :class:`ApiManagerError`
         """
-        controller.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        controller.logger.warn('I am the post_clone')
-        controller.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        controller.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        controller.logger.warn("I am the post_clone")
+        controller.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         return None
 
     #
     # patch
     #
     def pre_patch(self, *args, **kvargs):
-        """check input params before resource patch.
-        """
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        self.logger.warn('I am the pre_patch')
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        """check input params before resource patch."""
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        self.logger.warn("I am the pre_patch")
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         return kvargs
 
     def post_patch(self, *args, **kvargs):
@@ -167,20 +163,19 @@ class DummyAbstractResourceV2(AsyncResourceV3):
         :return: True
         :raises ApiManagerError: raise :class:`ApiManagerError`
         """
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        self.logger.warn('I am the post_patch')
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        self.logger.warn("I am the post_patch")
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         return True
 
     #
     # update
     #
     def pre_update(self, *args, **kvargs):
-        """pre update function. This function is used in update method.
-        """
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        self.logger.warn('I am the pre_update')
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        """pre update function. This function is used in update method."""
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        self.logger.warn("I am the pre_update")
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         return kvargs
 
     def post_update(self, *args, **kvargs):
@@ -191,20 +186,19 @@ class DummyAbstractResourceV2(AsyncResourceV3):
         :return: True
         :raises ApiManagerError: raise :class:`ApiManagerError`
         """
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        self.logger.warn('I am the post_update')
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        self.logger.warn("I am the post_update")
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         return True
 
     #
     # expunge
     #
     def pre_expunge(self, *args, **kvargs):
-        """check input params before resource expunge.
-        """
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        self.logger.warn('I am the pre_expunge')
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        """check input params before resource expunge."""
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        self.logger.warn("I am the pre_expunge")
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         return kvargs
 
     def post_expunge(self, *args, **kvargs):
@@ -215,7 +209,7 @@ class DummyAbstractResourceV2(AsyncResourceV3):
         :return: kvargs
         :raises ApiManagerError: raise :class:`ApiManagerError`
         """
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
-        self.logger.warn('I am the post_expunge')
-        self.logger.warn('$$$$$$$$$$$$$$$$$$$$$$$$')
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
+        self.logger.warn("I am the post_expunge")
+        self.logger.warn("$$$$$$$$$$$$$$$$$$$$$$$$")
         return True

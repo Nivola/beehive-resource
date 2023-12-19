@@ -1,14 +1,19 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive_resource.plugins.openstack.entity.ops_project import OpenstackProject
 from beehive_resource.plugins.openstack.views import OpenstackAPI, OpenstackApiView
 from beehive_resource.plugins.openstack.entity.ops_domain import OpenstackDomain
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
-from beehive.common.apimanager import PaginatedResponseSchema, SwaggerApiView, GetApiObjectRequestSchema,\
-    CrudApiObjectJobResponseSchema, CrudApiObjectResponseSchema
+from beehive.common.apimanager import (
+    PaginatedResponseSchema,
+    SwaggerApiView,
+    GetApiObjectRequestSchema,
+    CrudApiObjectJobResponseSchema,
+    CrudApiObjectResponseSchema,
+)
 from beehive_resource.view import ResourceResponseSchema, ListResourcesRequestSchema
 
 
@@ -30,18 +35,13 @@ class ListProjectsResponseSchema(PaginatedResponseSchema):
 
 
 class ListProjects(OpenstackProjectApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'ListProjectsResponseSchema': ListProjectsResponseSchema,
+        "ListProjectsResponseSchema": ListProjectsResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(ListProjectsRequestSchema)
     parameters_schema = ListProjectsRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': ListProjectsResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListProjectsResponseSchema}})
 
     def get(self, controller, data, *args, **kwargs):
         """
@@ -56,17 +56,12 @@ class GetProjectResponseSchema(Schema):
 
 
 class GetProject(OpenstackProjectApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'GetProjectResponseSchema': GetProjectResponseSchema,
+        "GetProjectResponseSchema": GetProjectResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetProjectResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetProjectResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
@@ -77,14 +72,14 @@ class GetProject(OpenstackProjectApiView):
 
 
 class CreateProjectParamRequestSchema(Schema):
-    container = fields.String(required=True, example='12', description='container id, uuid or name')
-    name = fields.String(required=True, default='test')
-    desc = fields.String(required=True, default='test')
-    domain_id = fields.String(required=True, default='default')
+    container = fields.String(required=True, example="12", description="container id, uuid or name")
+    name = fields.String(required=True, default="test")
+    desc = fields.String(required=True, default="test")
+    domain_id = fields.String(required=True, default="default")
     enabled = fields.Boolean(default=True)
     is_domain = fields.Boolean(default=False)
-    project_id = fields.String(default='')
-    tags = fields.String(default='')
+    project_id = fields.String(default="")
+    tags = fields.String(default="")
 
 
 class CreateProjectRequestSchema(Schema):
@@ -92,23 +87,18 @@ class CreateProjectRequestSchema(Schema):
 
 
 class CreateProjectBodyRequestSchema(Schema):
-    body = fields.Nested(CreateProjectRequestSchema, context='body')
+    body = fields.Nested(CreateProjectRequestSchema, context="body")
 
 
 class CreateProject(OpenstackProjectApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'CreateProjectRequestSchema': CreateProjectRequestSchema,
-        'CrudApiObjectJobResponseSchema':CrudApiObjectJobResponseSchema
+        "CreateProjectRequestSchema": CreateProjectRequestSchema,
+        "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(CreateProjectBodyRequestSchema)
     parameters_schema = CreateProjectRequestSchema
-    responses = SwaggerApiView.setResponses({
-        202: {
-            'description': 'success',
-            'schema': CrudApiObjectJobResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def post(self, controller, data, *args, **kwargs):
         """
@@ -119,8 +109,8 @@ class CreateProject(OpenstackProjectApiView):
 
 
 class UpdateProjectParamRequestSchema(Schema):
-    name = fields.String(default='test')
-    desc = fields.String(default='test')
+    name = fields.String(default="test")
+    desc = fields.String(default="test")
     enabled = fields.Boolean(default=True)
 
 
@@ -129,23 +119,18 @@ class UpdateProjectRequestSchema(Schema):
 
 
 class UpdateProjectBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateProjectRequestSchema, context='body')
+    body = fields.Nested(UpdateProjectRequestSchema, context="body")
 
 
 class UpdateProject(OpenstackProjectApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'UpdateProjectRequestSchema':UpdateProjectRequestSchema,
-        'CrudApiObjectJobResponseSchema':CrudApiObjectJobResponseSchema
+        "UpdateProjectRequestSchema": UpdateProjectRequestSchema,
+        "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(UpdateProjectBodyRequestSchema)
     parameters_schema = UpdateProjectRequestSchema
-    responses = SwaggerApiView.setResponses({
-        202: {
-            'description': 'success',
-            'schema': CrudApiObjectJobResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def put(self, controller, data, oid, *args, **kwargs):
         """
@@ -156,17 +141,10 @@ class UpdateProject(OpenstackProjectApiView):
 
 
 class DeleteProject(OpenstackProjectApiView):
-    tags = ['openstack']
-    definitions = {
-        'CrudApiObjectJobResponseSchema':CrudApiObjectJobResponseSchema
-    }
+    tags = ["openstack"]
+    definitions = {"CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        202: {
-            'description': 'success',
-            'schema': CrudApiObjectJobResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def delete(self, controller, data, oid, *args, **kwargs):
         return self.expunge_resource(controller, oid)
@@ -178,31 +156,25 @@ class GetProjectQuotasResponseSchema(Schema):
 
 
 class GetProjectQuotas(OpenstackProjectApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'GetApiObjectRequestSchema': GetApiObjectRequestSchema,
-        'GetProjectQuotasResponseSchema': GetProjectQuotasResponseSchema
+        "GetApiObjectRequestSchema": GetApiObjectRequestSchema,
+        "GetProjectQuotasResponseSchema": GetProjectQuotasResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetProjectQuotasResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetProjectQuotasResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         project = self.get_resource_reference(controller, oid)
         res = project.get_quotas()
-        resp = {'quotas': res,
-                'count': len(res)}
+        resp = {"quotas": res, "count": len(res)}
         return resp
 
 
 class SetProjectQuotaResponseSchema(Schema):
-    type = fields.String(required=True, example='compute', description='One of compute, network, block')
-    quota = fields.String(required=True, example='cores', description='name of quota param to set')
-    value = fields.String(required=True, example='12', description='value of quota to set')
+    type = fields.String(required=True, example="compute", description="One of compute, network, block")
+    quota = fields.String(required=True, example="cores", description="name of quota param to set")
+    value = fields.String(required=True, example="12", description="value of quota to set")
 
 
 class SetProjectQuotasResponseSchema(Schema):
@@ -210,22 +182,17 @@ class SetProjectQuotasResponseSchema(Schema):
 
 
 class SetProjectQuotas(OpenstackProjectApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'GetApiObjectRequestSchema': GetApiObjectRequestSchema,
-        'GetProjectQuotasResponseSchema': GetProjectQuotasResponseSchema
+        "GetApiObjectRequestSchema": GetApiObjectRequestSchema,
+        "GetProjectQuotasResponseSchema": GetProjectQuotasResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetProjectQuotasResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetProjectQuotasResponseSchema}})
 
     def post(self, controller, data, oid, *args, **kwargs):
         project = self.get_resource_reference(controller, oid)
-        res = project.set_quotas(data.get('quotas'))
+        res = project.set_quotas(data.get("quotas"))
         resp = data
         return resp
 
@@ -236,24 +203,18 @@ class GetProjectLimitsResponseSchema(Schema):
 
 
 class GetProjectLimits(OpenstackProjectApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'GetApiObjectRequestSchema': GetApiObjectRequestSchema,
-        'GetProjectLimitsResponseSchema': GetProjectLimitsResponseSchema
+        "GetApiObjectRequestSchema": GetApiObjectRequestSchema,
+        "GetProjectLimitsResponseSchema": GetProjectLimitsResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetProjectLimitsResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetProjectLimitsResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         project = self.get_resource_reference(controller, oid)
         res = project.get_limits()
-        resp = {'limits':res,
-                'count':len(res)}
+        resp = {"limits": res, "count": len(res)}
         return resp
 
 
@@ -268,30 +229,27 @@ class GetProjectMembersResponseSchema(Schema):
 
 
 class GetProjectMembers(OpenstackProjectApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'GetApiObjectRequestSchema': GetApiObjectRequestSchema,
-        'GetProjectMembersResponseSchema': GetProjectMembersResponseSchema
+        "GetApiObjectRequestSchema": GetApiObjectRequestSchema,
+        "GetProjectMembersResponseSchema": GetProjectMembersResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetProjectMembersResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses(
+        {200: {"description": "success", "schema": GetProjectMembersResponseSchema}}
+    )
 
     def get(self, controller, data, oid, *args, **kwargs):
         project = self.get_resource_reference(controller, oid)
         res = project.get_members()
-        resp = {'members': res, 'count': len(res)}
+        resp = {"members": res, "count": len(res)}
         return resp
 
 
 class AssignProjectMemberParamRequestSchema(Schema):
-    action = fields.String(required=True, default='assign')
-    user = fields.String(required=True, default='db078b20-19c6-4f0e-909c-94745de667d4')
-    role = fields.String(required=True, default='db078b20-19c6-4f0e-909c-94745de667d4')
+    action = fields.String(required=True, default="assign")
+    user = fields.String(required=True, default="db078b20-19c6-4f0e-909c-94745de667d4")
+    role = fields.String(required=True, default="db078b20-19c6-4f0e-909c-94745de667d4")
 
 
 class AssignProjectMemberRequestSchema(Schema):
@@ -299,23 +257,18 @@ class AssignProjectMemberRequestSchema(Schema):
 
 
 class AssignProjectMemberBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(AssignProjectMemberRequestSchema, context='body')
+    body = fields.Nested(AssignProjectMemberRequestSchema, context="body")
 
 
 class AssignProjectMember(OpenstackProjectApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'AssignProjectMemberRequestSchema': AssignProjectMemberRequestSchema,
-        'CrudApiObjectResponseSchema': CrudApiObjectResponseSchema
+        "AssignProjectMemberRequestSchema": AssignProjectMemberRequestSchema,
+        "CrudApiObjectResponseSchema": CrudApiObjectResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(AssignProjectMemberBodyRequestSchema)
     parameters_schema = AssignProjectMemberRequestSchema
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': CrudApiObjectResponseSchema
-        }
-    })
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": CrudApiObjectResponseSchema}})
 
     def put(self, controller, data, oid, *args, **kwargs):
         """
@@ -324,12 +277,12 @@ class AssignProjectMember(OpenstackProjectApiView):
         """
         project = self.get_resource_reference(controller, oid)
         data = data.get(self.resclass.objname)
-        cmd = data['action']
-        user = data['user']
-        role = data['role']
-        if cmd == 'assign':
+        cmd = data["action"]
+        user = data["user"]
+        role = data["role"]
+        if cmd == "assign":
             res = project.assign_member(user, role)
-        elif cmd == 'deassign':
+        elif cmd == "deassign":
             res = project.deassign_member(user, role)
         return res
 
@@ -339,45 +292,45 @@ class GetProjectSecurityGroupResponseSchema(PaginatedResponseSchema):
 
 
 class GetProjectSecurityGroup(OpenstackProjectApiView):
-    tags = ['openstack']
+    tags = ["openstack"]
     definitions = {
-        'GetApiObjectRequestSchema': GetApiObjectRequestSchema,
-        'GetProjectSecurityGroupResponseSchema': GetProjectSecurityGroupResponseSchema
+        "GetApiObjectRequestSchema": GetApiObjectRequestSchema,
+        "GetProjectSecurityGroupResponseSchema": GetProjectSecurityGroupResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({
-        200: {
-            'description': 'success',
-            'schema': GetProjectSecurityGroupResponseSchema
+    responses = SwaggerApiView.setResponses(
+        {
+            200: {
+                "description": "success",
+                "schema": GetProjectSecurityGroupResponseSchema,
+            }
         }
-    })
+    )
 
     def get(self, controller, data, oid, *args, **kwargs):
         project = self.get_resource_reference(controller, oid)
         res, total = project.get_security_groups()
         resp = [r.info() for r in res]
-        return self.format_paginated_response(resp, 'security_groups', total, **kwargs)
+        return self.format_paginated_response(resp, "security_groups", total, **kwargs)
 
 
 class OpenstackProjectAPI(OpenstackAPI):
-    """Openstack base platform api routes:
-    """
+    """Openstack base platform api routes:"""
+
     @staticmethod
     def register_api(module, **kwargs):
         base = OpenstackAPI.base
         rules = [
-            ('%s/projects' % base, 'GET', ListProjects, {}),
-            ('%s/projects/<oid>' % base, 'GET', GetProject, {}),
-            ('%s/projects' % base, 'POST', CreateProject, {}),
-            ('%s/projects/<oid>' % base, 'PUT', UpdateProject, {}),
-            ('%s/projects/<oid>' % base, 'DELETE', DeleteProject, {}),
-
-            ('%s/projects/<oid>/quotas' % base, 'GET', GetProjectQuotas, {}),
-            ('%s/projects/<oid>/quotas' % base, 'POST', SetProjectQuotas, {}),
-            ('%s/projects/<oid>/limits' % base, 'GET', GetProjectLimits, {}),
-
-            ('%s/projects/<oid>/members' % base, 'GET', GetProjectMembers, {}),
-            ('%s/projects/<oid>/members' % base, 'PUT', AssignProjectMember, {}),
+            ("%s/projects" % base, "GET", ListProjects, {}),
+            ("%s/projects/<oid>" % base, "GET", GetProject, {}),
+            ("%s/projects" % base, "POST", CreateProject, {}),
+            ("%s/projects/<oid>" % base, "PUT", UpdateProject, {}),
+            ("%s/projects/<oid>" % base, "DELETE", DeleteProject, {}),
+            ("%s/projects/<oid>/quotas" % base, "GET", GetProjectQuotas, {}),
+            ("%s/projects/<oid>/quotas" % base, "POST", SetProjectQuotas, {}),
+            ("%s/projects/<oid>/limits" % base, "GET", GetProjectLimits, {}),
+            ("%s/projects/<oid>/members" % base, "GET", GetProjectMembers, {}),
+            ("%s/projects/<oid>/members" % base, "PUT", AssignProjectMember, {}),
         ]
 
         OpenstackAPI.register_api(module, rules, **kwargs)

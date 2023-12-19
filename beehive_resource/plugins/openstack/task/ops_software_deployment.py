@@ -1,12 +1,19 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 import ujson as json
 from celery.utils.log import get_task_logger
-from beehive_resource.tasks import ResourceJobTask, ResourceJob,\
-    create_resource_pre, create_resource_post, expunge_resource_pre,\
-    expunge_resource_post, update_resource_pre, update_resource_post
+from beehive_resource.tasks import (
+    ResourceJobTask,
+    ResourceJob,
+    create_resource_pre,
+    create_resource_post,
+    expunge_resource_pre,
+    expunge_resource_post,
+    update_resource_pre,
+    update_resource_post,
+)
 from beehive.common.task.manager import task_manager
 from beehive.common.task.job import job_task, job, task_local, Job, JobError
 from beehive.common.task.util import end_task, start_task
@@ -21,7 +28,7 @@ def get_client(task, cid, project_id):
     task.get_session()
     container = task.get_container(cid, projectid=project_id)
     conn = container.conn
-    task.update('PROGRESS', msg='Get container %s' % cid)
+    task.update("PROGRESS", msg="Get container %s" % cid)
     return conn
 
 
@@ -43,21 +50,20 @@ def create_swift_items(self, options):
     """
     # get params from shared data
     params = self.get_shared_data()
-    stack_id = params.get('stack_id')
-    project_id = params.get('project_id')
-    resource_id = params.get('resource_id')
-    cid = params.get('cid')
-    self.update('PROGRESS', msg='Get configuration params')
+    stack_id = params.get("stack_id")
+    project_id = params.get("project_id")
+    resource_id = params.get("resource_id")
+    cid = params.get("cid")
+    self.update("PROGRESS", msg="Get configuration params")
 
     client = get_client(self, cid, project_id)
 
-
-    '''
+    """
     create swift container
     create swift key
     create swift container object
     create swift temp URL    
-    '''
+    """
 
     return True
 
@@ -80,17 +86,17 @@ def create_software_deployment(self, options):
     """
     # get params from shared data
     params = self.get_shared_data()
-    stack_id = params.get('stack_id')
-    project_id = params.get('project_id')
-    resource_id = params.get('resource_id')
-    cid = params.get('cid')
-    self.update('PROGRESS', msg='Get configuration params')
+    stack_id = params.get("stack_id")
+    project_id = params.get("project_id")
+    resource_id = params.get("resource_id")
+    cid = params.get("cid")
+    self.update("PROGRESS", msg="Get configuration params")
 
     client = get_client(self, cid, project_id)
 
-    '''
+    """
     create software config
-    '''
+    """
 
     return True
 
@@ -113,15 +119,15 @@ def check_swift_object(self, options):
     """
     # get params from shared data
     params = self.get_shared_data()
-    stack_id = params.get('stack_id')
-    project_id = params.get('project_id')
-    resource_id = params.get('resource_id')
-    cid = params.get('cid')
-    self.update('PROGRESS', msg='Get configuration params')
+    stack_id = params.get("stack_id")
+    project_id = params.get("project_id")
+    resource_id = params.get("resource_id")
+    cid = params.get("cid")
+    self.update("PROGRESS", msg="Get configuration params")
 
     client = get_client(self, cid, project_id)
 
-    '''
+    """
     [
       {
         "deploy_stdout": "",
@@ -149,7 +155,7 @@ def check_swift_object(self, options):
         "deploy_status_code": 0
       },    
 
-    '''
+    """
 
     return True
 
@@ -172,17 +178,17 @@ def update_software_deployment(self, options):
     """
     # get params from shared data
     params = self.get_shared_data()
-    stack_id = params.get('stack_id')
-    project_id = params.get('project_id')
-    resource_id = params.get('resource_id')
-    cid = params.get('cid')
-    self.update('PROGRESS', msg='Get configuration params')
+    stack_id = params.get("stack_id")
+    project_id = params.get("project_id")
+    resource_id = params.get("resource_id")
+    cid = params.get("cid")
+    self.update("PROGRESS", msg="Get configuration params")
 
     client = get_client(self, cid, project_id)
 
-    '''
+    """
     if deploy_status_code = 0 update software deployemnt <config> <deploy> status_reason="Outputs received" status="COMPLETE"
-    '''
+    """
 
     return True
 
@@ -205,24 +211,24 @@ def remove_swift_items(self, options):
     """
     # get params from shared data
     params = self.get_shared_data()
-    stack_id = params.get('stack_id')
-    project_id = params.get('project_id')
-    resource_id = params.get('resource_id')
-    cid = params.get('cid')
-    self.update('PROGRESS', msg='Get configuration params')
+    stack_id = params.get("stack_id")
+    project_id = params.get("project_id")
+    resource_id = params.get("resource_id")
+    cid = params.get("cid")
+    self.update("PROGRESS", msg="Get configuration params")
 
     client = get_client(self, cid, project_id)
 
-    '''
+    """
     remove swift container object
     remove swift key
-    '''
+    """
 
     return True
 
 
 @task_manager.task(bind=True, base=ResourceJob)
-@job(entity_class=OpenstackHeatStack, name='insert', delta=3)
+@job(entity_class=OpenstackHeatStack, name="insert", delta=3)
 def job_software_deployment_apply(self, objid, params):
     """Run an openstack heat software deployment
 
@@ -244,13 +250,16 @@ def job_software_deployment_apply(self, objid, params):
     ops = self.get_options()
     self.set_shared_data(params)
 
-    Job.create([
-        end_task,
-        remove_swift_items,
-        update_software_deployment,
-        check_swift_object,
-        create_software_deployment,
-        create_swift_items,
-        start_task
-    ], ops).delay()
+    Job.create(
+        [
+            end_task,
+            remove_swift_items,
+            update_software_deployment,
+            check_swift_object,
+            create_software_deployment,
+            create_swift_items,
+            start_task,
+        ],
+        ops,
+    ).delay()
     return True

@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 import requests
 from beecell.simple import truncate, id_gen
 from beehive.common.apimanager import ApiManagerError
 from beehive_resource.plugins.openstack.entity import OpenstackResource, get_task
 from yaml import load, dump
+
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
@@ -14,146 +15,146 @@ except ImportError:
 
 
 stack_entity_type_mapping = {
-    'AWS::AutoScaling::AutoScalingGroup': None,
-    'AWS::AutoScaling::LaunchConfiguration': None,
-    'AWS::AutoScaling::ScalingPolicy': None,
-    'AWS::CloudFormation::Stack': None,
-    'AWS::CloudFormation::WaitCondition': None,
-    'AWS::CloudFormation::WaitConditionHandle': None,
-    'AWS::CloudWatch::Alarm': None,
-    'AWS::EC2::EIP': None,
-    'AWS::EC2::EIPAssociation': None,
-    'AWS::EC2::Instance': None,
-    'AWS::EC2::InternetGateway': None,
-    'AWS::EC2::NetworkInterface': None,
-    'AWS::EC2::RouteTable': None,
-    'AWS::EC2::SecurityGroup': None,
-    'AWS::EC2::Subnet': None,
-    'AWS::EC2::SubnetRouteTableAssociation': None,
-    'AWS::EC2::VPC': None,
-    'AWS::EC2::VPCGatewayAttachment': None,
-    'AWS::EC2::Volume': None,
-    'AWS::EC2::VolumeAttachment': None,
-    'AWS::ElasticLoadBalancing::LoadBalancer': None,
-    'AWS::IAM::AccessKey': None,
-    'AWS::IAM::User': None,
-    'AWS::RDS::DBInstance': None,
-    'AWS::S3::Bucket': None,
-    'OS::Aodh::Alarm': None,
-    'OS::Aodh::CombinationAlarm': None,
-    'OS::Aodh::CompositeAlarm': None,
-    'OS::Aodh::EventAlarm': None,
-    'OS::Aodh::GnocchiAggregationByMetricsAlarm': None,
-    'OS::Aodh::GnocchiAggregationByResourcesAlarm': None,
-    'OS::Aodh::GnocchiResourcesAlarm': None,
-    'OS::Barbican::CertificateContainer': None,
-    'OS::Barbican::GenericContainer': None,
-    'OS::Barbican::Order': None,
-    'OS::Barbican::RSAContainer': None,
-    'OS::Barbican::Secret': None,
-    'OS::Cinder::EncryptedVolumeType': None,
-    'OS::Cinder::QoSAssociation': None,
-    'OS::Cinder::QoSSpecs': None,
-    'OS::Cinder::Quota': None,
-    'OS::Cinder::Volume': 'Openstack.Domain.Project.Volume',
-    'OS::Cinder::VolumeAttachment': None,
-    'OS::Cinder::VolumeType': None,
-    'OS::Glance::Image': 'Openstack.Image',
-    'OS::Heat::AccessPolicy': None,
-    'OS::Heat::AutoScalingGroup': None,
-    'OS::Heat::CloudConfig': None,
-    'OS::Heat::DeployedServer': None,
-    'OS::Heat::HARestarter': None,
-    'OS::Heat::InstanceGroup': None,
-    'OS::Heat::MultipartMime': None,
-    'OS::Heat::None': None,
-    'OS::Heat::RandomString': None,
-    'OS::Heat::ResourceChain': None,
-    'OS::Heat::ResourceGroup': None,
-    'OS::Heat::ScalingPolicy': None,
-    'OS::Heat::SoftwareComponent': None,
-    'OS::Heat::SoftwareConfig': None,
-    'OS::Heat::SoftwareDeployment': None,
-    'OS::Heat::SoftwareDeploymentGroup': None,
-    'OS::Heat::Stack': None,
-    'OS::Heat::StructuredConfig': None,
-    'OS::Heat::StructuredDeployment': None,
-    'OS::Heat::StructuredDeploymentGroup': None,
-    'OS::Heat::SwiftSignal': None,
-    'OS::Heat::SwiftSignalHandle': None,
-    'OS::Heat::TestResource': None,
-    'OS::Heat::UpdateWaitConditionHandle': None,
-    'OS::Heat::Value': None,
-    'OS::Heat::WaitCondition': None,
-    'OS::Heat::WaitConditionHandle': None,
-    'OS::Keystone::Domain': None,
-    'OS::Keystone::Endpoint': None,
-    'OS::Keystone::Group': None,
-    'OS::Keystone::GroupRoleAssignment': None,
-    'OS::Keystone::Project': 'Openstack.Domain.Project',
-    'OS::Keystone::Region': None,
-    'OS::Keystone::Role': None,
-    'OS::Keystone::Service': None,
-    'OS::Keystone::User': None,
-    'OS::Keystone::UserRoleAssignment': None,
-    'OS::Manila::SecurityService': None,
-    'OS::Manila::Share': None,
-    'OS::Manila::ShareNetwork': None,
-    'OS::Manila::ShareType': None,
-    'OS::Neutron::AddressScope': None,
-    'OS::Neutron::ExtraRoute': None,
-    'OS::Neutron::Firewall': None,
-    'OS::Neutron::FirewallPolicy': None,
-    'OS::Neutron::FirewallRule': None,
-    'OS::Neutron::FloatingIP': None,
-    'OS::Neutron::FloatingIPAssociation': None,
-    'OS::Neutron::FlowClassifier': None,
-    'OS::Neutron::LBaaS::HealthMonitor': None,
-    'OS::Neutron::LBaaS::L7Policy': None,
-    'OS::Neutron::LBaaS::L7Rule': None,
-    'OS::Neutron::LBaaS::Listener': None,
-    'OS::Neutron::LBaaS::LoadBalancer': None,
-    'OS::Neutron::LBaaS::Pool': None,
-    'OS::Neutron::LBaaS::PoolMember': None,
-    'OS::Neutron::MeteringLabel': None,
-    'OS::Neutron::MeteringRule': None,
-    'OS::Neutron::Net': 'Openstack.Domain.Project.Network',
-    'OS::Neutron::NetworkGateway': None,
-    'OS::Neutron::Port': 'Openstack.Domain.Project.Network.Port',
-    'OS::Neutron::PortPair': None,
-    'OS::Neutron::ProviderNet': 'Openstack.Domain.Project.Network',
-    'OS::Neutron::QoSBandwidthLimitRule': None,
-    'OS::Neutron::QoSDscpMarkingRule': None,
-    'OS::Neutron::QoSPolicy': None,
-    'OS::Neutron::Quota': None,
-    'OS::Neutron::RBACPolicy': None,
-    'OS::Neutron::Router': 'Openstack.Domain.Project.Router',
-    'OS::Neutron::RouterInterface': None,
-    'OS::Neutron::SecurityGroup': 'Openstack.Domain.Project.SecurityGroup',
-    'OS::Neutron::SecurityGroupRule': None,
-    'OS::Neutron::Subnet': 'Openstack.Domain.Project.Network.Subnet',
-    'OS::Neutron::SubnetPool': None,
-    'OS::Nova::Flavor': 'Openstack.Flavor',
-    'OS::Nova::FloatingIP': None,
-    'OS::Nova::FloatingIPAssociation': None,
-    'OS::Nova::HostAggregate': None,
-    'OS::Nova::KeyPair': None,
-    'OS::Nova::Quota': None,
-    'OS::Nova::Server': 'Openstack.Domain.Project.Server',
-    'OS::Nova::ServerGroup': None,
-    'OS::Swift::Container': None,
-    'OS::Trove::Cluster': None,
-    'OS::Trove::Instance': None,
+    "AWS::AutoScaling::AutoScalingGroup": None,
+    "AWS::AutoScaling::LaunchConfiguration": None,
+    "AWS::AutoScaling::ScalingPolicy": None,
+    "AWS::CloudFormation::Stack": None,
+    "AWS::CloudFormation::WaitCondition": None,
+    "AWS::CloudFormation::WaitConditionHandle": None,
+    "AWS::CloudWatch::Alarm": None,
+    "AWS::EC2::EIP": None,
+    "AWS::EC2::EIPAssociation": None,
+    "AWS::EC2::Instance": None,
+    "AWS::EC2::InternetGateway": None,
+    "AWS::EC2::NetworkInterface": None,
+    "AWS::EC2::RouteTable": None,
+    "AWS::EC2::SecurityGroup": None,
+    "AWS::EC2::Subnet": None,
+    "AWS::EC2::SubnetRouteTableAssociation": None,
+    "AWS::EC2::VPC": None,
+    "AWS::EC2::VPCGatewayAttachment": None,
+    "AWS::EC2::Volume": None,
+    "AWS::EC2::VolumeAttachment": None,
+    "AWS::ElasticLoadBalancing::LoadBalancer": None,
+    "AWS::IAM::AccessKey": None,
+    "AWS::IAM::User": None,
+    "AWS::RDS::DBInstance": None,
+    "AWS::S3::Bucket": None,
+    "OS::Aodh::Alarm": None,
+    "OS::Aodh::CombinationAlarm": None,
+    "OS::Aodh::CompositeAlarm": None,
+    "OS::Aodh::EventAlarm": None,
+    "OS::Aodh::GnocchiAggregationByMetricsAlarm": None,
+    "OS::Aodh::GnocchiAggregationByResourcesAlarm": None,
+    "OS::Aodh::GnocchiResourcesAlarm": None,
+    "OS::Barbican::CertificateContainer": None,
+    "OS::Barbican::GenericContainer": None,
+    "OS::Barbican::Order": None,
+    "OS::Barbican::RSAContainer": None,
+    "OS::Barbican::Secret": None,
+    "OS::Cinder::EncryptedVolumeType": None,
+    "OS::Cinder::QoSAssociation": None,
+    "OS::Cinder::QoSSpecs": None,
+    "OS::Cinder::Quota": None,
+    "OS::Cinder::Volume": "Openstack.Domain.Project.Volume",
+    "OS::Cinder::VolumeAttachment": None,
+    "OS::Cinder::VolumeType": None,
+    "OS::Glance::Image": "Openstack.Image",
+    "OS::Heat::AccessPolicy": None,
+    "OS::Heat::AutoScalingGroup": None,
+    "OS::Heat::CloudConfig": None,
+    "OS::Heat::DeployedServer": None,
+    "OS::Heat::HARestarter": None,
+    "OS::Heat::InstanceGroup": None,
+    "OS::Heat::MultipartMime": None,
+    "OS::Heat::None": None,
+    "OS::Heat::RandomString": None,
+    "OS::Heat::ResourceChain": None,
+    "OS::Heat::ResourceGroup": None,
+    "OS::Heat::ScalingPolicy": None,
+    "OS::Heat::SoftwareComponent": None,
+    "OS::Heat::SoftwareConfig": None,
+    "OS::Heat::SoftwareDeployment": None,
+    "OS::Heat::SoftwareDeploymentGroup": None,
+    "OS::Heat::Stack": None,
+    "OS::Heat::StructuredConfig": None,
+    "OS::Heat::StructuredDeployment": None,
+    "OS::Heat::StructuredDeploymentGroup": None,
+    "OS::Heat::SwiftSignal": None,
+    "OS::Heat::SwiftSignalHandle": None,
+    "OS::Heat::TestResource": None,
+    "OS::Heat::UpdateWaitConditionHandle": None,
+    "OS::Heat::Value": None,
+    "OS::Heat::WaitCondition": None,
+    "OS::Heat::WaitConditionHandle": None,
+    "OS::Keystone::Domain": None,
+    "OS::Keystone::Endpoint": None,
+    "OS::Keystone::Group": None,
+    "OS::Keystone::GroupRoleAssignment": None,
+    "OS::Keystone::Project": "Openstack.Domain.Project",
+    "OS::Keystone::Region": None,
+    "OS::Keystone::Role": None,
+    "OS::Keystone::Service": None,
+    "OS::Keystone::User": None,
+    "OS::Keystone::UserRoleAssignment": None,
+    "OS::Manila::SecurityService": None,
+    "OS::Manila::Share": None,
+    "OS::Manila::ShareNetwork": None,
+    "OS::Manila::ShareType": None,
+    "OS::Neutron::AddressScope": None,
+    "OS::Neutron::ExtraRoute": None,
+    "OS::Neutron::Firewall": None,
+    "OS::Neutron::FirewallPolicy": None,
+    "OS::Neutron::FirewallRule": None,
+    "OS::Neutron::FloatingIP": None,
+    "OS::Neutron::FloatingIPAssociation": None,
+    "OS::Neutron::FlowClassifier": None,
+    "OS::Neutron::LBaaS::HealthMonitor": None,
+    "OS::Neutron::LBaaS::L7Policy": None,
+    "OS::Neutron::LBaaS::L7Rule": None,
+    "OS::Neutron::LBaaS::Listener": None,
+    "OS::Neutron::LBaaS::LoadBalancer": None,
+    "OS::Neutron::LBaaS::Pool": None,
+    "OS::Neutron::LBaaS::PoolMember": None,
+    "OS::Neutron::MeteringLabel": None,
+    "OS::Neutron::MeteringRule": None,
+    "OS::Neutron::Net": "Openstack.Domain.Project.Network",
+    "OS::Neutron::NetworkGateway": None,
+    "OS::Neutron::Port": "Openstack.Domain.Project.Network.Port",
+    "OS::Neutron::PortPair": None,
+    "OS::Neutron::ProviderNet": "Openstack.Domain.Project.Network",
+    "OS::Neutron::QoSBandwidthLimitRule": None,
+    "OS::Neutron::QoSDscpMarkingRule": None,
+    "OS::Neutron::QoSPolicy": None,
+    "OS::Neutron::Quota": None,
+    "OS::Neutron::RBACPolicy": None,
+    "OS::Neutron::Router": "Openstack.Domain.Project.Router",
+    "OS::Neutron::RouterInterface": None,
+    "OS::Neutron::SecurityGroup": "Openstack.Domain.Project.SecurityGroup",
+    "OS::Neutron::SecurityGroupRule": None,
+    "OS::Neutron::Subnet": "Openstack.Domain.Project.Network.Subnet",
+    "OS::Neutron::SubnetPool": None,
+    "OS::Nova::Flavor": "Openstack.Flavor",
+    "OS::Nova::FloatingIP": None,
+    "OS::Nova::FloatingIPAssociation": None,
+    "OS::Nova::HostAggregate": None,
+    "OS::Nova::KeyPair": None,
+    "OS::Nova::Quota": None,
+    "OS::Nova::Server": "Openstack.Domain.Project.Server",
+    "OS::Nova::ServerGroup": None,
+    "OS::Swift::Container": None,
+    "OS::Trove::Cluster": None,
+    "OS::Trove::Instance": None,
 }
 
 
 class OpenstackHeat(OpenstackResource):
-    objdef = 'Openstack.Heat'
-    objuri = 'heats'
-    objname = 'heat'
-    objdesc = 'Openstack heats'
-    
-    default_tags = ['openstack']
+    objdef = "Openstack.Heat"
+    objuri = "heats"
+    objname = "heat"
+    objdesc = "Openstack heats"
+
+    default_tags = ["openstack"]
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -169,35 +170,44 @@ class OpenstackHeat(OpenstackResource):
         :param container.conn: client used to comunicate with remote platform
         :param str ext_id: remote platform entity id
         :param dict res_ext_ids: list of remote platform entity ids from beehive resources
-        :return: list of tuple (resource class, ext_id, parent_id, resource class objdef, name, level)            
+        :return: list of tuple (resource class, ext_id, parent_id, resource class objdef, name, level)
         :raise ApiManagerError:
         """
         # get heat instance from openstack
-        items = [{'id': 'heat-01', 'name': 'heat'}]
+        items = [{"id": "heat-01", "name": "heat"}]
 
         # add new item to final list
         res = []
         for item in items:
-            if item['id'] not in res_ext_ids:
+            if item["id"] not in res_ext_ids:
                 level = None
-                name = item['name']
+                name = item["name"]
                 parent_id = None
-                    
-                res.append((OpenstackHeat, item['id'], parent_id, OpenstackHeat.objdef, name, level))
-        
-        return res        
+
+                res.append(
+                    (
+                        OpenstackHeat,
+                        item["id"],
+                        parent_id,
+                        OpenstackHeat.objdef,
+                        name,
+                        level,
+                    )
+                )
+
+        return res
 
     @staticmethod
     def discover_died(container):
         """Discover method used when check if resource already exists in remote platform or was been modified.
-                   
+
         :param container.conn: client used to comunicate with remote platform
-        :return: list of remote entities            
+        :return: list of remote entities
         :raise ApiManagerError:
         """
-        items = [{'id': 'heat-01', 'name': 'heat'}]
+        items = [{"id": "heat-01", "name": "heat"}]
         return items
-    
+
     @staticmethod
     def synchronize(container, entity):
         """Discover method used when synchronize beehive container with remote platform.
@@ -211,23 +221,23 @@ class OpenstackHeat(OpenstackResource):
         resclass = entity[0]
         ext_id = entity[1]
         parent_id = entity[2]
-        name = entity[4]   
-        
-        objid = '%s//%s' % (container.objid, id_gen())
-        
+        name = entity[4]
+
+        objid = "%s//%s" % (container.objid, id_gen())
+
         res = {
-            'resource_class': resclass,
-            'objid': objid, 
-            'name': name, 
-            'ext_id': ext_id, 
-            'active': True, 
-            'desc': resclass.objdesc, 
-            'attrib': {}, 
-            'parent': parent_id, 
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent_id,
+            "tags": resclass.default_tags,
         }
         return res
-    
+
     #
     # internal list, get, create, update, delete
     #
@@ -244,7 +254,7 @@ class OpenstackHeat(OpenstackResource):
         :raise ApiManagerError:
         """
         for entity in entities:
-            entity.set_physical_entity({'id': 'heat-01', 'name': 'heat'})
+            entity.set_physical_entity({"id": "heat-01", "name": "heat"})
         return entities
 
     def post_get(self):
@@ -255,7 +265,7 @@ class OpenstackHeat(OpenstackResource):
         :raise ApiManagerError:
         """
         try:
-            self.set_physical_entity({'id': 'heat-01', 'name': 'heat'})
+            self.set_physical_entity({"id": "heat-01", "name": "heat"})
         except:
             pass
 
@@ -271,7 +281,7 @@ class OpenstackHeat(OpenstackResource):
         info = OpenstackResource.info(self)
         try:
             data = self.container.conn.heat.build_info()
-            info['build_info'] = data
+            info["build_info"] = data
         except Exception as ex:
             self.logger.warn(ex)
         return info
@@ -286,7 +296,7 @@ class OpenstackHeat(OpenstackResource):
         info = OpenstackResource.info(self)
         try:
             data = self.container.conn.heat.services_status()
-            info['services'] = data['services']
+            info["services"] = data["services"]
         except Exception as ex:
             self.logger.error(ex)
             raise ApiManagerError(ex)
@@ -298,10 +308,10 @@ class OpenstackHeat(OpenstackResource):
         :return:
         :raise ApiManagerError:
         """
-        self.verify_permisssions('use')
+        self.verify_permisssions("use")
 
         ver = self.container.conn.heat.template.versions()
-        self.logger.debug('Get heat template versions')
+        self.logger.debug("Get heat template versions")
         return ver
 
     def get_template_functions(self, template):
@@ -311,10 +321,10 @@ class OpenstackHeat(OpenstackResource):
         :return:
         :raise ApiManagerError:
         """
-        self.verify_permisssions('use')
+        self.verify_permisssions("use")
 
         func = self.container.conn.heat.template.functions(template)
-        self.logger.debug('Get heat template %s functions' % template)
+        self.logger.debug("Get heat template %s functions" % template)
         return func
 
     def validate_template(self, template_uri):
@@ -324,34 +334,34 @@ class OpenstackHeat(OpenstackResource):
         :return:
         :raise ApiManagerError:
         """
-        self.verify_permisssions('use')
+        self.verify_permisssions("use")
 
         try:
-            rq = requests.get(template_uri, timeout=5, verify=False)
+            rq = requests.get(template_uri, timeout=30, verify=False)
             if rq.status_code == 200:
                 template = load(rq.content, Loader=Loader)
                 template = dump(template)
-                self.logger.debug('Get template: %s' % truncate(template))
+                self.logger.debug("Get template: %s" % truncate(template))
             else:
-                self.logger.error('No response from uri %s found' % template_uri)
+                self.logger.error("No response from uri %s found" % template_uri)
 
             self.container.conn.heat.template.validate(template=template, environment={})
         except:
-            self.logger.error('Failed to validate heat template %s' % template_uri, exc_info=1)
-            raise ApiManagerError('Failed to validate heat template %s' % template_uri)
+            self.logger.error("Failed to validate heat template %s" % template_uri, exc_info=1)
+            raise ApiManagerError("Failed to validate heat template %s" % template_uri)
 
-        self.logger.debug('Validate heat template %s: True' % template_uri)
+        self.logger.debug("Validate heat template %s: True" % template_uri)
         return template
 
 
 class OpenstackHeatStack(OpenstackResource):
-    objdef = 'Openstack.Domain.Project.HeatStack'
-    objuri = 'stacks'
-    objname = 'stack'
-    objdesc = 'Openstack heat stacks'
+    objdef = "Openstack.Domain.Project.HeatStack"
+    objuri = "stacks"
+    objname = "stack"
+    objdesc = "Openstack heat stacks"
 
-    default_tags = ['openstack']
-    task_path = 'beehive_resource.plugins.openstack.task_v2.ops_stack.StackTask.'
+    default_tags = ["openstack"]
+    task_path = "beehive_resource.plugins.openstack.task_v2.ops_stack.StackTask."
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -381,12 +391,21 @@ class OpenstackHeatStack(OpenstackResource):
         # add new item to final list
         res = []
         for item in items:
-            if item['id'] not in res_ext_ids:
+            if item["id"] not in res_ext_ids:
                 level = None
-                name = item['stack_name']
-                parent_id = item['project']
+                name = item["stack_name"]
+                parent_id = item["project"]
 
-                res.append((OpenstackHeatStack, item['id'], parent_id, OpenstackHeatStack.objdef, name, level))
+                res.append(
+                    (
+                        OpenstackHeatStack,
+                        item["id"],
+                        parent_id,
+                        OpenstackHeatStack.objdef,
+                        name,
+                        level,
+                    )
+                )
 
         return res
 
@@ -400,7 +419,7 @@ class OpenstackHeatStack(OpenstackResource):
         """
         items = container.conn.heat.stack.list()
         for item in items:
-            item['name'] = item['stack_name']
+            item["name"] = item["stack_name"]
         return items
 
     @staticmethod
@@ -419,18 +438,18 @@ class OpenstackHeatStack(OpenstackResource):
         name = entity[4]
 
         parent = container.get_resource_by_extid(parent_id)
-        objid = '%s//%s' % (parent.objid, id_gen())
+        objid = "%s//%s" % (parent.objid, id_gen())
 
         res = {
-            'resource_class': resclass,
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent.oid,
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent.oid,
+            "tags": resclass.default_tags,
         }
         return res
 
@@ -452,13 +471,14 @@ class OpenstackHeatStack(OpenstackResource):
         """
         for entity in entities:
             try:
-                ext_obj = OpenstackHeatStack.get_remote_stack(controller, entity.ext_id, container, entity.name,
-                                                              entity.ext_id)
+                ext_obj = OpenstackHeatStack.get_remote_stack(
+                    controller, entity.ext_id, container, entity.name, entity.ext_id
+                )
                 # ext_obj = remote_entities_index.get(entity.ext_id, None)
                 entity.set_physical_entity(ext_obj)
                 entity.outputs = entity.get_outputs()
             except:
-                container.logger.warn('', exc_info=1)
+                container.logger.warn("", exc_info=1)
         return entities
 
     def post_get(self):
@@ -476,7 +496,7 @@ class OpenstackHeatStack(OpenstackResource):
             self.set_physical_entity(ext_obj)
             self.outputs = self.get_outputs()
         except:
-            self.logger.warn('', exc_info=1)
+            self.logger.warn("", exc_info=1)
 
     @staticmethod
     def pre_create(controller, container, *args, **kvargs):
@@ -508,13 +528,13 @@ class OpenstackHeatStack(OpenstackResource):
         """
 
         steps = [
-            OpenstackHeatStack.task_path + 'create_resource_pre_step',
-            OpenstackHeatStack.task_path + 'stack_create_physical_step',
-            OpenstackHeatStack.task_path + 'create_resource_post_step',
-            OpenstackHeatStack.task_path + 'register_child_entity_step',
-            OpenstackHeatStack.task_path + 'link_child_entity_step'
+            OpenstackHeatStack.task_path + "create_resource_pre_step",
+            OpenstackHeatStack.task_path + "stack_create_physical_step",
+            OpenstackHeatStack.task_path + "create_resource_post_step",
+            OpenstackHeatStack.task_path + "register_child_entity_step",
+            OpenstackHeatStack.task_path + "link_child_entity_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
     def pre_update(self, *args, **kvargs):
@@ -531,11 +551,11 @@ class OpenstackHeatStack(OpenstackResource):
         :raise ApiManagerError:
         """
         steps = [
-            OpenstackHeatStack.task_path + 'update_resource_pre_step',
-            OpenstackHeatStack.task_path + 'stack_update_physical_step',
-            OpenstackHeatStack.task_path + 'update_resource_post_step'
+            OpenstackHeatStack.task_path + "update_resource_pre_step",
+            OpenstackHeatStack.task_path + "stack_update_physical_step",
+            OpenstackHeatStack.task_path + "update_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
     def pre_delete(self, *args, **kvargs):
@@ -552,11 +572,11 @@ class OpenstackHeatStack(OpenstackResource):
         :raise ApiManagerError:
         """
         steps = [
-            OpenstackHeatStack.task_path + 'expunge_resource_pre_step',
-            OpenstackHeatStack.task_path + 'stack_delete_physical_step',
-            OpenstackHeatStack.task_path + 'expunge_resource_post_step'
+            OpenstackHeatStack.task_path + "expunge_resource_pre_step",
+            OpenstackHeatStack.task_path + "stack_delete_physical_step",
+            OpenstackHeatStack.task_path + "expunge_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
     #
@@ -566,7 +586,7 @@ class OpenstackHeatStack(OpenstackResource):
         """Get info.
 
         :return: Dictionary with capabilities.
-        :rtype: dict        
+        :rtype: dict
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         # verify permissions
@@ -574,22 +594,22 @@ class OpenstackHeatStack(OpenstackResource):
 
         if self.ext_obj is not None:
             data = {}
-            data['status_reason'] = self.ext_obj.get('stack_status_reason', '')
-            data['status'] = self.ext_obj.get('stack_status', '')
-            info['details'] = data
+            data["status_reason"] = self.ext_obj.get("stack_status_reason", "")
+            data["status"] = self.ext_obj.get("stack_status", "")
+            info["details"] = data
         return info
 
     def detail(self):
         """Get details.
 
         :return: Dictionary with resource details.
-        :rtype: dict        
+        :rtype: dict
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         detail = OpenstackResource.detail(self)
 
         if self.ext_obj is not None:
-            detail['details'] = self.ext_obj
+            detail["details"] = self.ext_obj
         return detail
 
     #
@@ -605,10 +625,10 @@ class OpenstackHeatStack(OpenstackResource):
         :return:
         :raise ApiManagerError:
         """
-        self.verify_permisssions('use')
+        self.verify_permisssions("use")
 
         template = self.container.conn.heat.stack.template(stack_name=self.name, oid=self.ext_id)
-        self.logger.debug('Get stack %s template' % self.name)
+        self.logger.debug("Get stack %s template" % self.name)
         return template
 
     def get_environment(self):
@@ -617,10 +637,10 @@ class OpenstackHeatStack(OpenstackResource):
         :return:
         :raise ApiManagerError:
         """
-        self.verify_permisssions('use')
+        self.verify_permisssions("use")
 
         environment = self.container.conn.heat.stack.environment(stack_name=self.name, oid=self.ext_id)
-        self.logger.debug('Get stack %s environment' % self.name)
+        self.logger.debug("Get stack %s environment" % self.name)
         return environment
 
     def get_files(self):
@@ -629,10 +649,10 @@ class OpenstackHeatStack(OpenstackResource):
         :return:
         :raise ApiManagerError:
         """
-        self.verify_permisssions('use')
+        self.verify_permisssions("use")
 
         files = self.container.conn.heat.stack.files(stack_name=self.name, oid=self.ext_id)
-        self.logger.debug('Get stack %s files' % self.name)
+        self.logger.debug("Get stack %s files" % self.name)
         return files
 
     def get_inputs(self):
@@ -641,12 +661,12 @@ class OpenstackHeatStack(OpenstackResource):
         :return:
         :raise ApiManagerError:
         """
-        self.verify_permisssions('use')
+        self.verify_permisssions("use")
 
         inputs = {}
         if self.ext_obj is not None:
-            inputs = self.ext_obj.get('parameters', {})
-            self.logger.debug('Get stack %s inputs: %s' % (self.name, truncate(inputs)))
+            inputs = self.ext_obj.get("parameters", {})
+            self.logger.debug("Get stack %s inputs: %s" % (self.name, truncate(inputs)))
         return inputs
 
     def get_outputs(self):
@@ -655,15 +675,17 @@ class OpenstackHeatStack(OpenstackResource):
         :return:
         :raise ApiManagerError:
         """
-        self.verify_permisssions('use')
+        self.verify_permisssions("use")
 
         outputs = {}
         if self.ext_obj is not None:
             outputs = {
-                o.get('output_key'): {'output_value': o.get('output_value', None),
-                                      'output_error': o.get('output_error', None),
-                                      'desc': o.get('description', None)}
-                for o in self.ext_obj.get('outputs', [])
+                o.get("output_key"): {
+                    "output_value": o.get("output_value", None),
+                    "output_error": o.get("output_error", None),
+                    "desc": o.get("description", None),
+                }
+                for o in self.ext_obj.get("outputs", [])
             }
 
         return outputs
@@ -674,10 +696,10 @@ class OpenstackHeatStack(OpenstackResource):
         :return:
         :raise ApiManagerError:
         """
-        self.verify_permisssions('use')
+        self.verify_permisssions("use")
 
-        outputs = self.container.conn.heat.stack.outputs(stack_name=self.name, oid=self.ext_id).get('outputs', [])
-        self.logger.debug('Get stack %s outputs' % self.name)
+        outputs = self.container.conn.heat.stack.outputs(stack_name=self.name, oid=self.ext_id).get("outputs", [])
+        self.logger.debug("Get stack %s outputs" % self.name)
         return outputs
 
     def get_output(self, key):
@@ -688,7 +710,7 @@ class OpenstackHeatStack(OpenstackResource):
         :raise ApiManagerError:
         """
         output = self.outputs.get(key, {})
-        self.logger.debug('Get stack %s output %s: %s' % (self.name, key, output))
+        self.logger.debug("Get stack %s output %s: %s" % (self.name, key, output))
         return output
 
     def get_stack_resources(self, *args, **kvargs):
@@ -706,16 +728,17 @@ class OpenstackHeatStack(OpenstackResource):
         resources = []
         for entity in entities:
             try:
-                self.logger.debug('Get resource for %s:%s' % (entity.get('resource_type'),
-                                                              entity.get('physical_resource_id')))
-                if entity.get('resource_type') in self.get_supported_type():
-                    resource = self.container.get_resource_by_extid(entity.get('physical_resource_id'))
+                self.logger.debug(
+                    "Get resource for %s:%s" % (entity.get("resource_type"), entity.get("physical_resource_id"))
+                )
+                if entity.get("resource_type") in self.get_supported_type():
+                    resource = self.container.get_resource_by_extid(entity.get("physical_resource_id"))
                     if resource is not None:
                         resources.append(resource)
             except:
                 pass
 
-        self.logger.debug('Get stack %s resources: %s' % (self.name, truncate(resources)))
+        self.logger.debug("Get stack %s resources: %s" % (self.name, truncate(resources)))
         return resources, len(resources)
 
     def get_stack_internal_resources(self, name=None, status=None, type=None):
@@ -727,12 +750,17 @@ class OpenstackHeatStack(OpenstackResource):
         :return:
         :raise ApiManagerError:
         """
-        self.verify_permisssions('use')
+        self.verify_permisssions("use")
         resources = []
         if self.ext_id is not None:
-            resources = self.container.conn.heat.stack.resource.list(stack_name=self.name, oid=self.ext_id, name=name,
-                                                                     status=status, type=type)
-        self.logger.debug('Get stack %s internal resources: %s' % (self.name, truncate(resources)))
+            resources = self.container.conn.heat.stack.resource.list(
+                stack_name=self.name,
+                oid=self.ext_id,
+                name=name,
+                status=status,
+                type=type,
+            )
+        self.logger.debug("Get stack %s internal resources: %s" % (self.name, truncate(resources)))
         return resources
 
     def get_events(self):
@@ -741,11 +769,11 @@ class OpenstackHeatStack(OpenstackResource):
         :return:
         :raise ApiManagerError:
         """
-        self.verify_permisssions('use')
+        self.verify_permisssions("use")
         events = []
         if self.ext_id is not None:
             events = self.container.conn.heat.stack.event.list(stack_name=self.name, oid=self.ext_id)
-        self.logger.debug('Get stack %s events' % self.name)
+        self.logger.debug("Get stack %s events" % self.name)
         return events
 
     def get_status(self):
@@ -754,12 +782,12 @@ class OpenstackHeatStack(OpenstackResource):
         :return:
         :raise ApiManagerError:
         """
-        self.verify_permisssions('view')
+        self.verify_permisssions("view")
 
-        status = ''
+        status = ""
         if self.ext_obj is not None:
-            status = self.ext_obj.get('stack_status', '')
-            self.logger.debug('Get stack %s status reason: %s' % (self.name, status))
+            status = self.ext_obj.get("stack_status", "")
+            self.logger.debug("Get stack %s status reason: %s" % (self.name, status))
         return status
 
     def get_status_reason(self):
@@ -768,22 +796,22 @@ class OpenstackHeatStack(OpenstackResource):
         :return:
         :raise ApiManagerError:
         """
-        self.verify_permisssions('view')
+        self.verify_permisssions("view")
 
-        status_reason = ''
+        status_reason = ""
         if self.ext_obj is not None:
-            status_reason = self.ext_obj.get('stack_status_reason', '')
-            self.logger.debug('Get stack %s status reason: %s' % (self.name, status_reason))
+            status_reason = self.ext_obj.get("stack_status_reason", "")
+            self.logger.debug("Get stack %s status reason: %s" % (self.name, status_reason))
         return status_reason
 
 
 class OpenstackHeatTemplate(OpenstackResource):
-    objdef = 'Openstack.Domain.Project.StackTemplate'
-    objuri = 'stack_templates'
-    objname = 'stack_template'
-    objdesc = 'Openstack heat stack templates'
+    objdef = "Openstack.Domain.Project.StackTemplate"
+    objuri = "stack_templates"
+    objname = "stack_template"
+    objdesc = "Openstack heat stack templates"
 
-    default_tags = ['openstack']
+    default_tags = ["openstack"]
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -793,7 +821,7 @@ class OpenstackHeatTemplate(OpenstackResource):
         """Get info.
 
         :return: Dictionary with capabilities.
-        :rtype: dict        
+        :rtype: dict
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = OpenstackResource.info(self)
@@ -803,29 +831,29 @@ class OpenstackHeatTemplate(OpenstackResource):
         """Get details.
 
         :return: Dictionary with resource details.
-        :rtype: dict        
+        :rtype: dict
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         detail = OpenstackResource.info(self)
 
         if self.ext_obj is not None:
-            detail['attribute'] = self.attribute
+            detail["attribute"] = self.attribute
             self.logger.debug("External Object :  %s" % self.ext_obj.templ_id)
             if self.ext_obj.templ_id is not None:
                 data = {}
-                detail['details'] = data
+                detail["details"] = data
             else:
                 self.logger.warning("No template found")
         return detail
 
 
 class OpenstackHeatSWconfig(OpenstackResource):
-    objdef = 'Openstack.Domain.Project.SwConfig'
-    objuri = 'swconfigs'
-    objname = 'swconfig'
-    objdesc = 'Openstack heat software configurations'
+    objdef = "Openstack.Domain.Project.SwConfig"
+    objuri = "swconfigs"
+    objname = "swconfig"
+    objdesc = "Openstack heat software configurations"
 
-    default_tags = ['openstack']
+    default_tags = ["openstack"]
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -843,22 +871,22 @@ class OpenstackHeatSWconfig(OpenstackResource):
         if self.ext_obj is not None:
             data = {}
             try:
-                data = self.container.conn.heat.software_configs_details(self.ext_obj['id'])
+                data = self.container.conn.heat.software_configs_details(self.ext_obj["id"])
             except:
                 self.logger.warning("No swconfig found")
-            detail['details'] = data
+            detail["details"] = data
         else:
             self.logger.warning("No swconfig found")
         return detail
 
 
 class OpenstackHeatSWdeployment(OpenstackResource):
-    objdef = 'Openstack.Domain.Project.SwDeploy'
-    objuri = 'swdeploys'
-    objname = 'swdeploy'
-    objdesc = 'Openstack heat software deployments'
+    objdef = "Openstack.Domain.Project.SwDeploy"
+    objuri = "swdeploys"
+    objname = "swdeploy"
+    objdesc = "Openstack heat software deployments"
 
-    default_tags = ['openstack']
+    default_tags = ["openstack"]
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -876,10 +904,10 @@ class OpenstackHeatSWdeployment(OpenstackResource):
         if self.ext_obj is not None:
             data = {}
             try:
-                data = self.container.conn.heat.software_deployments_details(self.ext_obj['id']) 
+                data = self.container.conn.heat.software_deployments_details(self.ext_obj["id"])
             except:
                 self.logger.warning("No swconfig found")
-            detail['details'] = data
-        else: 
+            detail["details"] = data
+        else:
             self.logger.warning("No swconfig found")
         return detail

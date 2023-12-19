@@ -1,29 +1,30 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive_resource.container import Resource
 from beehive_resource.plugins.provider.entity.aggregate import ComputeProviderResource
 from beehive.common.apimanager import ApiManagerError
 from beehive_resource.plugins.provider.entity.zone import AvailabilityZoneChildResource
-from beehive_resource.plugins.provider.entity.applied_customization import AppliedComputeCustomization
+from beehive_resource.plugins.provider.entity.applied_customization import (
+    AppliedComputeCustomization,
+)
 
 
 class ComputeCustomization(ComputeProviderResource):
-    """Compute customization
-    """
-    objdef = 'Provider.ComputeZone.ComputeCustomization'
-    objuri = '%s/customizations/%s'
-    objname = 'customization'
-    objdesc = 'Provider ComputeCustomization'
-    task_base_path = 'beehive_resource.plugins.provider.task_v2.customization.ComputeCustomizationTask.'
+    """Compute customization"""
+
+    objdef = "Provider.ComputeZone.ComputeCustomization"
+    objuri = "%s/customizations/%s"
+    objname = "customization"
+    objdesc = "Provider ComputeCustomization"
+    task_base_path = "beehive_resource.plugins.provider.task_v2.customization.ComputeCustomizationTask."
 
     def __init__(self, *args, **kvargs):
         ComputeProviderResource.__init__(self, *args, **kvargs)
 
-        self.child_classes = [
-            AppliedComputeCustomization
-        ]
+        self.child_classes = [AppliedComputeCustomization]
 
     def info(self):
         """Get infos.
@@ -47,7 +48,7 @@ class ComputeCustomization(ComputeProviderResource):
         # TODO: verify permissions
 
         info = Resource.detail(self)
-        info['applied'] = [a.small_info() for a in self.get_applied_customization()]
+        info["applied"] = [a.small_info() for a in self.get_applied_customization()]
         return info
 
     def get_applied_customization(self, oid=None):
@@ -58,11 +59,18 @@ class ComputeCustomization(ComputeProviderResource):
         :raise ApiManagerError:
         """
         if oid is None:
-            applied_customs, tot = self.controller.get_resources(parent=self.oid, run_customize=True,
-                                                                 objdef=AppliedComputeCustomization.objdef)
+            applied_customs, tot = self.controller.get_resources(
+                parent=self.oid,
+                run_customize=True,
+                objdef=AppliedComputeCustomization.objdef,
+            )
         else:
-            applied_customs, tot = self.controller.get_resources(parent=self.oid, oid=oid, run_customize=True,
-                                                                 objdef=AppliedComputeCustomization.objdef)
+            applied_customs, tot = self.controller.get_resources(
+                parent=self.oid,
+                oid=oid,
+                run_customize=True,
+                objdef=AppliedComputeCustomization.objdef,
+            )
             applied_customs = applied_customs[0]
 
         return applied_customs
@@ -111,44 +119,44 @@ class ComputeCustomization(ComputeProviderResource):
         :return: kvargs
         :raise ApiManagerError:
         """
-        orchestrator_type = kvargs.get('type')
-        orchestrator_tag = kvargs.get('orchestrator_tag')
-        compute_zone_id = kvargs.get('parent')
+        orchestrator_type = kvargs.get("type")
+        orchestrator_tag = kvargs.get("orchestrator_tag")
+        compute_zone_id = kvargs.get("parent")
 
         # get compute zone
         compute_zone = container.get_simple_resource(compute_zone_id)
         compute_zone.check_active()
         compute_zone.set_container(container)
         multi_avz = True
-        
+
         if compute_zone is None:
-            raise ApiManagerError('ComputeZone Parent not found')
+            raise ApiManagerError("ComputeZone Parent not found")
 
         # get availability zones ACTIVE
         availability_zones = ComputeProviderResource.get_active_availability_zones(compute_zone, multi_avz)
 
         # set params
         params = {
-            'compute_zone': compute_zone.oid,
-            'attribute': {
-                'type': orchestrator_type,
-                'orchestrator_tag': orchestrator_tag,
-            }
+            "compute_zone": compute_zone.oid,
+            "attribute": {
+                "type": orchestrator_type,
+                "orchestrator_tag": orchestrator_tag,
+            },
         }
         kvargs.update(params)
 
         # create task workflow
         steps = [
-            ComputeCustomization.task_base_path + 'create_resource_pre_step',
+            ComputeCustomization.task_base_path + "create_resource_pre_step",
         ]
         for availability_zone in availability_zones:
             step = {
-                'step': ComputeCustomization.task_base_path + 'create_zone_customization_step',
-                'args': [availability_zone]
+                "step": ComputeCustomization.task_base_path + "create_zone_customization_step",
+                "args": [availability_zone],
             }
             steps.append(step)
-        steps.append(ComputeCustomization.task_path + 'create_resource_post_step')
-        kvargs['steps'] = steps
+        steps.append(ComputeCustomization.task_path + "create_resource_post_step")
+        kvargs["steps"] = steps
 
         return kvargs
 
@@ -167,29 +175,30 @@ class ComputeCustomization(ComputeProviderResource):
         :raise ApiManagerError:
         """
         # check related objects
-        applied_customs, total = self.get_linked_resources(link_type='applied_customs')
+        applied_customs, total = self.get_linked_resources(link_type="applied_customs")
         if len(applied_customs) > 0:
-            raise ApiManagerError('ComputeCustomization %s has applied customizations associated and cannot be '
-                                  'deleted' % self.oid)
+            raise ApiManagerError(
+                "ComputeCustomization %s has applied customizations associated and cannot be " "deleted" % self.oid
+            )
 
         # get customizations
-        customs, total = self.get_linked_resources(link_type_filter='relation%')
+        customs, total = self.get_linked_resources(link_type_filter="relation%")
         childs = [e.oid for e in customs]
 
         # create task workflow
-        kvargs['steps'] = self.group_remove_step(childs)
+        kvargs["steps"] = self.group_remove_step(childs)
 
         return kvargs
 
 
 class Customization(AvailabilityZoneChildResource):
-    """Availability Zone Customization
-    """
-    objdef = 'Provider.Region.Site.AvailabilityZone.Customization'
-    objuri = '%s/customizations/%s'
-    objname = 'customization'
-    objdesc = 'Provider Availability Zone Customization'
-    task_base_path = 'beehive_resource.plugins.provider.task_v2.customization.CustomizationTask.'
+    """Availability Zone Customization"""
+
+    objdef = "Provider.Region.Site.AvailabilityZone.Customization"
+    objuri = "%s/customizations/%s"
+    objname = "customization"
+    objdesc = "Provider Availability Zone Customization"
+    task_base_path = "beehive_resource.plugins.provider.task_v2.customization.CustomizationTask."
 
     def __init__(self, *args, **kvargs):
         AvailabilityZoneChildResource.__init__(self, *args, **kvargs)
@@ -217,29 +226,27 @@ class Customization(AvailabilityZoneChildResource):
         :return: kvargs
         :raise ApiManagerError:
         """
-        avz_id = kvargs.get('parent')
-        orchestrator_tag = kvargs.get('orchestrator_tag', 'default')
+        avz_id = kvargs.get("parent")
+        orchestrator_tag = kvargs.get("orchestrator_tag", "default")
 
         # get availability_zone
         avz = container.get_simple_resource(avz_id)
 
         # select remote orchestrator
-        orchestrator = avz.get_orchestrators_by_tag(orchestrator_tag, select_types=['awx'])
+        orchestrator = avz.get_orchestrators_by_tag(orchestrator_tag, select_types=["awx"])
 
         # set container
-        params = {
-            'orchestrator': list(orchestrator.values())[0]
-        }
+        params = {"orchestrator": list(orchestrator.values())[0]}
         kvargs.update(params)
 
         # create task workflow
         steps = [
-            Customization.task_base_path + 'create_resource_pre_step',
-            Customization.task_base_path + 'create_awx_project_step',
-            Customization.task_base_path + 'create_resource_post_step',
+            Customization.task_base_path + "create_resource_pre_step",
+            Customization.task_base_path + "create_awx_project_step",
+            Customization.task_base_path + "create_resource_post_step",
         ]
-        kvargs['steps'] = steps
-        kvargs['sync'] = True
+        kvargs["steps"] = steps
+        kvargs["sync"] = True
 
         return kvargs
 
@@ -257,9 +264,9 @@ class Customization(AvailabilityZoneChildResource):
         :raise ApiManagerError:
         """
         # select physical orchestrator
-        orchestrator_idx = self.get_orchestrators(select_types=['awx'])
-        kvargs['steps'] = self.group_remove_step(orchestrator_idx)
-        kvargs['sync'] = True
+        orchestrator_idx = self.get_orchestrators(select_types=["awx"])
+        kvargs["steps"] = self.group_remove_step(orchestrator_idx)
+        kvargs["sync"] = True
 
         return kvargs
 
@@ -268,10 +275,10 @@ class Customization(AvailabilityZoneChildResource):
 
         :return: awx project resource
         """
-        projects, total = self.get_linked_resources(link_type_filter='relation')
+        projects, total = self.get_linked_resources(link_type_filter="relation")
         if total > 0:
             project = projects[0]
-            self.logger.debug('get zone customization %s awx project: %s' % (self.oid, project))
+            self.logger.debug("get zone customization %s awx project: %s" % (self.oid, project))
             return project
         else:
-            raise ApiManagerError('no awx project in zone customization %s' % self.oid)
+            raise ApiManagerError("no awx project in zone customization %s" % self.oid)

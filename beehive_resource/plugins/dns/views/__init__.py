@@ -8,7 +8,7 @@ from beehive_resource.view import ResourceApiView
 
 
 class DnsApiView(ResourceApiView):
-    tags = ['dns']
+    tags = ["dns"]
     containerclass = DnsContainer
 
     def get_container(self, controller, oid):
@@ -17,6 +17,6 @@ class DnsApiView(ResourceApiView):
 
 
 class DnsAPI(ApiView):
-    """
-    """
-    base = 'nrs/dns'
+    """ """
+
+    base = "nrs/dns"

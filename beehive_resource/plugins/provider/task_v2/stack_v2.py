@@ -1,24 +1,28 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from re import match
 from six import ensure_str
 from beecell.simple import id_gen, dict_get
 from beehive.common.task_v2 import task_step, run_sync_task, TaskError
 from beehive_resource.model import ResourceState
-from beehive_resource.plugins.provider.entity.stack_v2 import ComputeStackV2, ComputeStackAction
+from beehive_resource.plugins.provider.entity.stack_v2 import (
+    ComputeStackV2,
+    ComputeStackAction,
+)
 from beehive_resource.plugins.provider.task_v2 import AbstractProviderResourceTask
 from beehive_resource.plugins.provider.entity.volume import ComputeVolume
 
 
 class StackV2Task(AbstractProviderResourceTask):
-    """Stack V2 task
-    """
-    name = 'stack_v2_task'
+    """Stack V2 task"""
+
+    name = "stack_v2_task"
     entity_class = ComputeStackV2
 
-    regex_pattern = r'\$\$(action_resource|resource)\.[\-_\w\d\.\:]+\$\$'
+    regex_pattern = r"\$\$(action_resource|resource)\.[\-_\w\d\.\:]+\$\$"
 
     @staticmethod
     @task_step()
@@ -30,24 +34,24 @@ class StackV2Task(AbstractProviderResourceTask):
         :param dict params: step params
         :return: oid, params
         """
-        cid = params.get('cid')
-        oid = params.get('id')
-        actions = params.pop('actions')
+        cid = params.get("cid")
+        oid = params.get("id")
+        actions = params.pop("actions")
 
         compute_stack = task.get_simple_resource(oid)
         provider = task.get_container(cid)
 
-        params['actions'] = []
+        params["actions"] = []
         for action in actions:
-            action['parent'] = oid
-            action['name'] = compute_stack.name + '-' + action['name']
+            action["parent"] = oid
+            action["name"] = compute_stack.name + "-" + action["name"]
             action_resource, code = provider.resource_factory(ComputeStackAction, **action)
-            res_uuid = action_resource['uuid']
+            res_uuid = action_resource["uuid"]
             resource = task.get_simple_resource(res_uuid)
-            action['id'] = resource.oid
+            action["id"] = resource.oid
             resource.update_internal(active=False, state=ResourceState.PENDING)
-            task.progress(step_id, msg='create stack %s action %s' % (oid, res_uuid))
-            params['actions'].append(action)
+            task.progress(step_id, msg="create stack %s action %s" % (oid, res_uuid))
+            params["actions"].append(action)
 
         return oid, params
 
@@ -62,8 +66,8 @@ class StackV2Task(AbstractProviderResourceTask):
         :param dict params: step params
         :return: resource_id, params
         """
-        cid = params.get('cid')
-        oid = params.get('id')
+        cid = params.get("cid")
+        oid = params.get("id")
 
         provider = task.get_container(cid)
         compute_stack = task.get_simple_resource(oid)
@@ -98,70 +102,96 @@ class StackV2Task(AbstractProviderResourceTask):
         :return: resource id, params
         """
         action_id = action.oid
-        action_resource = action.get_attribs(key='resource')
-        action_params = action.get_attribs(key='params')
-        resource_class = ComputeStackV2.get_resource_class(action_resource.get('type', None))
-        resource_operation = action_resource.get('operation', None)
-        action_params['sync'] = True
+        action_resource = action.get_attribs(key="resource")
+        action_params = action.get_attribs(key="params")
+        resource_class = ComputeStackV2.get_resource_class(action_resource.get("type", None))
+        resource_operation = action_resource.get("operation", None)
+        action_params["sync"] = True
 
         # parse action params with '$$action.' or '$$resource.' as prefix and '$$' as suffix
         StackV2Task.parse_stack_action_params_v2(task, step_id, compute_stack, action_params, StackV2Task.regex_pattern)
 
-        if resource_operation == 'create':
+        if resource_operation == "create":
             # uncomment only if you run 'stack' (not to be confused with '<db> stack', e.g. 'sql stack') unit tests
             # action_params['name'] = compute_stack.name + '-' + action_params['name']
             attribute = {}
-            res, code = action.container.resource_factory(resource_class, ext_id=None, active=False, has_quotas=False,
-                                                          attribute=attribute, tags='', **action_params)
+            res, code = action.container.resource_factory(
+                resource_class,
+                ext_id=None,
+                active=False,
+                has_quotas=False,
+                attribute=attribute,
+                tags="",
+                **action_params,
+            )
             # link resource to compute stack
-            resource_id = res['uuid']
-            action.set_configs(key='resource.id', value=resource_id)
-            compute_stack.add_link('stack-resource-%s' % id_gen(), 'resource.%s' % resource_id, resource_id,
-                                   attributes={})
-            task.progress(step_id, msg='link resource %s to stack %s' % (resource_id, compute_stack.oid))
+            resource_id = res["uuid"]
+            action.set_configs(key="resource.id", value=resource_id)
+            compute_stack.add_link(
+                "stack-resource-%s" % id_gen(),
+                "resource.%s" % resource_id,
+                resource_id,
+                attributes={},
+            )
+            task.progress(
+                step_id,
+                msg="link resource %s to stack %s" % (resource_id, compute_stack.oid),
+            )
 
-            if res.get('task', None) is not None:
+            if res.get("task", None) is not None:
                 run_sync_task(res, task, step_id)
-            task.progress(step_id, msg='create action %s resource %s' % (action_id, resource_id))
-        elif resource_operation == 'import':
+            task.progress(step_id, msg="create action %s resource %s" % (action_id, resource_id))
+        elif resource_operation == "import":
             # uncomment only if you run 'stack' (not to be confused with '<db> stack', e.g. 'sql stack') unit tests
             # action_params['name'] = compute_stack.name + '-' + action_params['name']
             # attribute = {}
             # res, code = action.container.resource_factory(resource_class, ext_id=None, active=False, has_quotas=False,
             #                                               attribute=attribute, tags='', **action_params)
             # link resource to compute stack
-            resource_id = action_params['uuid']
-            action.set_configs(key='resource.id', value=resource_id)
-            compute_stack.add_link('stack-resource-%s' % id_gen(), 'resource.%s' % resource_id, resource_id,
-                                   attributes={})
-            task.progress(step_id, msg='link resource %s to stack %s' % (resource_id, compute_stack.oid))
+            resource_id = action_params["uuid"]
+            action.set_configs(key="resource.id", value=resource_id)
+            compute_stack.add_link(
+                "stack-resource-%s" % id_gen(),
+                "resource.%s" % resource_id,
+                resource_id,
+                attributes={},
+            )
+            task.progress(
+                step_id,
+                msg="link resource %s to stack %s" % (resource_id, compute_stack.oid),
+            )
 
             # if res.get('task', None) is not None:
             #     run_sync_task(res, task, step_id)
-            task.progress(step_id, msg='import action %s resource %s' % (action_id, resource_id))
+            task.progress(step_id, msg="import action %s resource %s" % (action_id, resource_id))
         else:
-            resource_id = action_params.get('oid', None)
+            resource_id = action_params.get("oid", None)
             if resource_id is None:
-                raise TaskError('resource id cannot be null at this point')
+                raise TaskError("resource id cannot be null at this point")
 
             resource = task.get_resource(resource_id)
             func = getattr(resource, resource_operation, None)
             if func is None:
-                raise TaskError('operation %s in resource %s does not exist' %
-                                (resource_operation, resource.__class__.__name__))
+                raise TaskError(
+                    "operation %s in resource %s does not exist" % (resource_operation, resource.__class__.__name__)
+                )
 
             try:
                 res = func(**action_params)
             except (AttributeError, TypeError) as ex:
-                raise TaskError('operation %s in resource class %s can not be called in stack' %
-                                (resource_operation, resource.__class__.__name__))
+                raise TaskError(
+                    "operation %s in resource class %s can not be called in stack"
+                    % (resource_operation, resource.__class__.__name__)
+                )
 
             if isinstance(res, list) or isinstance(res, tuple):
                 res = res[0]
-            if res.get('task', None) is not None:
+            if res.get("task", None) is not None:
                 run_sync_task(res, task, step_id)
-            task.progress(step_id, msg='run action %s resource %s operation %s' %
-                                       (action_id, resource_id, resource_operation))
+            task.progress(
+                step_id,
+                msg="run action %s resource %s operation %s" % (action_id, resource_id, resource_operation),
+            )
 
         return resource_id
 
@@ -175,8 +205,8 @@ class StackV2Task(AbstractProviderResourceTask):
         :param dict params: step params
         :return: resource_id, params
         """
-        cid = params.get('cid')
-        oid = params.get('id')
+        cid = params.get("cid")
+        oid = params.get("id")
 
         provider = task.get_container(cid)
         compute_stack = task.get_simple_resource(oid)
@@ -184,13 +214,61 @@ class StackV2Task(AbstractProviderResourceTask):
 
         outputs = compute_stack.get_outputs()
         for output in list(outputs.values()):
-            name = output.get('name')
-            value = output.get('value')
+            name = output.get("name")
+            value = output.get("value")
             if isinstance(value, str) and match(StackV2Task.regex_pattern, ensure_str(value)) is not None:
                 data = StackV2Task.get_attrib_value_v2(task, compute_stack, value)
-                output['value'] = data
+                output["value"] = data
                 compute_stack.set_output(name, output)
-                task.progress(step_id, msg='set stack %s output %s to %s' % (oid, name, data))
+                task.progress(step_id, msg="set stack %s output %s to %s" % (oid, name, data))
+
+        return oid, params
+
+    @staticmethod
+    @task_step()
+    def set_monitoring_step(task, step_id, params, *args, **kvargs):
+        """Update stack outputs
+
+        :param task: parent celery task
+        :param str step_id: step id
+        :param dict params: step params
+        :return: resource_id, params
+        """
+        try:
+            print("+++++ AAA set_monitoring_step")
+            cid = params.get("cid")
+            oid = params.get("id")
+
+            provider = task.get_container(cid)
+            compute_stack: ComputeStackV2 = task.get_simple_resource(oid)
+            compute_stack.set_container(provider)
+
+            for resource in compute_stack.get_child_resources():
+                from beehive_resource.plugins.provider.entity.instance import ComputeInstance
+
+                if isinstance(resource, ComputeInstance):
+                    print("+++++ AAA set_monitoring_step - resource %s" % resource)
+                    computeInstance: ComputeInstance = resource
+
+                    resource.set_configs(key="monitoring_enabled", value=True)
+
+                    # res containers synchronizes every 4 hours
+                    from datetime import datetime, timedelta
+
+                    dt = datetime.now()
+                    monitoring_wait_sync_till = dt + timedelta(hours=4)
+                    str_monitoring_wait_sync_till = monitoring_wait_sync_till.strftime("%m/%d/%Y, %H:%M:%S")
+                    resource.set_configs(key="monitoring_wait_sync_till", value=str_monitoring_wait_sync_till)
+                    print(
+                        "+++++ AAA set_monitoring_step - str_monitoring_wait_sync_till %s"
+                        % str_monitoring_wait_sync_till
+                    )
+
+        except Exception as err:
+            msg = str(err)
+            # print("+++++ AAA set_monitoring_step - ex %s" % ex)
+            print("+++++ AAA set_monitoring_step - error")
+            print("+++++ AAA set_monitoring_step - msg %s" % msg)
 
         return oid, params
 
@@ -205,8 +283,8 @@ class StackV2Task(AbstractProviderResourceTask):
         :param replica_master: id, uuid or name of master server in db replication system
         :return: True (dummy value), params
         """
-        cid = params.get('cid')
-        oid = params.get('id')
+        cid = params.get("cid")
+        oid = params.get("id")
 
         # get compute stack object
         provider = task.get_container(cid)
@@ -217,15 +295,27 @@ class StackV2Task(AbstractProviderResourceTask):
         master_stack = task.get_simple_resource(replica_master)
 
         # create link from current compute stack to master compute stack
-        compute_stack.add_link(name='stack-replica-%s' % id_gen(), type='replica.%s' % compute_stack.uuid,
-                               end_resource=master_stack.oid, attributes={})
-        task.progress(step_id, msg='link stack %s to stack %s' %
-                                   (compute_stack.oid, master_stack.oid))
+        compute_stack.add_link(
+            name="stack-replica-%s" % id_gen(),
+            type="replica.%s" % compute_stack.uuid,
+            end_resource=master_stack.oid,
+            attributes={},
+        )
+        task.progress(
+            step_id,
+            msg="link stack %s to stack %s" % (compute_stack.oid, master_stack.oid),
+        )
         # create link from master compute stack to current compute stack
-        master_stack.add_link(name='stack-replica-%s' % id_gen(), type='replica.%s' % master_stack.uuid,
-                              end_resource=compute_stack.oid, attributes={})
-        task.progress(step_id, msg='link stack %s to stack %s' %
-                                   (master_stack.oid, compute_stack.oid))
+        master_stack.add_link(
+            name="stack-replica-%s" % id_gen(),
+            type="replica.%s" % master_stack.uuid,
+            end_resource=compute_stack.oid,
+            attributes={},
+        )
+        task.progress(
+            step_id,
+            msg="link stack %s to stack %s" % (master_stack.oid, compute_stack.oid),
+        )
 
         return True, params
 
@@ -240,8 +330,8 @@ class StackV2Task(AbstractProviderResourceTask):
         :param replica_master: id, uuid or name of master server in db replication system
         :return: True (dummy value), params
         """
-        cid = params.get('cid')
-        oid = params.get('id')
+        cid = params.get("cid")
+        oid = params.get("id")
 
         # get compute stack object
         provider = task.get_container(cid)
@@ -253,12 +343,16 @@ class StackV2Task(AbstractProviderResourceTask):
 
         # delete link from current compute stack to master compute stack
         compute_stack.del_link(master_stack.oid)
-        task.progress(step_id, msg='delete link from stack %s to stack %s' %
-                                   (compute_stack.oid, master_stack.oid))
+        task.progress(
+            step_id,
+            msg="delete link from stack %s to stack %s" % (compute_stack.oid, master_stack.oid),
+        )
         # delete link from current compute stack to master compute stack
         master_stack.del_link(compute_stack.oid)
-        task.progress(step_id, msg='delete link from stack %s to stack %s' %
-                                   (master_stack.oid, compute_stack.oid))
+        task.progress(
+            step_id,
+            msg="delete link from stack %s to stack %s" % (master_stack.oid, compute_stack.oid),
+        )
 
         return True, params
 
@@ -274,14 +368,14 @@ class StackV2Task(AbstractProviderResourceTask):
         :return: action_id, params
         """
         # cid = params.get('cid')
-        oid = params.get('id')
+        oid = params.get("id")
 
         # compute_stack = task.get_simple_resource(oid)
         action = task.get_simple_resource(action_id)
 
         action.update_state(ResourceState.EXPUNGING)
         action.expunge()
-        task.progress(step_id, msg='remove stack %s action %s' % (oid, action.uuid))
+        task.progress(step_id, msg="remove stack %s action %s" % (oid, action.uuid))
 
         return action_id, params
 
@@ -296,27 +390,30 @@ class StackV2Task(AbstractProviderResourceTask):
         :param dict params: step params
         :return: action_id, params
         """
-        oid = params.get('id')
+        oid = params.get("id")
 
         action = task.get_simple_resource(action_id)
-        resource_id = action.get_attribs(key='resource.id')
+        resource_id = action.get_attribs(key="resource.id")
         # preserve = action.get_attribs(key='resource.preserve')
 
         action.update_internal(state=ResourceState.DELETING, active=False)
 
         # update action and remove resource
-        if resource_id is None or resource_id == '':
-            task.progress(step_id, msg='no stack %s action %s resource to delete. do nothing' % (oid, action.uuid))
+        if resource_id is None or resource_id == "":
+            task.progress(
+                step_id,
+                msg="no stack %s action %s resource to delete. do nothing" % (oid, action.uuid),
+            )
         else:
             resource = task.get_resource(resource_id)
             res, code = resource.expunge(sync=True)
 
             # follow sub task
-            if res.get('task', None) is not None:
+            if res.get("task", None) is not None:
                 run_sync_task(res, task, step_id)
 
-            action.set_configs(key='resource.id', value='')
-            task.progress(step_id, msg='remove stack %s action %s resource' % (oid, action.uuid))
+            action.set_configs(key="resource.id", value="")
+            task.progress(step_id, msg="remove stack %s action %s resource" % (oid, action.uuid))
 
         return action_id, params
 
@@ -344,7 +441,7 @@ class StackV2Task(AbstractProviderResourceTask):
             if isinstance(value, str) and match(pattern, ensure_str(value)) is not None:
                 data = StackV2Task.get_attrib_value(task, value)
                 action_params[key] = data
-                task.progress(step_id, msg='set stack action param %s to %s' % (key, data))
+                task.progress(step_id, msg="set stack action param %s to %s" % (key, data))
             elif isinstance(value, str):
                 continue
             elif isinstance(value, list):
@@ -364,8 +461,8 @@ class StackV2Task(AbstractProviderResourceTask):
         :param ref: string to parse that contains a reference to the resource and a reference to the key to search
         :return: dictionary value
         """
-        ref = ref.replace('$$resource.', '').replace('$$', '')
-        res_id, attrib = ref.split('::')
+        ref = ref.replace("$$resource.", "").replace("$$", "")
+        res_id, attrib = ref.split("::")
         resource = task.get_resource(res_id)
         data = dict_get(resource.detail(), attrib)
         return data
@@ -394,7 +491,7 @@ class StackV2Task(AbstractProviderResourceTask):
             if isinstance(value, str) and match(pattern, ensure_str(value)) is not None:
                 data = StackV2Task.get_attrib_value_v2(task, compute_stack, value)
                 action_params[key] = data
-                task.progress(step_id, msg='set stack action param %s to %s' % (key, data))
+                task.progress(step_id, msg="set stack action param %s to %s" % (key, data))
             elif isinstance(value, str):
                 continue
             elif isinstance(value, list):
@@ -415,20 +512,20 @@ class StackV2Task(AbstractProviderResourceTask):
         :param ref: string to parse that contains a reference to the resource and a reference to the key to search
         :return: dictionary value
         """
-        if 'action_resource' in ref:
+        if "action_resource" in ref:
             # remove prefix and suffix
-            ref = ref.replace('$$action_resource.', '').replace('$$', '')
+            ref = ref.replace("$$action_resource.", "").replace("$$", "")
             # get action name
-            action_name, res_attrib = ref.split('::')
+            action_name, res_attrib = ref.split("::")
             # get action object from name
             action = compute_stack.get_actions(name=action_name)
             # get action object id
-            res_id = action.get_attribs(key='resource.id')
+            res_id = action.get_attribs(key="resource.id")
         else:
             # remove prefix and suffix
-            ref = ref.replace('$$resource.', '').replace('$$', '')
+            ref = ref.replace("$$resource.", "").replace("$$", "")
             # get resource name
-            res_id, res_attrib = ref.split('::')
+            res_id, res_attrib = ref.split("::")
         # get resource object from res id
         resource = task.get_resource(res_id)
         # get value from attrib
@@ -437,9 +534,9 @@ class StackV2Task(AbstractProviderResourceTask):
 
 
 class StackV2SqlTask(AbstractProviderResourceTask):
-    """Stack V2 mysql task
-    """
-    name = 'stack_v2_mysql_task'
+    """Stack V2 mysql task"""
+
+    name = "stack_v2_mysql_task"
     entity_class = ComputeStackV2
 
     @staticmethod
@@ -453,22 +550,28 @@ class StackV2SqlTask(AbstractProviderResourceTask):
         :param str compute_instance_id: id of compute instance linked to stack
         :return: oid, params
         """
-        oid = params.get('id')
-        operation = params.get('action_name')
-        compute_instance = task.get_resource(compute_instance_id)
-        task.progress(step_id, msg='get resource %s' % compute_instance.uuid)
+        oid = params.get("id")
+        operation = params.get("action_name")
+
+        from beehive_resource.plugins.provider.entity.instance import ComputeInstance
+
+        compute_instance: ComputeInstance = task.get_resource(compute_instance_id)
+        task.progress(step_id, msg="get resource %s" % compute_instance.uuid)
 
         # manage cases that need some extra work
-        if operation == 'resize':
+        if operation == "resize":
             # rename operation to fit with the compute instance method implementing the operation
-            operation = 'add_volume'
-            volume_id = params.get('last_step_response')
-            params.update({'data': {'action': {'add_volume': {'volume': volume_id}}}})
+            operation = "add_volume"
+            volume_id = params.get("last_step_response")
+            params.update({"data": {"action": {"add_volume": {"volume": volume_id}}}})
 
-        params['sync'] = True
+        params["sync"] = True
         prepared_task, code = compute_instance.action(operation, **params)
         run_sync_task(prepared_task, task, step_id)
-        task.progress(step_id, msg='Run %s action on db server %s' % (operation, compute_instance.uuid))
+        task.progress(
+            step_id,
+            msg="Run %s action on db server %s" % (operation, compute_instance.uuid),
+        )
 
         return oid, params
 
@@ -485,69 +588,83 @@ class StackV2SqlTask(AbstractProviderResourceTask):
         :param dict data: params for applied customization
         :return: oid, params
         """
-        oid = params.get('id')
-        operation = params.get('action_name')
+        oid = params.get("id")
+        operation = params.get("action_name")
         compute_instance = task.get_resource(compute_instance_id)
-        task.progress(step_id, msg='get resource %s' % compute_instance.oid)
+        task.progress(step_id, msg="get resource %s" % compute_instance.oid)
 
         prepared_task, code = compute_instance.apply_customization(operation, data, sync=True)
         run_sync_task(prepared_task, task, step_id)
-        task.progress(step_id, msg='Run %s action on server %s using applied customization' %
-                                   (operation, compute_instance.oid))
+        task.progress(
+            step_id,
+            msg="Run %s action on server %s using applied customization" % (operation, compute_instance.oid),
+        )
 
         return oid, params
 
     @staticmethod
     @task_step()
     def sql_enable_mailx_step(task, step_id, params, compute_instance_id, relayhost, domain, *args, **kvargs):
-        """Install and configure mailx
-        """
+        """Install and configure mailx"""
         data = {
-            'customization': 'os-utility',
-            'playbook': 'install_mailx.yml',
-            'extra_vars': {
-                'relayhost': relayhost,
-                'domain': domain
-            }
+            "customization": "os-utility",
+            "playbook": "install_mailx.yml",
+            "extra_vars": {"relayhost": relayhost, "domain": domain},
         }
-        return StackV2SqlTask.sql_invoke_apply_customization_step(task, step_id, params, compute_instance_id, data,
-                                                                  *args, **kvargs)
+        return StackV2SqlTask.sql_invoke_apply_customization_step(
+            task, step_id, params, compute_instance_id, data, *args, **kvargs
+        )
 
     @staticmethod
     @task_step()
-    def sql_haproxy_registration_step(task, step_id, params, compute_instance_id, server_name, server_ip, engine_port,
-                                      operation, *args, **kvargs):
-        """Register db instance server on haproxy
-        """
+    def sql_haproxy_registration_step(
+        task,
+        step_id,
+        params,
+        compute_instance_id,
+        server_name,
+        server_ip,
+        engine_port,
+        operation,
+        *args,
+        **kvargs,
+    ):
+        """Register db instance server on haproxy"""
         data = {
-            'customization': 'haproxy',
-            'playbook': 'manage_reg.yml',
-            'extra_vars': {
-                'server_name': server_name,
-                'server_ip': server_ip,
-                'engine_port': engine_port,
-                'operation': operation
-            }
+            "customization": "haproxy",
+            "playbook": "manage_reg.yml",
+            "extra_vars": {
+                "server_name": server_name,
+                "server_ip": server_ip,
+                "engine_port": engine_port,
+                "operation": operation,
+            },
         }
-        return StackV2SqlTask.sql_invoke_apply_customization_step(task, step_id, params, compute_instance_id, data,
-                                                                  *args, **kvargs)
+        return StackV2SqlTask.sql_invoke_apply_customization_step(
+            task, step_id, params, compute_instance_id, data, *args, **kvargs
+        )
 
     @staticmethod
     @task_step()
-    def sql_haproxy_deregistration_step(task, step_id, params, compute_instance_id, server_name, operation, *args,
-                                        **kvargs):
-        """Deregister db instance server from haproxy
-        """
+    def sql_haproxy_deregistration_step(
+        task,
+        step_id,
+        params,
+        compute_instance_id,
+        server_name,
+        operation,
+        *args,
+        **kvargs,
+    ):
+        """Deregister db instance server from haproxy"""
         data = {
-            'customization': 'haproxy',
-            'playbook': 'manage_reg.yml',
-            'extra_vars': {
-                'server_name': server_name,
-                'operation': operation
-            }
+            "customization": "haproxy",
+            "playbook": "manage_reg.yml",
+            "extra_vars": {"server_name": server_name, "operation": operation},
         }
-        return StackV2SqlTask.sql_invoke_apply_customization_step(task, step_id, params, compute_instance_id, data,
-                                                                  *args, **kvargs)
+        return StackV2SqlTask.sql_invoke_apply_customization_step(
+            task, step_id, params, compute_instance_id, data, *args, **kvargs
+        )
 
     @staticmethod
     @task_step()
@@ -561,47 +678,47 @@ class StackV2SqlTask(AbstractProviderResourceTask):
         :param size: volume size in GiB
         :return: the id of the created volume, params
         """
-        cid = params.get('cid')
-        oid = params.get('id')
+        cid = params.get("cid")
+        oid = params.get("id")
 
         provider = task.get_container(cid)
 
         compute_stack = task.get_simple_resource(oid)
         compute_stack_attribs = compute_stack.get_attribs()
-        volume_flavor_name = compute_stack_attribs.get('volume_flavor')
+        volume_flavor_name = compute_stack_attribs.get("volume_flavor")
         volume_flavor = task.get_simple_resource(volume_flavor_name)
 
         compute_instance = task.get_resource(compute_instance_id)
         compute_instance_attribs = compute_instance.get_attribs()
-        site = compute_instance_attribs.get('availability_zone')
-        orchestrator_type = compute_instance_attribs.get('type')
-        has_quotas = compute_instance_attribs.get('has_quotas', True)
+        site = compute_instance_attribs.get("availability_zone")
+        orchestrator_type = compute_instance_attribs.get("type")
+        has_quotas = compute_instance_attribs.get("has_quotas", True)
 
-        volumes = compute_instance.detail().get('block_device_mapping')
+        volumes = compute_instance.detail().get("block_device_mapping")
         max_boot_idx = 0
         for volume in volumes:
-            boot_idx = int(volume.get('boot_index'))
+            boot_idx = int(volume.get("boot_index"))
             max_boot_idx = max(max_boot_idx, boot_idx)
         next_boot_idx = max_boot_idx + 1
 
         volume_params = {
-            'name': '%s-volume-%s' % (compute_instance.name, next_boot_idx),
-            'parent': compute_instance.parent_id,
-            'compute_zone': compute_instance.parent_id,
-            'availability_zone': site,
-            'size': size,
-            'type': orchestrator_type,
-            'flavor': volume_flavor.oid,
-            'sync': True
+            "name": "%s-volume-%s" % (compute_instance.name, next_boot_idx),
+            "parent": compute_instance.parent_id,
+            "compute_zone": compute_instance.parent_id,
+            "availability_zone": site,
+            "size": size,
+            "type": orchestrator_type,
+            "flavor": volume_flavor.oid,
+            "sync": True,
         }
 
         # create volume
         prepared_task, code = provider.resource_factory(ComputeVolume, has_quotas=has_quotas, **volume_params)
-        volume_id = prepared_task['uuid']
+        volume_id = prepared_task["uuid"]
 
         # wait task to complete
         run_sync_task(prepared_task, task, step_id)
-        task.progress(step_id, msg='Create volume %s in availability zone %s' % (volume_id, site))
+        task.progress(step_id, msg="Create volume %s in availability zone %s" % (volume_id, site))
 
         return volume_id, params
 
@@ -616,312 +733,391 @@ class StackV2SqlTask(AbstractProviderResourceTask):
         :param size: the storage capacity of the db instance after resize
         :return: True (dummy value), params
         """
-        oid = params.get('id')
+        oid = params.get("id")
 
         compute_stack = task.get_simple_resource(oid)
-        compute_stack.set_configs(key='allocated_storage', value=size)
+        compute_stack.set_configs(key="allocated_storage", value=size)
 
-        task.progress(step_id, msg='Update allocated storage of stack %s: %s GiB' % (oid, str(size)))
+        task.progress(
+            step_id,
+            msg="Update allocated storage of stack %s: %s GiB" % (oid, str(size)),
+        )
         return True, params
 
 
 class StackV2MysqlTask(StackV2SqlTask):
-    """Stack V2 mysql task
-    """
-    name = 'stack_v2_mysql_task'
+    """Stack V2 mysql task"""
+
+    name = "stack_v2_mysql_task"
     entity_class = ComputeStackV2
 
     @staticmethod
     @task_step()
     def mysql_manage_engine_step(task, step_id, params, compute_instance_id, *args, **kvargs):
-        """Manage (i.e. start, stop, restart) database engine
-        """
+        """Manage (i.e. start, stop, restart) database engine"""
         data = {
-            'customization': 'db-utility',
-            'playbook': 'manage.yml',
-            'extra_vars': {
-                'engine': params.get('engine'),
-                'version': params.get('version'),
-                'operation': params.get('action_name')
-            }
+            "customization": "db-utility",
+            "playbook": "manage.yml",
+            "extra_vars": {
+                "engine": params.get("engine"),
+                "version": params.get("version"),
+                "operation": params.get("action_name"),
+            },
         }
-        return StackV2SqlTask.sql_invoke_apply_customization_step(task, step_id, params, compute_instance_id, data,
-                                                                  *args, **kvargs)
+        return StackV2SqlTask.sql_invoke_apply_customization_step(
+            task, step_id, params, compute_instance_id, data, *args, **kvargs
+        )
 
     @staticmethod
     @task_step()
     def mysql_add_db_step(task, step_id, params, compute_instance_id, db_name, charset, *args, **kvargs):
-        """Create database and schema
-        """
+        """Create database and schema"""
         data = StackV2MysqlTask.mysql_commons(params)
-        data['playbook'] = 'DbMgmtMysql.yml'
+        data["playbook"] = "DbMgmtMysql.yml"
         extras = {
-            'p_mysql_db_name': db_name,
-            'p_mysql_db_encoding': charset,
-            'p_mysql_db_mgmt_type': 'add',
+            "p_mysql_db_name": db_name,
+            "p_mysql_db_encoding": charset,
+            "p_mysql_db_mgmt_type": "add",
         }
-        data['extra_vars'].update(extras)
-        return StackV2SqlTask.sql_invoke_apply_customization_step(task, step_id, params, compute_instance_id, data,
-                                                                  *args, **kvargs)
+        data["extra_vars"].update(extras)
+        return StackV2SqlTask.sql_invoke_apply_customization_step(
+            task, step_id, params, compute_instance_id, data, *args, **kvargs
+        )
 
     @staticmethod
     @task_step()
     def mysql_drop_db_step(task, step_id, params, compute_instance_id, db_name, *args, **kvargs):
-        """Delete database
-        """
+        """Delete database"""
         data = StackV2MysqlTask.mysql_commons(params)
-        data['playbook'] = 'DbMgmtMysql.yml'
-        extras = {
-            'p_mysql_db_name': db_name,
-            'p_mysql_db_mgmt_type': 'delete'
-        }
-        data['extra_vars'].update(extras)
-        return StackV2SqlTask.sql_invoke_apply_customization_step(task, step_id, params, compute_instance_id, data,
-                                                                  *args, **kvargs)
-    
-    @staticmethod
-    @task_step()
-    def mysql_add_user_step(task, step_id, params, compute_instance_id, usr_name, usr_password, *args, **kvargs):
-        """Create db user
-        """
-        data = {
-            'customization': 'db-utility',
-            'playbook': 'manage.yml',
-            'extra_vars': {
-                'engine': params.get('engine'),
-                'operation': params.get('action_name'),
-                'p_port': params.get('port'),
-                'p_admin_usr': params.get('admin_usr'),
-                'p_admin_pwd': params.get('admin_pwd'),
-                'p_usr_name': usr_name,
-                'p_usr_pwd': usr_password
-            }
-        }
-        return StackV2SqlTask.sql_invoke_apply_customization_step(task, step_id, params, compute_instance_id, data,
-                                                                  *args, **kvargs)
+        data["playbook"] = "DbMgmtMysql.yml"
+        extras = {"p_mysql_db_name": db_name, "p_mysql_db_mgmt_type": "delete"}
+        data["extra_vars"].update(extras)
+        return StackV2SqlTask.sql_invoke_apply_customization_step(
+            task, step_id, params, compute_instance_id, data, *args, **kvargs
+        )
 
     @staticmethod
     @task_step()
-    def mysql_change_pwd_step(task, step_id, params, compute_instance_id, usr_name, new_password, *args, **kvargs):
-        """Update db user password
-        """
-        data = StackV2MysqlTask.mysql_commons(params)
-        data['playbook'] = 'UserMgmtMysql.yml'
-        extras = {
-            'p_mysql_users': [{'name': usr_name, 'pwd': new_password}],
-            'p_mysql_user_mgmt_type': 'chpwdusr'
+    def mysql_add_user_step(
+        task,
+        step_id,
+        params,
+        compute_instance_id,
+        usr_name,
+        usr_password,
+        *args,
+        **kvargs,
+    ):
+        """Create db user"""
+        data = {
+            "customization": "db-utility",
+            "playbook": "manage.yml",
+            "extra_vars": {
+                "engine": params.get("engine"),
+                "operation": params.get("action_name"),
+                "p_port": params.get("port"),
+                "p_admin_usr": params.get("admin_usr"),
+                "p_admin_pwd": params.get("admin_pwd"),
+                "p_usr_name": usr_name,
+                "p_usr_pwd": usr_password,
+            },
         }
-        data['extra_vars'].update(extras)
-        return StackV2SqlTask.sql_invoke_apply_customization_step(task, step_id, params, compute_instance_id, data,
-                                                                  *args, **kvargs)
+        return StackV2SqlTask.sql_invoke_apply_customization_step(
+            task, step_id, params, compute_instance_id, data, *args, **kvargs
+        )
+
+    @staticmethod
+    @task_step()
+    def mysql_change_pwd_step(
+        task,
+        step_id,
+        params,
+        compute_instance_id,
+        usr_name,
+        new_password,
+        *args,
+        **kvargs,
+    ):
+        """Update db user password"""
+        data = StackV2MysqlTask.mysql_commons(params)
+        data["playbook"] = "UserMgmtMysql.yml"
+        extras = {
+            "p_mysql_users": [{"name": usr_name, "pwd": new_password}],
+            "p_mysql_user_mgmt_type": "chpwdusr",
+        }
+        data["extra_vars"].update(extras)
+        return StackV2SqlTask.sql_invoke_apply_customization_step(
+            task, step_id, params, compute_instance_id, data, *args, **kvargs
+        )
 
     @staticmethod
     @task_step()
     def mysql_drop_user_step(task, step_id, params, compute_instance_id, usr_name, *args, **kvargs):
-        """Delete db user
-        """
+        """Delete db user"""
         data = StackV2MysqlTask.mysql_commons(params)
-        data['playbook'] = 'UserMgmtMysql.yml'
+        data["playbook"] = "UserMgmtMysql.yml"
         extras = {
-            'p_mysql_users': [{'name': usr_name}],
-            'p_mysql_user_mgmt_type': 'delusr'
+            "p_mysql_users": [{"name": usr_name}],
+            "p_mysql_user_mgmt_type": "delusr",
         }
-        data['extra_vars'].update(extras)
-        return StackV2SqlTask.sql_invoke_apply_customization_step(task, step_id, params, compute_instance_id, data,
-                                                                  *args, **kvargs)
+        data["extra_vars"].update(extras)
+        return StackV2SqlTask.sql_invoke_apply_customization_step(
+            task, step_id, params, compute_instance_id, data, *args, **kvargs
+        )
 
     @staticmethod
     @task_step()
-    def mysql_grant_privs_step(task, step_id, params, compute_instance_id, privileges, db_name, usr_name, *args,
-                               **kvargs):
-        """Assign privileges to db user
-        """
+    def mysql_grant_privs_step(
+        task,
+        step_id,
+        params,
+        compute_instance_id,
+        privileges,
+        db_name,
+        usr_name,
+        *args,
+        **kvargs,
+    ):
+        """Assign privileges to db user"""
         data = StackV2MysqlTask.mysql_commons(params)
-        data['playbook'] = 'UserMgmtMysql.yml'
+        data["playbook"] = "UserMgmtMysql.yml"
         extras = {
-            'p_mysql_users': [{'name': usr_name, 'privs': '{}.*:{}'.format(db_name, privileges)}],
-            'p_mysql_user_mgmt_type': 'addpriv'
+            "p_mysql_users": [{"name": usr_name, "privs": "{}.*:{}".format(db_name, privileges)}],
+            "p_mysql_user_mgmt_type": "addpriv",
         }
-        data['extra_vars'].update(extras)
-        return StackV2SqlTask.sql_invoke_apply_customization_step(task, step_id, params, compute_instance_id, data,
-                                                                  *args, **kvargs)
+        data["extra_vars"].update(extras)
+        return StackV2SqlTask.sql_invoke_apply_customization_step(
+            task, step_id, params, compute_instance_id, data, *args, **kvargs
+        )
 
     @staticmethod
     @task_step()
-    def mysql_revoke_privs_step(task, step_id, params, compute_instance_id, privileges, db_name, usr_name, *args,
-                                **kvargs):
-        """Revoke privileges from db user
-        """
+    def mysql_revoke_privs_step(
+        task,
+        step_id,
+        params,
+        compute_instance_id,
+        privileges,
+        db_name,
+        usr_name,
+        *args,
+        **kvargs,
+    ):
+        """Revoke privileges from db user"""
         data = StackV2MysqlTask.mysql_commons(params)
-        data['playbook'] = 'UserMgmtMysql.yml'
+        data["playbook"] = "UserMgmtMysql.yml"
         extras = {
-            'p_mysql_users': [{'name': usr_name, 'privs': '{} ON {}.*'.format(privileges, db_name)}],
-            'p_mysql_user_mgmt_type': 'revokepriv'
+            "p_mysql_users": [{"name": usr_name, "privs": "{} ON {}.*".format(privileges, db_name)}],
+            "p_mysql_user_mgmt_type": "revokepriv",
         }
-        data['extra_vars'].update(extras)
-        return StackV2SqlTask.sql_invoke_apply_customization_step(task, step_id, params, compute_instance_id, data,
-                                                                  *args, **kvargs)
+        data["extra_vars"].update(extras)
+        return StackV2SqlTask.sql_invoke_apply_customization_step(
+            task, step_id, params, compute_instance_id, data, *args, **kvargs
+        )
 
     @staticmethod
     @task_step()
-    def mysql_install_extensions_step(task, step_id, params, compute_instance_id, ip_repository, extensions, *args,
-                                      **kvargs):
-        """Install db extension(s)
-        """
+    def mysql_install_extensions_step(
+        task,
+        step_id,
+        params,
+        compute_instance_id,
+        ip_repository,
+        extensions,
+        *args,
+        **kvargs,
+    ):
+        """Install db extension(s)"""
         data = {
-            'customization': 'mysql',
-            'playbook': 'extensionMgmtMysql.yml',
-            'extra_vars': {
-                'p_mysql_db_port': params.get('port'),
-                'p_mysql_root_username': params.get('admin_usr'),
-                'p_mysql_root_password': params.get('admin_pwd'),
-                'p_ip_repository': ip_repository,
-                'p_mysql_extensions': extensions,
-                'p_mysql_db_restart': 1
-            }
+            "customization": "mysql",
+            "playbook": "extensionMgmtMysql.yml",
+            "extra_vars": {
+                "p_mysql_db_port": params.get("port"),
+                "p_mysql_root_username": params.get("admin_usr"),
+                "p_mysql_root_password": params.get("admin_pwd"),
+                "p_ip_repository": ip_repository,
+                "p_mysql_extensions": extensions,
+                "p_mysql_db_restart": 1,
+            },
         }
-        return StackV2SqlTask.sql_invoke_apply_customization_step(task, step_id, params, compute_instance_id, data,
-                                                                  *args, **kvargs)
+        return StackV2SqlTask.sql_invoke_apply_customization_step(
+            task, step_id, params, compute_instance_id, data, *args, **kvargs
+        )
 
     @staticmethod
     def mysql_commons(params):
         return {
-            'customization': 'mysql',
-            'extra_vars': {
-                'p_mysql_db_port': params.get('port'),
-                'p_mysql_login_name': params.get('admin_usr'),
-                'p_mysql_login_password': params.get('admin_pwd')
-            }
+            "customization": "mysql",
+            "extra_vars": {
+                "p_mysql_db_port": params.get("port"),
+                "p_mysql_login_name": params.get("admin_usr"),
+                "p_mysql_login_password": params.get("admin_pwd"),
+            },
         }
 
 
 class StackV2PostgresqlTask(StackV2SqlTask):
-    """Stack V2 postgresql task
-    """
-    name = 'stack_v2_pgsql_task'
+    """Stack V2 postgresql task"""
+
+    name = "stack_v2_pgsql_task"
     entity_class = ComputeStackV2
 
     @staticmethod
     @task_step()
     def pgsql_manage_engine_step(task, step_id, params, compute_instance_id, *args, **kvargs):
-        """Manage (i.e. start, stop, restart) database engine
-        """
-        version = params.get('version')
-        if version == '12.4':
-            version = '12'
+        """Manage (i.e. start, stop, restart) database engine"""
+        version = params.get("version")
+        if version == "12.4":
+            version = "12"
         data = {
-            'customization': 'db-utility',
-            'playbook': 'manage.yml',
-            'extra_vars': {
-                'engine': params.get('engine'),
-                'version': version,
-                'operation': params.get('action_name')
-            }
+            "customization": "db-utility",
+            "playbook": "manage.yml",
+            "extra_vars": {
+                "engine": params.get("engine"),
+                "version": version,
+                "operation": params.get("action_name"),
+            },
         }
-        return StackV2SqlTask.sql_invoke_apply_customization_step(task, step_id, params, compute_instance_id, data,
-                                                                  *args, **kvargs)
+        return StackV2SqlTask.sql_invoke_apply_customization_step(
+            task, step_id, params, compute_instance_id, data, *args, **kvargs
+        )
 
     @staticmethod
     @task_step()
-    def pgsql_add_db_step(task, step_id, params, compute_instance_id, db_name, charset, schema_name, *args, **kvargs):
-        """Create database
-        """
+    def pgsql_add_db_step(
+        task,
+        step_id,
+        params,
+        compute_instance_id,
+        db_name,
+        charset,
+        schema_name,
+        *args,
+        **kvargs,
+    ):
+        """Create database"""
         data = StackV2PostgresqlTask.pgsql_commons(params)
-        data['playbook'] = 'dbMgmtPostgres.yml'
+        data["playbook"] = "dbMgmtPostgres.yml"
         extras = {
-            'p_postgres_db_name': db_name,
-            'p_postgres_schema_name': schema_name,
-            'p_postgres_db_encoding': charset
+            "p_postgres_db_name": db_name,
+            "p_postgres_schema_name": schema_name,
+            "p_postgres_db_encoding": charset,
         }
-        data['extra_vars'].update(extras)
-        return StackV2SqlTask.sql_invoke_apply_customization_step(task, step_id, params, compute_instance_id, data,
-                                                                  *args, **kvargs)
+        data["extra_vars"].update(extras)
+        return StackV2SqlTask.sql_invoke_apply_customization_step(
+            task, step_id, params, compute_instance_id, data, *args, **kvargs
+        )
 
     @staticmethod
     @task_step()
-    def pgsql_drop_db_step(task, step_id, params, compute_instance_id, db_name, schema_name, *args, **kvargs):
-        """Delete database
-        """
+    def pgsql_drop_db_step(
+        task,
+        step_id,
+        params,
+        compute_instance_id,
+        db_name,
+        schema_name,
+        *args,
+        **kvargs,
+    ):
+        """Delete database"""
         data = StackV2PostgresqlTask.pgsql_commons(params)
-        data['playbook'] = 'dbMgmtPostgres.yml'
+        data["playbook"] = "dbMgmtPostgres.yml"
         extras = {
-            'p_postgres_db_name': db_name,
-            'p_postgres_schema_name': schema_name,
+            "p_postgres_db_name": db_name,
+            "p_postgres_schema_name": schema_name,
         }
-        data['extra_vars'].update(extras)
-        return StackV2SqlTask.sql_invoke_apply_customization_step(task, step_id, params, compute_instance_id, data,
-                                                                  *args, **kvargs)
+        data["extra_vars"].update(extras)
+        return StackV2SqlTask.sql_invoke_apply_customization_step(
+            task, step_id, params, compute_instance_id, data, *args, **kvargs
+        )
 
     @staticmethod
     @task_step()
-    def pgsql_add_user_step(task, step_id, params, compute_instance_id, name, password, attribs, *args, **kvargs):
-        """Create db user
-        """
+    def pgsql_add_user_step(
+        task,
+        step_id,
+        params,
+        compute_instance_id,
+        name,
+        password,
+        attribs,
+        *args,
+        **kvargs,
+    ):
+        """Create db user"""
         data = StackV2PostgresqlTask.pgsql_commons(params)
-        data['playbook'] = 'userMgmtPostgres.yml'
-        user = {'name': name, 'pwd': password, 'attribs': attribs}
-        extras = {
-            'p_postgres_users': [user]
-        }
-        data['extra_vars'].update(extras)
-        return StackV2SqlTask.sql_invoke_apply_customization_step(task, step_id, params, compute_instance_id, data,
-                                                                  *args, **kvargs)
+        data["playbook"] = "userMgmtPostgres.yml"
+        user = {"name": name, "pwd": password, "attribs": attribs}
+        extras = {"p_postgres_users": [user]}
+        data["extra_vars"].update(extras)
+        return StackV2SqlTask.sql_invoke_apply_customization_step(
+            task, step_id, params, compute_instance_id, data, *args, **kvargs
+        )
 
     @staticmethod
     @task_step()
     def pgsql_change_user_pwd_step(task, step_id, params, compute_instance_id, name, new_password, *args, **kvargs):
-        """Update db user password
-        """
+        """Update db user password"""
         data = StackV2PostgresqlTask.pgsql_commons(params)
-        data['playbook'] = 'userMgmtPostgres.yml'
-        user = {'name': name, 'pwd': new_password}
-        extras = {
-            'p_postgres_users': [user]
-        }
-        data['extra_vars'].update(extras)
-        return StackV2SqlTask.sql_invoke_apply_customization_step(task, step_id, params, compute_instance_id, data,
-                                                                  *args, **kvargs)
+        data["playbook"] = "userMgmtPostgres.yml"
+        user = {"name": name, "pwd": new_password}
+        extras = {"p_postgres_users": [user]}
+        data["extra_vars"].update(extras)
+        return StackV2SqlTask.sql_invoke_apply_customization_step(
+            task, step_id, params, compute_instance_id, data, *args, **kvargs
+        )
 
     @staticmethod
     @task_step()
     def pgsql_drop_user_step(task, step_id, params, compute_instance_id, name, force, *args, **kvargs):
-        """Delete db user
-        """
+        """Delete db user"""
         data = StackV2PostgresqlTask.pgsql_commons(params)
-        data['playbook'] = 'userMgmtPostgres.yml'
-        user = {'name': name}
-        extras = {
-            'p_postgres_users': [user],
-            'p_postgres_mgmt_force': force
-        }
-        data['extra_vars'].update(extras)
-        return StackV2SqlTask.sql_invoke_apply_customization_step(task, step_id, params, compute_instance_id, data,
-                                                                  *args, **kvargs)
+        data["playbook"] = "userMgmtPostgres.yml"
+        user = {"name": name}
+        extras = {"p_postgres_users": [user], "p_postgres_mgmt_force": force}
+        data["extra_vars"].update(extras)
+        return StackV2SqlTask.sql_invoke_apply_customization_step(
+            task, step_id, params, compute_instance_id, data, *args, **kvargs
+        )
 
     @staticmethod
     @task_step()
-    def pgsql_manage_privs_step(task, step_id, params, compute_instance_id, privileges, db_name, schema_name, usr_name,
-                                *args, **kvargs):
-        """Manage (i.e. grant or revoke) privileges to db user
-        """
+    def pgsql_manage_privs_step(
+        task,
+        step_id,
+        params,
+        compute_instance_id,
+        privileges,
+        db_name,
+        schema_name,
+        usr_name,
+        *args,
+        **kvargs,
+    ):
+        """Manage (i.e. grant or revoke) privileges to db user"""
         data = StackV2PostgresqlTask.pgsql_commons(params)
-        data['playbook'] = 'privsMgmtPostgres.yml'
-        privs = {'privs': privileges, 'db': db_name, 'schema': schema_name, 'user': usr_name}
-        extras = {
-            'p_postgres_privs': [privs]
+        data["playbook"] = "privsMgmtPostgres.yml"
+        privs = {
+            "privs": privileges,
+            "db": db_name,
+            "schema": schema_name,
+            "user": usr_name,
         }
-        data['extra_vars'].update(extras)
-        return StackV2SqlTask.sql_invoke_apply_customization_step(task, step_id, params, compute_instance_id, data,
-                                                                  *args, **kvargs)
+        extras = {"p_postgres_privs": [privs]}
+        data["extra_vars"].update(extras)
+        return StackV2SqlTask.sql_invoke_apply_customization_step(
+            task, step_id, params, compute_instance_id, data, *args, **kvargs
+        )
 
     @staticmethod
     def pgsql_commons(params):
         return {
-            'customization': 'postgresql',
-            'extra_vars': {
-                'p_postgres_db_port': params.get('port'),
-                'p_postgres_login_username': params.get('admin_usr'),
-                'p_postgres_login_password': params.get('admin_pwd'),
-                'p_postgres_mgmt_action': params.get('action_name')
-            }
+            "customization": "postgresql",
+            "extra_vars": {
+                "p_postgres_db_port": params.get("port"),
+                "p_postgres_login_username": params.get("admin_usr"),
+                "p_postgres_login_password": params.get("admin_pwd"),
+                "p_postgres_mgmt_action": params.get("action_name"),
+            },
         }

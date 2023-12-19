@@ -1,18 +1,18 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive_resource.container import Resource, AsyncResource
 
 
 def get_task(task_name):
-    return '%s.%s' % (__name__.replace('entity', 'task'), task_name)
+    return "%s.%s" % (__name__.replace("entity", "task"), task_name)
 
 
 class VsphereResource(AsyncResource):
-    objdef = 'Vsphere.Resource'
-    objdesc = 'Vsphere resources'
-    
+    objdef = "Vsphere.Resource"
+    objdesc = "Vsphere resources"
+
     def __init__(self, *args, **kvargs):
         """ """
         AsyncResource.__init__(self, *args, **kvargs)
@@ -44,9 +44,9 @@ class VsphereResource(AsyncResource):
 
     def info(self):
         """Get info.
-        
+
         :return: Dictionary with capabilities.
-        :rtype: dict        
+        :rtype: dict
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = Resource.info(self)
@@ -55,20 +55,20 @@ class VsphereResource(AsyncResource):
 
     def detail(self):
         """Get details.
-        
+
         :return: Dictionary with resource details.
-        :rtype: dict        
+        :rtype: dict
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = Resource.detail(self)
-        details = info['details']
-        
+        details = info["details"]
+
         if self.ext_obj is not None:
             try:
-                details['overall_status'] = self.ext_obj['overallStatus']
+                details["overall_status"] = self.ext_obj["overallStatus"]
             except:
-                details['overall_status'] = self.ext_obj.overallStatus        
-        
+                details["overall_status"] = self.ext_obj.overallStatus
+
         return info
 
     #
@@ -103,9 +103,9 @@ class VsphereResource(AsyncResource):
 
 
 class NsxResource(AsyncResource):
-    objdef = 'Vsphere.Resource'
-    objdesc = 'Vsphere Nsx resource'
-    
+    objdef = "Vsphere.Resource"
+    objdesc = "Vsphere Nsx resource"
+
     def __init__(self, *args, **kvargs):
         """ """
         Resource.__init__(self, *args, **kvargs)
@@ -136,31 +136,29 @@ class NsxResource(AsyncResource):
 
     def info(self):
         """Get info.
-        
+
         :return: Dictionary with capabilities.
-        :rtype: dict        
+        :rtype: dict
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = Resource.info(self)
-        
+
         return info
 
     def detail(self):
         """Get details.
-        
+
         :return: Dictionary with resource details.
-        :rtype: dict        
+        :rtype: dict
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = Resource.detail(self)
-        details = info['details']
-        
+        details = info["details"]
+
         if self.ext_obj is not None:
             try:
-                details['overall_status'] = getattr(
-                    self.ext_obj, 'overallStatus', self.ext_obj.overallStatus)
+                details["overall_status"] = getattr(self.ext_obj, "overallStatus", self.ext_obj.overallStatus)
             except:
                 pass
-        
-        return info
 
+        return info

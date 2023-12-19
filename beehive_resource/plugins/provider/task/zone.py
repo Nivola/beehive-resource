@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from beehive.common.task.job import job_task
 from beehive.common.task.manager import task_manager
@@ -24,34 +25,37 @@ def task_compute_zone_set_quotas(self, options):
 
     # get params from shared data
     params = self.get_shared_data()
-    self.update('PROGRESS', msg='Get shared area')
+    self.update("PROGRESS", msg="Get shared area")
 
     # validate input params
-    cid = params.get('cid')
-    oid = params.get('id')
-    quotas = params.get('quotas')
-    zones = params.get('availability_zones')
-    orchestrator_tag = params.get('orchestrator_tag')
-    self.update('PROGRESS', msg='Get configuration params')
+    cid = params.get("cid")
+    oid = params.get("id")
+    quotas = params.get("quotas")
+    zones = params.get("availability_zones")
+    orchestrator_tag = params.get("orchestrator_tag")
+    self.update("PROGRESS", msg="Get configuration params")
 
     # create session
     self.get_session()
     resource = self.get_resource(oid)
 
     attribs = resource.get_attribs()
-    attribs['quota'].update(quotas)
+    attribs["quota"].update(quotas)
     resource.manager.update_resource(oid=oid, attribute=attribs)
-    self.update('PROGRESS', msg='Update compute zone %s quotas: %s' % (oid, quotas))
+    self.update("PROGRESS", msg="Update compute zone %s quotas: %s" % (oid, quotas))
 
     # update child availability zones
     for zone in zones:
         zone_resource = self.get_resource(zone)
         res = zone_resource.set_quotas(quotas=quotas, orchestrator_tag=orchestrator_tag)
-        job_id = res[0]['jobid']
+        job_id = res[0]["jobid"]
 
         # wait job complete
         self.wait_for_job_complete(job_id)
-        self.update('PROGRESS', msg='Update compute zone %s availability zone %s quotas: %s' % (oid, zone, quotas))
+        self.update(
+            "PROGRESS",
+            msg="Update compute zone %s availability zone %s quotas: %s" % (oid, zone, quotas),
+        )
 
     return True
 
@@ -67,15 +71,15 @@ def task_availability_zone_link_resource(self, options):
     """
     params = self.get_shared_data()
 
-    oid = params.get('id')
-    site_id = params.get('site')
-    zone_id = params.get('zone')
+    oid = params.get("id")
+    site_id = params.get("site")
+    zone_id = params.get("zone")
 
     # link zone to super zone
     self.get_session()
     zone = self.get_resource(zone_id)
-    zone.add_link('%s-zone-link' % oid, 'relation.%s' % site_id, oid, attributes={})
-    self.update('PROGRESS', msg='Link availability zone %s to compute zone %s' % (oid, zone_id))
+    zone.add_link("%s-zone-link" % oid, "relation.%s" % site_id, oid, attributes={})
+    self.update("PROGRESS", msg="Link availability zone %s to compute zone %s" % (oid, zone_id))
 
     return oid
 
@@ -94,12 +98,12 @@ def task_availability_zone_create_orchestrator_resource(self, options, orchestra
     params = self.get_shared_data()
 
     # validate input params
-    cid = params.get('cid')
-    oid = params.get('id')
-    site_id = params.get('site')
-    orchestrators = params.get('orchestrators')
-    quotas = params.get('quota')
-    self.update('PROGRESS', msg='Get configuration params')
+    cid = params.get("cid")
+    oid = params.get("id")
+    site_id = params.get("site")
+    orchestrators = params.get("orchestrators")
+    quotas = params.get("quota")
+    self.update("PROGRESS", msg="Get configuration params")
 
     # get container configuration
     orchestrator = orchestrators[orchestrator_id]
@@ -109,11 +113,12 @@ def task_availability_zone_create_orchestrator_resource(self, options, orchestra
     # container = self.get_container(cid)
     resource = self.get_resource(oid)
     site = self.get_resource(site_id)
-    self.update('PROGRESS', msg='Get availability_zone %s' % cid)
+    self.update("PROGRESS", msg="Get availability_zone %s" % cid)
 
     # create physical entities
-    ProviderOrchestrator.get(orchestrator.get('type')).create_zone_childs(
-        self, orchestrator, resource, site, quotas=quotas)
+    ProviderOrchestrator.get(orchestrator.get("type")).create_zone_childs(
+        self, orchestrator, resource, site, quotas=quotas
+    )
 
     return True
 
@@ -131,21 +136,21 @@ def task_availability_zone_set_quotas(self, options):
 
     # get params from shared data
     params = self.get_shared_data()
-    self.update('PROGRESS', msg='Get shared area')
+    self.update("PROGRESS", msg="Get shared area")
 
     # validate input params
-    cid = params.get('cid')
-    oid = params.get('id')
-    quotas = params.get('quotas')
-    self.update('PROGRESS', msg='Get configuration params')
+    cid = params.get("cid")
+    oid = params.get("id")
+    quotas = params.get("quotas")
+    self.update("PROGRESS", msg="Get configuration params")
 
     # create session
     self.get_session()
     resource = self.get_resource(oid)
     attribs = resource.get_attribs()
-    attribs['quota'].update(quotas)
+    attribs["quota"].update(quotas)
     resource.manager.update_resource(oid=oid, attribute=attribs)
-    self.update('PROGRESS', msg='Update compute zone %s quotas: %s' % (oid, quotas))
+    self.update("PROGRESS", msg="Update compute zone %s quotas: %s" % (oid, quotas))
 
     return True
 
@@ -165,13 +170,13 @@ def task_availability_zone_set_orchestrator_quotas(self, options, orchestrator, 
 
     # get params from shared data
     params = self.get_shared_data()
-    self.update('PROGRESS', msg='Get shared area')
+    self.update("PROGRESS", msg="Get shared area")
 
     # validate input params
-    cid = params.get('cid')
-    oid = params.get('id')
-    quotas = params.get('quotas')
-    self.update('PROGRESS', msg='Get configuration params')
+    cid = params.get("cid")
+    oid = params.get("id")
+    quotas = params.get("quotas")
+    self.update("PROGRESS", msg="Get configuration params")
 
     # create session
     self.get_session()

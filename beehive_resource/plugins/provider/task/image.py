@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from celery.utils.log import get_task_logger
 from beehive_resource.plugins.provider.entity.image import Image
@@ -25,48 +26,45 @@ def task_import_zone_image(self, options, site_id, templates):
     """
     self.set_operation()
     params = self.get_shared_data()
-    
+
     # input params
-    cid = params.get('cid')
-    oid = params.get('id')
-    availability_zone_id = templates[0].get('availability_zone_id')
-    self.update('PROGRESS', msg='Set configuration params')
+    cid = params.get("cid")
+    oid = params.get("id")
+    availability_zone_id = templates[0].get("availability_zone_id")
+    self.update("PROGRESS", msg="Set configuration params")
 
     # get provider
     self.get_session()
     provider = self.get_container(cid)
-    self.update('PROGRESS', msg='Get provider %s' % cid)
+    self.update("PROGRESS", msg="Get provider %s" % cid)
 
     # create image
     image_params = {
-        'name': '%s-avz%s' % (params.get('name'), site_id),
-        'desc': 'Zone Image %s' % params.get('desc'),
-        'parent': availability_zone_id,
-        'orchestrator_tag': params.get('orchestrator_tag'),
-        'templates': templates,
-        'attribute': {
-            'configs': {
-                'os': params.get('os'),
-                'os_ver': params.get('os_ver')
-            }
-        }
+        "name": "%s-avz%s" % (params.get("name"), site_id),
+        "desc": "Zone Image %s" % params.get("desc"),
+        "parent": availability_zone_id,
+        "orchestrator_tag": params.get("orchestrator_tag"),
+        "templates": templates,
+        "attribute": {"configs": {"os": params.get("os"), "os_ver": params.get("os_ver")}},
     }
     res = provider.resource_factory(Image, **image_params)
-    job_id = res[0]['jobid']
-    image_id = res[0]['uuid']
-    self.update('PROGRESS', msg='Create image in availability zone %s - start job %s' %
-                                 (availability_zone_id, job_id))
+    job_id = res[0]["jobid"]
+    image_id = res[0]["uuid"]
+    self.update(
+        "PROGRESS",
+        msg="Create image in availability zone %s - start job %s" % (availability_zone_id, job_id),
+    )
 
     # link image to compute image
     self.release_session()
     self.get_session()
     compute_image = self.get_resource(oid)
-    compute_image.add_link('%s-image-link' % image_id, 'relation.%s' % site_id, image_id, attributes={})
-    self.update('PROGRESS', msg='Link image %s to compute image %s' % (image_id, oid))
+    compute_image.add_link("%s-image-link" % image_id, "relation.%s" % site_id, image_id, attributes={})
+    self.update("PROGRESS", msg="Link image %s to compute image %s" % (image_id, oid))
 
     # wait job complete
     res = self.wait_for_job_complete(job_id)
-    self.update('PROGRESS', msg='Create image in availability zone %s' % availability_zone_id)
+    self.update("PROGRESS", msg="Create image in availability zone %s" % availability_zone_id)
 
     return True
 
@@ -87,17 +85,23 @@ def task_image_import_orchestrator_resource(self, options, orchestrator):
     params = self.get_shared_data()
 
     # validate input params
-    oid = params.get('id')
-    template = orchestrator.get('template')
-    self.update('PROGRESS', msg='Get configuration params')
+    oid = params.get("id")
+    template = orchestrator.get("template")
+    self.update("PROGRESS", msg="Get configuration params")
 
     # get image resource
     self.get_session()
     resource = self.get_resource(oid)
-    self.update('PROGRESS', msg='Get image %s' % oid)
+    self.update("PROGRESS", msg="Get image %s" % oid)
     if template is not None:
-        image_id = ProviderOrchestrator.get(orchestrator.get('type')).create_image(
-            self, orchestrator['id'], resource, template['id'], template['template_pwd'], template['guest_id'])
+        image_id = ProviderOrchestrator.get(orchestrator.get("type")).create_image(
+            self,
+            orchestrator["id"],
+            resource,
+            template["id"],
+            template["template_pwd"],
+            template["guest_id"],
+        )
         return image_id
     return None
 
@@ -114,7 +118,7 @@ def task_update_zone_template(self, options, site_id, templates):
     :param sharedarea.availability_zone_id:
     :param sharedarea.orchestrator_id: orchestrator id
     :param sharedarea.orchestrator_type: Orchestrator type. Ex. vsphere, openstack
-    :param sharedarea.template_id:    
+    :param sharedarea.template_id:
     :param sharedarea.sharedarea:
     :param sharedarea.cid: container id
     :return:
@@ -123,63 +127,72 @@ def task_update_zone_template(self, options, site_id, templates):
     params = self.get_shared_data()
 
     # input params
-    cid = params.get('cid')
-    oid = params.get('id')
-    availability_zone_id = templates[0].get('availability_zone_id')
-    self.update('PROGRESS', msg='Set configuration params')
+    cid = params.get("cid")
+    oid = params.get("id")
+    availability_zone_id = templates[0].get("availability_zone_id")
+    self.update("PROGRESS", msg="Set configuration params")
 
     # get provider
     self.get_session()
     provider = self.get_container(cid)
-    self.update('PROGRESS', msg='Get provider %s' % cid)
+    self.update("PROGRESS", msg="Get provider %s" % cid)
 
     # check zone template already exists
-    zone_templates = self.get_orm_linked_resources(oid, link_type='relation.%s' % site_id, container_id=cid)
+    zone_templates = self.get_orm_linked_resources(oid, link_type="relation.%s" % site_id, container_id=cid)
     if len(zone_templates) > 0:
         zone_template = provider.get_resource(zone_templates[0].id)
-        self.update('PROGRESS', msg='Site %s already linked to compute image %s' % (site_id, oid))
+        self.update(
+            "PROGRESS",
+            msg="Site %s already linked to compute image %s" % (site_id, oid),
+        )
 
         # update template
         template_params = {
-            'orchestrator_tag': params.get('orchestrator_tag'),
-            'templates': templates
+            "orchestrator_tag": params.get("orchestrator_tag"),
+            "templates": templates,
         }
         res = zone_template.update(**template_params)
-        job_id = res[0]['jobid']
-        self.update('PROGRESS', msg='Update image in availability zone %s - start job %s' %
-                                     (availability_zone_id, job_id))
+        job_id = res[0]["jobid"]
+        self.update(
+            "PROGRESS",
+            msg="Update image in availability zone %s - start job %s" % (availability_zone_id, job_id),
+        )
 
     # create zone template
     else:
         template_params = {
-            'name': '%s-avz%s' % (params.get('name'), site_id),
-            'desc': 'Zone template %s' % params.get('desc'),
-            'parent': availability_zone_id,
-            'orchestrator_tag': params.get('orchestrator_tag'),
-            'templates': templates,
-            'attribute': {
-                'configs': {
-                    'os': params.get('os'),
-                    'os_ver': params.get('os_ver')
-                }
-            }
+            "name": "%s-avz%s" % (params.get("name"), site_id),
+            "desc": "Zone template %s" % params.get("desc"),
+            "parent": availability_zone_id,
+            "orchestrator_tag": params.get("orchestrator_tag"),
+            "templates": templates,
+            "attribute": {"configs": {"os": params.get("os"), "os_ver": params.get("os_ver")}},
         }
         res = provider.resource_factory(Image, **template_params)
-        job_id = res[0]['jobid']
-        template_id = res[0]['uuid']
-        self.update('PROGRESS', msg='Create image in availability zone %s - start job %s' %
-                                     (availability_zone_id, job_id))
+        job_id = res[0]["jobid"]
+        template_id = res[0]["uuid"]
+        self.update(
+            "PROGRESS",
+            msg="Create image in availability zone %s - start job %s" % (availability_zone_id, job_id),
+        )
 
         # link template to compute template
         self.release_session()
         self.get_session()
         compute_template = self.get_resource(oid)
-        compute_template.add_link('%s-image-link' % template_id, 'relation.%s' % site_id, template_id, 
-                                  attributes={})
-        self.update('PROGRESS', msg='Link image %s to compute template %s' % (template_id, oid))
+        compute_template.add_link(
+            "%s-image-link" % template_id,
+            "relation.%s" % site_id,
+            template_id,
+            attributes={},
+        )
+        self.update("PROGRESS", msg="Link image %s to compute template %s" % (template_id, oid))
 
         # wait job complete
         res = self.wait_for_job_complete(job_id)
-        self.update('PROGRESS', msg='Create image in availability zone %s' % availability_zone_id)
+        self.update(
+            "PROGRESS",
+            msg="Create image in availability zone %s" % availability_zone_id,
+        )
 
     return True

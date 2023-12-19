@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2022 CSI-Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 from ast import Try
 from beecell.simple import truncate, get_value, id_gen, str2bool, dict_get
@@ -8,24 +8,26 @@ from beehive.common.apimanager import ApiManagerError
 from beehive_resource.plugins.openstack.entity import OpenstackResource
 from beehive_resource.plugins.openstack.entity.ops_image import OpenstackImage
 from beehive.common.data import trace, operation
-from beehive_resource.plugins.openstack.entity.ops_volume_type import OpenstackVolumeType
+from beehive_resource.plugins.openstack.entity.ops_volume_type import (
+    OpenstackVolumeType,
+)
 
 
 class OpenstackVolume(OpenstackResource):
-    objdef = 'Openstack.Domain.Project.Volume'
-    objuri = 'volumes'
-    objname = 'volume'
-    objdesc = 'Openstack volumes'
+    objdef = "Openstack.Domain.Project.Volume"
+    objuri = "volumes"
+    objname = "volume"
+    objdesc = "Openstack volumes"
 
-    default_tags = ['openstack', 'volume']
-    task_path = 'beehive_resource.plugins.openstack.task_v2.ops_volume.VolumeTask.'
+    default_tags = ["openstack", "volume"]
+    task_path = "beehive_resource.plugins.openstack.task_v2.ops_volume.VolumeTask."
 
     def __init__(self, *args, **kvargs):
         """ """
         OpenstackResource.__init__(self, *args, **kvargs)
 
         self.actions = {
-            'set_flavor': self.set_flavor,
+            "set_flavor": self.set_flavor,
         }
 
     #
@@ -43,7 +45,7 @@ class OpenstackVolume(OpenstackResource):
         """
         # get volumes from openstack
         if ext_id is not None:
-            items = container.conn.volume_v3.get(oid=ext_id)
+            items = [container.conn.volume_v3.get(oid=ext_id)]
         else:
             items = container.conn.volume_v3.list_all(detail=True, limit=250)
             # items = container.conn.volume_v3.list(all_tenants=True, detail=True)
@@ -51,15 +53,24 @@ class OpenstackVolume(OpenstackResource):
         # add new item to final list
         res = []
         for item in items:
-            if item['id'] not in res_ext_ids:
+            if item["id"] not in res_ext_ids:
                 level = None
                 parent_id = None
-                name = item['name']
-                if name is None or name == '':
-                    name = item['id']
-                parent_id = item['os-vol-tenant-attr:tenant_id']
+                name = item["name"]
+                if name is None or name == "":
+                    name = item["id"]
+                parent_id = item["os-vol-tenant-attr:tenant_id"]
 
-                res.append((OpenstackVolume, item['id'], parent_id, OpenstackVolume.objdef, name, level))
+                res.append(
+                    (
+                        OpenstackVolume,
+                        item["id"],
+                        parent_id,
+                        OpenstackVolume.objdef,
+                        name,
+                        level,
+                    )
+                )
 
         return res
 
@@ -94,25 +105,25 @@ class OpenstackVolume(OpenstackResource):
         if parent_id is not None:
             parent = container.get_resource_by_extid(parent_id)
             if parent is not None:
-                objid = '%s//%s' % (parent.objid, id_gen())
+                objid = "%s//%s" % (parent.objid, id_gen())
                 parent_id = parent.oid
             else:
-                objid = '%s//none//none//%s' % (container.objid, id_gen())
+                objid = "%s//none//none//%s" % (container.objid, id_gen())
                 parent_id = None
         else:
-            objid = '%s//none//none//%s' % (container.objid, id_gen())
+            objid = "%s//none//none//%s" % (container.objid, id_gen())
             parent_id = None
 
         res = {
-            'resource_class': resclass,
-            'objid': objid,
-            'name': name,
-            'ext_id': ext_id,
-            'active': True,
-            'desc': resclass.objdesc,
-            'attrib': {},
-            'parent': parent_id,
-            'tags': resclass.default_tags
+            "resource_class": resclass,
+            "objid": objid,
+            "name": name,
+            "ext_id": ext_id,
+            "active": True,
+            "desc": resclass.objdesc,
+            "attrib": {},
+            "parent": parent_id,
+            "tags": resclass.default_tags,
         }
         return res
 
@@ -137,7 +148,7 @@ class OpenstackVolume(OpenstackResource):
 
         # create index of remote objs
         # remote_entities_index = {i['id']: i for i in remote_entities}
-        remote_volume_types_index = {i['name']: i for i in remote_volume_types}
+        remote_volume_types_index = {i["name"]: i for i in remote_volume_types}
 
         # get volume types
         volume_types_index = container.index_resources_by_extid(entity_class=OpenstackVolumeType)
@@ -147,7 +158,7 @@ class OpenstackVolume(OpenstackResource):
             # ext_obj = remote_entities_index.get(entity.ext_id, None)
             entity.set_physical_entity(ext_obj)
             try:
-                volume_type_ext_id = remote_volume_types_index.get(ext_obj.get('volume_type'))['id']
+                volume_type_ext_id = remote_volume_types_index.get(ext_obj.get("volume_type"))["id"]
                 entity.volume_type = volume_types_index.get(volume_type_ext_id)
             except:
                 entity.volume_type = None
@@ -162,12 +173,12 @@ class OpenstackVolume(OpenstackResource):
         """
         try:
             remote_volume_types = self.container.conn.volume_v3.type.list()
-            remote_volume_types_index = {i['name']: i for i in remote_volume_types}
+            remote_volume_types_index = {i["name"]: i for i in remote_volume_types}
 
             ext_obj = OpenstackVolume.get_remote_volume(self.controller, self.ext_id, self.container, self.ext_id)
             self.set_physical_entity(ext_obj)
             try:
-                volume_type_ext_id = remote_volume_types_index.get(ext_obj.get('volume_type'))['id']
+                volume_type_ext_id = remote_volume_types_index.get(ext_obj.get("volume_type"))["id"]
                 self.volume_type = self.container.get_resource_by_extid(volume_type_ext_id)
             except:
                 self.volume_type = None
@@ -215,22 +226,22 @@ class OpenstackVolume(OpenstackResource):
         :raise ApiManagerError:
         """
         # set project
-        parent = kvargs.get('parent')
+        parent = kvargs.get("parent")
         parent = controller.get_resource(parent)
-        kvargs['project_extid'] = parent.ext_id
+        kvargs["project_extid"] = parent.ext_id
 
-        obj = container.get_resource(kvargs.get('volume_type'), entity_class=OpenstackVolumeType)
-        kvargs['volume_type'] = obj.oid
+        obj = container.get_resource(kvargs.get("volume_type"), entity_class=OpenstackVolumeType)
+        kvargs["volume_type"] = obj.oid
 
         # get image
-        if kvargs.get('imageRef') is not None:
-            obj = container.get_resource(kvargs.get('imageRef'), entity_class=OpenstackImage)
-            kvargs['image'] = obj.ext_id
+        if kvargs.get("imageRef") is not None:
+            obj = container.get_resource(kvargs.get("imageRef"), entity_class=OpenstackImage)
+            kvargs["image"] = obj.ext_id
 
         # get source_volid
-        if kvargs.get('source_volid') is not None:
-            obj = controller.get_resource(kvargs.get('source_volid'), entity_class=OpenstackVolume)
-            kvargs['source_volid'] = obj.oid
+        if kvargs.get("source_volid") is not None:
+            obj = controller.get_resource(kvargs.get("source_volid"), entity_class=OpenstackVolume)
+            kvargs["source_volid"] = obj.oid
 
         # # get snapshot_id
         # if kvargs.get('snapshot_id') is not None:
@@ -238,18 +249,21 @@ class OpenstackVolume(OpenstackResource):
         #     kvargs['snapshot'] = obj.ext_id
 
         # get availability_zone
-        availability_zone = get_value(kvargs, 'availability_zone', None)
-        zones = {z['zoneName'] for z in container.system.get_compute_zones()}
+        availability_zone = get_value(kvargs, "availability_zone", None)
+        zones = {z["zoneName"] for z in container.system.get_compute_zones()}
         if availability_zone not in zones:
-            raise ApiManagerError('Openstack availability_zone %s does not exist' % availability_zone, code=404)
-        kvargs['availability_zone'] = availability_zone
+            raise ApiManagerError(
+                "Openstack availability_zone %s does not exist" % availability_zone,
+                code=404,
+            )
+        kvargs["availability_zone"] = availability_zone
 
         steps = [
-            OpenstackVolume.task_path + 'create_resource_pre_step',
-            OpenstackVolume.task_path + 'volume_create_physical_step',
-            OpenstackVolume.task_path + 'create_resource_post_step'
+            OpenstackVolume.task_path + "create_resource_pre_step",
+            OpenstackVolume.task_path + "volume_create_physical_step",
+            OpenstackVolume.task_path + "create_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
     def pre_update(self, *args, **kvargs):
@@ -266,11 +280,11 @@ class OpenstackVolume(OpenstackResource):
         :raise ApiManagerError:
         """
         steps = [
-            OpenstackVolume.task_path + 'update_resource_pre_step',
-            OpenstackVolume.task_path + 'volume_update_physical_step',
-            OpenstackVolume.task_path + 'update_resource_post_step'
+            OpenstackVolume.task_path + "update_resource_pre_step",
+            OpenstackVolume.task_path + "volume_update_physical_step",
+            OpenstackVolume.task_path + "update_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
     def pre_delete(self, *args, **kvargs):
@@ -286,13 +300,13 @@ class OpenstackVolume(OpenstackResource):
         :return: kvargs
         :raise ApiManagerError:
         """
-        kvargs['parent_id'] = self.parent_id
+        kvargs["parent_id"] = self.parent_id
         steps = [
-            OpenstackVolume.task_path + 'expunge_resource_pre_step',
-            OpenstackVolume.task_path + 'volume_expunge_physical_step',
-            OpenstackVolume.task_path + 'expunge_resource_post_step'
+            OpenstackVolume.task_path + "expunge_resource_pre_step",
+            OpenstackVolume.task_path + "volume_expunge_physical_step",
+            OpenstackVolume.task_path + "expunge_resource_post_step",
         ]
-        kvargs['steps'] = steps
+        kvargs["steps"] = steps
         return kvargs
 
     #
@@ -308,10 +322,10 @@ class OpenstackVolume(OpenstackResource):
         self.container = self.controller.get_container(self.container_id)
         ext_obj = OpenstackVolume.get_remote_volume(self.controller, self.ext_id, self.container, self.ext_id)
         if ext_obj != {}:
-            res = {'check': True, 'msg': None}
+            res = {"check": True, "msg": None}
         else:
-            res = {'check': False, 'msg': 'no remote volume found'}
-        self.logger.debug2('Check resource %s: %s' % (self.uuid, res))
+            res = {"check": False, "msg": "no remote volume found"}
+        self.logger.debug2("Check resource %s: %s" % (self.uuid, res))
         return res
 
     def info(self):
@@ -325,14 +339,14 @@ class OpenstackVolume(OpenstackResource):
 
         if self.ext_obj is not None:
             data = {}
-            data['volume_type'] = getattr(self.volume_type, 'uuid', None)
-            data['attachments'] = self.ext_obj.get('attachments')
-            data['bootable'] = self.ext_obj.get('bootable')
-            data['encrypted'] = self.ext_obj.get('encrypted')
-            data['size'] = self.ext_obj.get('size')
-            data['status'] = self.ext_obj.get('status')
+            data["volume_type"] = getattr(self.volume_type, "uuid", None)
+            data["attachments"] = self.ext_obj.get("attachments")
+            data["bootable"] = self.ext_obj.get("bootable")
+            data["encrypted"] = self.ext_obj.get("encrypted")
+            data["size"] = self.ext_obj.get("size")
+            data["status"] = self.ext_obj.get("status")
 
-            info['details'] = data
+            info["details"] = data
 
         return info
 
@@ -347,14 +361,14 @@ class OpenstackVolume(OpenstackResource):
 
         if self.ext_obj is not None:
             data = {}
-            data['volume_type'] = getattr(self.volume_type, 'uuid', None)
-            data['attachments'] = self.ext_obj.get('attachments')
-            data['bootable'] = self.ext_obj.get('bootable')
-            data['encrypted'] = self.ext_obj.get('encrypted')
-            data['size'] = self.ext_obj.get('size')
-            data['status'] = self.ext_obj.get('status')
+            data["volume_type"] = getattr(self.volume_type, "uuid", None)
+            data["attachments"] = self.ext_obj.get("attachments")
+            data["bootable"] = self.ext_obj.get("bootable")
+            data["encrypted"] = self.ext_obj.get("encrypted")
+            data["size"] = self.ext_obj.get("size")
+            data["status"] = self.ext_obj.get("status")
 
-            info['details'].update(data)
+            info["details"].update(data)
         return info
 
     def get_size(self):
@@ -363,7 +377,7 @@ class OpenstackVolume(OpenstackResource):
         :return: volume size
         """
         if self.ext_obj is not None:
-            ret = self.ext_obj.get('size')
+            ret = self.ext_obj.get("size")
             if isinstance(ret, int):
                 return ret
             elif isinstance(ret, float):
@@ -398,7 +412,7 @@ class OpenstackVolume(OpenstackResource):
         :return: volume bootable
         """
         if self.ext_obj is not None:
-            return str2bool(self.ext_obj.get('bootable'))
+            return str2bool(self.ext_obj.get("bootable"))
         else:
             return False
 
@@ -407,7 +421,7 @@ class OpenstackVolume(OpenstackResource):
 
         :return: disk index
         """
-        return None
+        return self.name.split("-")[-1]
 
     def is_encrypted(self):
         """Get encrypted attribute
@@ -415,11 +429,11 @@ class OpenstackVolume(OpenstackResource):
         :return: volume encrypted
         """
         if self.ext_obj is not None:
-            return str2bool(self.ext_obj.get('encrypted'))
+            return str2bool(self.ext_obj.get("encrypted"))
         else:
             return False
 
-    @trace(op='use')
+    @trace(op="use")
     def get_metadata(self):
         """Lists the metadata for a specified volume instance.
 
@@ -427,7 +441,7 @@ class OpenstackVolume(OpenstackResource):
         :raise ApiManagerError:
         """
         # verify permissions
-        self.verify_permisssions('use')
+        self.verify_permisssions("use")
 
         try:
             res = self.container.conn.volume_v3.get_metadata(self.ext_id)
@@ -435,10 +449,10 @@ class OpenstackVolume(OpenstackResource):
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex, code=400)
 
-        self.logger.debug('Get openstack volume %s metadata: %s' % (self.uuid, res))
+        self.logger.debug("Get openstack volume %s metadata: %s" % (self.uuid, res))
         return res
 
-    @trace(op='use')
+    @trace(op="use")
     def get_image_metadata(self):
         """Lists the image metadata for a specified volume instance.
 
@@ -446,7 +460,7 @@ class OpenstackVolume(OpenstackResource):
         :raise ApiManagerError:
         """
         # verify permissions
-        self.verify_permisssions('use')
+        self.verify_permisssions("use")
 
         try:
             res = self.container.conn.volume_v3.show_image_metadata(self.ext_id)
@@ -454,13 +468,13 @@ class OpenstackVolume(OpenstackResource):
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex, code=400)
 
-        self.logger.debug('Get openstack volume %s image metadata: %s' % (self.uuid, res))
+        self.logger.debug("Get openstack volume %s image metadata: %s" % (self.uuid, res))
         return res
 
     #
     # snapshot
     #
-    @trace(op='use')
+    @trace(op="use")
     def exist_snapshot(self, snapshot_id):
         """Check volume snapshot exists
 
@@ -471,13 +485,16 @@ class OpenstackVolume(OpenstackResource):
         try:
             self.container.conn.volume_v3.snapshot.get(snapshot_id)
         except Exception as ex:
-            err = 'Openstack volume %s snapshot does not exist: %s' % (self.uuid, snapshot_id)
+            err = "Openstack volume %s snapshot does not exist: %s" % (
+                self.uuid,
+                snapshot_id,
+            )
             self.logger.error(err)
             raise ApiManagerError(err)
 
         return True
 
-    @trace(op='use')
+    @trace(op="use")
     def list_snapshots(self):
         """List volume snapshots
 
@@ -485,24 +502,25 @@ class OpenstackVolume(OpenstackResource):
         :raise ApiManagerError:
         """
         # verify permissions
-        self.verify_permisssions('use')
+        self.verify_permisssions("use")
 
         try:
-            all_snapshots = OpenstackVolume.list_remote_volume_snapshots(self.controller, self.container.oid,
-                                                                         self.container, None)
+            all_snapshots = OpenstackVolume.list_remote_volume_snapshots(
+                self.controller, self.container.oid, self.container, None
+            )
             res = []
             for item in all_snapshots:
-                if item['volume_id'] == self.ext_id:
-                    item['volume_id'] = self.uuid
+                if item["volume_id"] == self.ext_id:
+                    item["volume_id"] = self.uuid
                     res.append(item)
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex, code=400)
 
-        self.logger.debug('Get openstack volume %s snapshots: %s' % (self.uuid, truncate(res)))
+        self.logger.debug("Get openstack volume %s snapshots: %s" % (self.uuid, truncate(res)))
         return res
 
-    @trace(op='use')
+    @trace(op="use")
     def get_snapshot(self, snapshot_id):
         """Get volume snapshot
 
@@ -511,19 +529,19 @@ class OpenstackVolume(OpenstackResource):
         :raise ApiManagerError:
         """
         # verify permissions
-        self.verify_permisssions('use')
+        self.verify_permisssions("use")
 
         try:
             res = self.container.conn.volume_v3.snapshot.get(snapshot_id)
-            res['volume_id'] = self.uuid
+            res["volume_id"] = self.uuid
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex, code=400)
 
-        self.logger.debug('Get openstack volume %s snapshot: %s' % (self.uuid, res))
+        self.logger.debug("Get openstack volume %s snapshot: %s" % (self.uuid, res))
         return res
 
-    @trace(op='use')
+    @trace(op="use")
     def add_snapshot(self, name):
         """Add volume snapshot
 
@@ -532,19 +550,19 @@ class OpenstackVolume(OpenstackResource):
         :raise ApiManagerError:
         """
         # verify permissions
-        self.verify_permisssions('use')
+        self.verify_permisssions("use")
 
         try:
             res = self.container.conn.volume_v3.snapshot.create(name, force=True, volume_id=self.ext_id)
-            res['volume_id'] = self.uuid
+            res["volume_id"] = self.uuid
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex, code=400)
 
-        self.logger.debug('Add openstack volume %s snapshot: %s' % (self.uuid, res))
+        self.logger.debug("Add openstack volume %s snapshot: %s" % (self.uuid, res))
         return res
 
-    @trace(op='use')
+    @trace(op="use")
     def delete_snapshot(self, snapshot_id):
         """Delete volume snapshot
 
@@ -553,7 +571,7 @@ class OpenstackVolume(OpenstackResource):
         :raise ApiManagerError:
         """
         # verify permissions
-        self.verify_permisssions('use')
+        self.verify_permisssions("use")
 
         self.exist_snapshot(snapshot_id)
 
@@ -563,10 +581,10 @@ class OpenstackVolume(OpenstackResource):
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex, code=400)
 
-        self.logger.debug('Delete openstack volume %s snapshot: %s' % (self.uuid, snapshot_id))
+        self.logger.debug("Delete openstack volume %s snapshot: %s" % (self.uuid, snapshot_id))
         return res
 
-    @trace(op='use')
+    @trace(op="use")
     def revert_snapshot(self, snapshot_id):
         """Revert volume to snapshot
 
@@ -575,7 +593,7 @@ class OpenstackVolume(OpenstackResource):
         :raise ApiManagerError:
         """
         # verify permissions
-        self.verify_permisssions('use')
+        self.verify_permisssions("use")
 
         self.exist_snapshot(snapshot_id)
 
@@ -585,13 +603,13 @@ class OpenstackVolume(OpenstackResource):
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex, code=400)
 
-        self.logger.debug('Revert openstack volume %s to snapshot: %s' % (self.uuid, snapshot_id))
+        self.logger.debug("Revert openstack volume %s to snapshot: %s" % (self.uuid, snapshot_id))
         return res
 
     #
     # clone
     #
-    @trace(op='update')
+    @trace(op="update")
     def clone(self, name, project):
         """Clone volume
 
@@ -600,24 +618,25 @@ class OpenstackVolume(OpenstackResource):
         :return: {'taskid':..}, 202
         :raise ApiManagerError:
         """
+
         def check(*args, **kvargs):
             from .ops_project import OpenstackProject
 
             parent_project = self.container.get_simple_resource(project, entity_class=OpenstackProject)
-            kvargs['cloned_name'] = name
-            kvargs['parent_id'] = parent_project.oid
+            kvargs["cloned_name"] = name
+            kvargs["parent_id"] = parent_project.oid
             return kvargs
 
         steps = [
-            OpenstackVolume.task_path + 'volume_clone_step',
+            OpenstackVolume.task_path + "volume_clone_step",
         ]
-        res = self.action('clone_volume', steps, log='Clone volume', check=check)
+        res = self.action("clone_volume", steps, log="Clone volume", check=check)
         return res
 
     #
     # actions
     #
-    @trace(op='update')
+    @trace(op="update")
     def set_flavor(self, *args, **kvargs):
         """Set volume type to volume.
 
@@ -625,16 +644,17 @@ class OpenstackVolume(OpenstackResource):
         :return: {'taskid':..}, 202
         :raise ApiManagerError:
         """
+
         def check(*args, **kvargs):
-            flavor = self.container.get_simple_resource(kvargs['flavor'], entity_class=OpenstackVolumeType)
-            kvargs['flavor'] = flavor.ext_id
+            flavor = self.container.get_simple_resource(kvargs["flavor"], entity_class=OpenstackVolumeType)
+            kvargs["flavor"] = flavor.ext_id
             if self.volume_type is None:
-                raise ApiManagerError('flavor %s is not assigned to volume %s' % self.oid)
+                raise ApiManagerError("flavor %s is not assigned to volume %s" % self.oid)
             if self.volume_type.oid == flavor.oid:
-                raise ApiManagerError('flavor %s already assigned to volume %s' % (flavor.oid, self.oid))
+                raise ApiManagerError("flavor %s already assigned to volume %s" % (flavor.oid, self.oid))
 
             return kvargs
 
-        steps = [OpenstackVolume.task_path + 'volume_set_flavor_step']
-        res = self.action('set_flavor', steps, log='Set volume type to volume', check=check, **kvargs)
+        steps = [OpenstackVolume.task_path + "volume_set_flavor_step"]
+        res = self.action("set_flavor", steps, log="Set volume type to volume", check=check, **kvargs)
         return res

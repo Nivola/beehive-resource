@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
+# (C) Copyright 2018-2023 CSI-Piemonte
 
 import json
 from time import sleep
@@ -15,7 +16,7 @@ from beehive_resource.plugins.elk.entity.elk_role_mapping import ElkRoleMapping
 
 
 def get_task(task_name):
-    return '%s.task.%s' % (__name__.rstrip('.controller'), task_name)
+    return "%s.task.%s" % (__name__.rstrip(".controller"), task_name)
 
 
 class ElkContainer(Orchestrator):
@@ -30,23 +31,20 @@ class ElkContainer(Orchestrator):
             "timeout": ...
         }
     """
-    objdef = 'Elk'
-    objdesc = 'Elk container'
-    objuri = 'nrs/elk'
-    version = 'v1.0'
+
+    objdef = "Elk"
+    objdesc = "Elk container"
+    objuri = "nrs/elk"
+    version = "v1.0"
 
     def __init__(self, *args, **kvargs):
         Orchestrator.__init__(self, *args, **kvargs)
 
-        self.child_classes = [
-            ElkSpace,
-            ElkRole,
-            ElkRoleMapping
-        ]
+        self.child_classes = [ElkSpace, ElkRole, ElkRoleMapping]
 
         self.conn_kibana = None
         self.conn_elastic = None
-        self.prefix = 'elk-token-'
+        self.prefix = "elk-token-"
 
     def ping(self):
         """Ping container.
@@ -58,17 +56,17 @@ class ElkContainer(Orchestrator):
         try:
             self.get_connection()
             res = self.conn_kibana.ping()
-            self.logger.debug('+++++ ping kibana %s' % (res))
+            self.logger.debug("+++++ ping kibana %s" % (res))
         except:
-            self.logger.warning('+++++ ping kibana ko', exc_info=True)
+            self.logger.warning("+++++ ping kibana ko", exc_info=True)
             res = False
 
         try:
             self.get_connection()
             res = self.conn_elastic.ping()
-            self.logger.debug('+++++ ping elastic %s' % (res))
+            self.logger.debug("+++++ ping elastic %s" % (res))
         except:
-            self.logger.warning('+++++ ping elastic ko', exc_info=True)
+            self.logger.warning("+++++ ping elastic ko", exc_info=True)
             res = False
 
         self.container_ping = res
@@ -77,7 +75,15 @@ class ElkContainer(Orchestrator):
         # return res
 
     @staticmethod
-    def pre_create(controller=None, type=None, name=None, desc=None, active=None, conn=None, **kvargs):
+    def pre_create(
+        controller=None,
+        type=None,
+        name=None,
+        desc=None,
+        active=None,
+        conn=None,
+        **kvargs,
+    ):
         """Check input params
 
         :param controller: resource controller instance
@@ -86,34 +92,34 @@ class ElkContainer(Orchestrator):
         :param desc: container desc
         :param active: container active
         :param conn: container connection
-        :return: kvargs            
+        :return: kvargs
         :raise ApiManagerError:
         """
         # encrypt pwd for configurate "connection" in container table
         # conn['pwd'] = controller.encrypt_data(conn['pwd'])
 
-        conn_elastic = conn['elastic']
-        conn_elastic['pwd'] = controller.encrypt_data(conn_elastic['pwd'])
-        conn['elastic'] = conn_elastic
+        conn_elastic = conn["elastic"]
+        conn_elastic["pwd"] = controller.encrypt_data(conn_elastic["pwd"])
+        conn["elastic"] = conn_elastic
 
-        conn_kibana = conn['kibana']
-        conn_kibana['pwd'] = controller.encrypt_data(conn_kibana['pwd'])
-        conn['kibana'] = conn_kibana
+        conn_kibana = conn["kibana"]
+        conn_kibana["pwd"] = controller.encrypt_data(conn_kibana["pwd"])
+        conn["kibana"] = conn_kibana
 
         kvargs = {
-            'type': type,
-            'name': name,
-            'desc': desc,
-            'active': active,
-            'conn': conn,
+            "type": type,
+            "name": name,
+            "desc": desc,
+            "active": active,
+            "conn": conn,
         }
         return kvargs
 
     def pre_change(self, **kvargs):
         """Check input params
 
-        :param kvargs: custom params            
-        :return: kvargs            
+        :param kvargs: custom params
+        :return: kvargs
         :raise ApiManagerError:
         """
         return kvargs
@@ -121,7 +127,7 @@ class ElkContainer(Orchestrator):
     def pre_clean(self, **kvargs):
         """Check input params
 
-        :param kvargs: custom params            
+        :param kvargs: custom params
         :return: kvargs
         :raise ApiManagerError:
         """
@@ -142,7 +148,7 @@ class ElkContainer(Orchestrator):
     #         # self.conn = ElkManager(uri=uri)
     #         self.conn_kibana = KibanaManager(uri=uri, user=user, passwd=pwd)
     #         self.conn_elastic = ElasticManager(host=host, uri=uri, user=user, passwd=pwd)
-            
+
     #         # self.conn.authorize(token=token)
     #         # self.logger.debug('Get elk connection %s with token %s' % (self.conn, token))
     #         self.logger.debug('Get elk connection %s' % (self.conn))
@@ -153,35 +159,40 @@ class ElkContainer(Orchestrator):
     #         raise ApiManagerError(ex, code=400)
 
     def __new_connection(self):
-        """Get elk connection with new token
-        """
+        """Get elk connection with new token"""
         try:
             conn_params = self.conn_params
 
-            elastic = conn_params.get('elastic')
-            elastic_host = elastic.get('host')
-            elastic_hosts = elastic.get('hosts')
-            elastic_user = elastic.get('user')
-            elastic_pwd = elastic.get('pwd')
+            elastic = conn_params.get("elastic")
+            elastic_host = elastic.get("host")
+            elastic_hosts = elastic.get("hosts")
+            elastic_user = elastic.get("user")
+            elastic_pwd = elastic.get("pwd")
 
-            kibana = conn_params.get('kibana')
-            kibana_uri = kibana.get('uri')
-            kibana_user = kibana.get('user')
-            kibana_pwd = kibana.get('pwd')
+            kibana = conn_params.get("kibana")
+            kibana_uri = kibana.get("uri")
+            kibana_user = kibana.get("user")
+            kibana_pwd = kibana.get("pwd")
 
             # decrypt password
             elastic_pwd = self.decrypt_data(elastic_pwd)
             kibana_pwd = self.decrypt_data(kibana_pwd)
 
             from six import b, ensure_text
+
             elastic_pwd = ensure_text(elastic_pwd)
             kibana_pwd = ensure_text(kibana_pwd)
 
             # self.conn_elastic = ElkManager(uri=uri)
             # self.conn_kibana: KibanaManager
-            self.conn_elastic = ElasticManager(host=elastic_host, hosts=elastic_hosts, user=elastic_user, pwd=elastic_pwd)
+            self.conn_elastic = ElasticManager(
+                host=elastic_host,
+                hosts=elastic_hosts,
+                user=elastic_user,
+                pwd=elastic_pwd,
+            )
             self.conn_kibana = KibanaManager(uri=kibana_uri, user=kibana_user, passwd=kibana_pwd)
-            
+
             # self.conn.authorize(user=user, pwd=pwd)
             # token = self.conn.get_token()
 
@@ -190,17 +201,16 @@ class ElkContainer(Orchestrator):
             # cache token
             # self.cache.set(key, token, ttl=86400)
             # self.logger.debug('Create elk connection %s with token %s' % (self.conn, token['token']))
-            self.logger.debug('Create elk connection elastic %s ' % (self.conn_elastic))
-            self.logger.debug('Create elk connection kibana %s ' % (self.conn_kibana))
-        
+            self.logger.debug("Create elk connection elastic %s " % (self.conn_elastic))
+            self.logger.debug("Create elk connection kibana %s " % (self.conn_kibana))
+
         # except ElkError as ex:
         except KibanaError as ex:
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex, code=400)
 
     def get_connection(self):
-        """Get elk connection
-        """
+        """Get elk connection"""
         # get user
         # user = self.conn_params.get('user')
         # build key
@@ -241,24 +251,24 @@ class ElkContainer(Orchestrator):
 
     def wait_for_elk_job(self, job_query_func, job_id, maxtime=600, delta=1, job_error_func=None):
         job = job_query_func(job_id)
-        status = job['status']
+        status = job["status"]
         elapsed = 0
-        while status not in ['successful', 'failed', 'error', 'canceled']:
-            self.logger.debug('wait for elk job %s' % job_id)
+        while status not in ["successful", "failed", "error", "canceled"]:
+            self.logger.debug("wait for elk job %s" % job_id)
             job = job_query_func(job_id)
-            status = job['status']
+            status = job["status"]
             sleep(delta)
             elapsed += delta
             if elapsed >= maxtime:
-                raise TimeoutError('elk job %s query timeout' % job_id)
-        if status in ['failed', 'error']:
-            self.logger.error(job['result_traceback'])
-            err = ''
+                raise TimeoutError("elk job %s query timeout" % job_id)
+        if status in ["failed", "error"]:
+            self.logger.error(job["result_traceback"])
+            err = ""
             if job_error_func is not None:
                 err = job_error_func()
-            raise ApiManagerError('elk job %s error: %s' % (job_id, err))
-        elif status == 'cancelled':
-            self.logger.error(job['elk job %s cancelled' % job_id])
-            raise ApiManagerError('elk job %s cancelled' % job_id)
+            raise ApiManagerError("elk job %s error: %s" % (job_id, err))
+        elif status == "cancelled":
+            self.logger.error(job["elk job %s cancelled" % job_id])
+            raise ApiManagerError("elk job %s cancelled" % job_id)
         else:
-            self.logger.info('elk job %s successful' % job_id)
+            self.logger.info("elk job %s successful" % job_id)
