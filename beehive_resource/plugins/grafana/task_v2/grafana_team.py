@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import logging
 from beecell.types.type_dict import dict_get
@@ -152,9 +152,13 @@ class GrafanaTeamTask(AbstractResourceTask):
             remote_users = conn_grafana.team.get_users(team_id_to)
             for user in remote_users:
                 user_id = user["userId"]
-                logger.debug("add_user_step - removing user_id: %s" % (user_id))
-                del_message = conn_grafana.team.del_user(team_id_to, user_id)
-                logger.debug("add_user_step - user_id: %s - del_message: %s" % (user_id, del_message))
+                email: str = user["email"]
+                if email.find("@") < 0:
+                    logger.debug("add_user_step - don't remove user_id: %s - email: %s" % (user_id, email))
+                else:
+                    logger.debug("add_user_step - removing user_id: %s - email: %s" % (user_id, email))
+                    del_message = conn_grafana.team.del_user(team_id_to, user_id)
+                    logger.debug("add_user_step - user_id: %s - del_message: %s" % (user_id, del_message))
 
             # inserisco gli utenti del team
             users_email_array = users_email.split(",")

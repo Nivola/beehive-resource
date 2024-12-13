@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 # from collections import Set
 from re import match
@@ -11,7 +11,8 @@ from beecell.network import InternetProtocol
 from beecell.simple import truncate
 from beecell.types.type_id import id_gen
 from beehive.common.apimanager import ApiManagerError
-from beehive_resource.container import Resource
+from beehive_resource.container import Resource, CustomResource
+from beehive_resource.controller import ResourceController
 from beehive_resource.plugins.provider.entity.aggregate import ComputeProviderResource
 from beehive_resource.plugins.provider.entity.vpc import Vpc
 from beehive_resource.plugins.provider.entity.zone import AvailabilityZoneChildResource
@@ -160,6 +161,7 @@ class SecurityGroup(ComputeProviderResource):
 
         params = {
             "orchestrator_tag": kvargs.get("orchestrator_tag", "default"),
+            # "orchestrator_select_types": kvargs.get("orchestrator_select_types", None),
             "vpc_id": vpc.oid,
             "compute_zone_id": compute_zone.oid,
             "availability_zones": [z for z in availability_zones],
@@ -248,7 +250,7 @@ class SecurityGroup(ComputeProviderResource):
                 break
         return res, find_rule
 
-    def create_rule(self, source, dest, service, sync=None):
+    def create_rule(self, source, dest, service, sync=None, orchestrator_select_types=None):
         from .rule import ComputeRule
 
         name = "%s-rule-%s" % (self.name, id_gen())
@@ -261,6 +263,7 @@ class SecurityGroup(ComputeProviderResource):
             "source": source,
             "destination": dest,
             "service": service,
+            # "orchestrator_select_types": orchestrator_select_types,
         }
         if sync is not None:
             data["sync"] = sync
@@ -302,6 +305,7 @@ class SecurityGroup(ComputeProviderResource):
         networks = vpc.get_networks().get(vpc.oid, [])
         dest = {"type": "SecurityGroup", "value": self.uuid}
         res = {}
+
         networks = [n for n in networks if n.get_site().name == site_name]
         if len(networks) == 1:
             try:
@@ -314,6 +318,7 @@ class SecurityGroup(ComputeProviderResource):
                 valid_zabbix_proxy_conf = False
         else:
             valid_zabbix_proxy_conf = False
+
         if valid_zabbix_proxy_conf is False:
             raise ApiManagerError(
                 "no valid zabbix proxy configuration found for vpc % and availability zone %s" % (vpc.oid, site_name)
@@ -326,6 +331,8 @@ class SecurityGroup(ComputeProviderResource):
             find, find_rule = self.find_rule(source, dest, service)
             # create rule
             if find is False:
+                # orchestrator_select_types = self.get_configs().get("orchestrator_select_types")
+                # res = self.create_rule(source, dest, service, orchestrator_select_types=orchestrator_select_types)
                 res = self.create_rule(source, dest, service)
                 self.logger.debug("create zabbix proxy rule for availability zone %s" % site_name)
             else:
@@ -683,12 +690,17 @@ class RuleGroup(AvailabilityZoneChildResource):
         # check necessary params
         zone_id = kvargs.get("parent")
         orchestrator_tag = kvargs.get("orchestrator_tag", "default")
+        # orchestrator_select_types = kvargs.get("orchestrator_select_types")
 
         # get zone
-        zone = container.get_resource(zone_id)
+        from beehive_resource.plugins.provider.entity.site import Site
+        from beehive_resource.plugins.provider.entity.zone import AvailabilityZone
+
+        availability_zone: AvailabilityZone = container.get_resource(zone_id)
 
         # select remote orchestrators
-        orchestrator_idx = zone.get_orchestrators_by_tag(orchestrator_tag)
+        # orchestrator_idx = availability_zone.get_orchestrators_by_tag(orchestrator_tag, select_types=orchestrator_select_types)
+        orchestrator_idx = availability_zone.get_hypervisors_by_tag(orchestrator_tag)
         # kvargs['orchestrators'] = orchestrator_idx
 
         # create job workflow

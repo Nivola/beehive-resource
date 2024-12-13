@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2021-2022 Regione Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 # from elasticsearch.client import logger
 from copy import deepcopy
@@ -152,6 +153,7 @@ class MonitoringThresholdTask(AbstractProviderResourceTask):
 
         zabbix_threshold = params.get("zabbix_threshold")
         triplet = zabbix_threshold.get("triplet")
+        triplet_desc = zabbix_threshold.get("triplet_desc")
         str_users = zabbix_threshold.get("str_users")
 
         # get container from orchestrator
@@ -184,7 +186,7 @@ class MonitoringThresholdTask(AbstractProviderResourceTask):
             severity = ZabbixPlugin.SEVERITY_DESC_DISASTER
             severity += "," + ZabbixPlugin.SEVERITY_DESC_HIGH
 
-            username = "Gruppo %s" % triplet
+            username = "Gruppo %s" % triplet_desc
             users_email = str_users
 
             # add user - ATTENZIONE al sync
@@ -258,7 +260,7 @@ class MonitoringThresholdTask(AbstractProviderResourceTask):
         zabbix_container: ZabbixContainer = container
 
         zabbix_usergroup_temp: ZabbixUsergroup
-        zabbix_usergroup_name = "Gruppo %s" % zabbix_threshold.get("triplet")
+        zabbix_usergroup_name = "Gruppo %s" % zabbix_threshold.get("triplet_desc")
 
         # try:
         logger.debug("create_zabbix_usergroup_step - cerco usergroup per name: %s" % zabbix_usergroup_name)
@@ -342,7 +344,7 @@ class MonitoringThresholdTask(AbstractProviderResourceTask):
         zabbix_container: ZabbixContainer = container
 
         zabbix_action_temp: ZabbixAction
-        zabbix_action_name = "Report problems to Gruppo %s" % zabbix_threshold.get("triplet")
+        zabbix_action_name = "Report problems to Gruppo %s" % zabbix_threshold.get("triplet_desc")
         logger.debug("create_zabbix_action_step - cerco action per name: %s" % zabbix_action_name)
         # zabbix_action_temp = zabbix_container.get_simple_resource(zabbix_action_name, entity_class=ZabbixAction)
         res, total = zabbix_container.get_resources(

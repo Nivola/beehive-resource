@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beecell.simple import id_gen
 import logging
@@ -32,10 +32,20 @@ class OntapNetappSvm(OntapNetappResource):
     # discover, synchronize
     #
     @staticmethod
+    def discover_remote(container, ext_id=None, name=None):
+        """
+        Discover remote svms that may or may not be already in cmp
+        """
+        manager = container.conn
+        if ext_id:
+            items = manager.svm.get(ext_id)
+        else:
+            items = manager.svm.list(**{"name": name})
+        return items
+
+    @staticmethod
     def discover_new(container, ext_id, res_ext_ids):
         """Discover method used when synchronize beehive container with remote platform.
-
-        TODO:
 
         :param container: client used to communicate with remote platform
         :param ext_id: remote platform entity id
@@ -44,22 +54,14 @@ class OntapNetappSvm(OntapNetappResource):
 
         :raises ApiManagerError:
         """
-        # # query zabbix
-        # if ext_id is not None:
-        #     items = container.conn.host.get(ext_id)
-        # else:
-        #     items = container.conn.host.list()
-
-        # add new items to final list
+        manager = container.conn
+        items = manager.svm.list()
         res = []
-        # for item in items:
-        #     item_id = item['hostid']
-        #     if item_id not in res_ext_ids:
-        #         level = None
-        #         name = item['name']
-        #         status = item['status']
-        #         parent_id = None
-        #         res.append((OntapNetappSvm, item_id, parent_id, OntapNetappSvm.objdef, name, level, status))
+        for item in items:
+            ext_id = item.get("uuid")
+            name = item.get("name")
+            if ext_id not in res_ext_ids:
+                res.append((OntapNetappSvm, ext_id, None, OntapNetappSvm.objdef, name, None))
 
         return res
 
@@ -73,14 +75,11 @@ class OntapNetappSvm(OntapNetappResource):
         :return: list of remote entities
         :raises ApiManagerError:
         """
-        # query zabbix
-        items = []
-        # hosts = container.conn.host.list()
-        # for host in hosts:
-        #     items.append({
-        #         'id': host['hostid'],
-        #         'name': host['name']
-        #     })
+        manager = container.conn
+        items = manager.svm.list()
+        for item in items:
+            # discover_died_entities expects an id field containing the "ext_id"
+            item["id"] = item.get("uuid")
         return items
 
     @staticmethod
@@ -111,7 +110,7 @@ class OntapNetappSvm(OntapNetappResource):
         ext_id = entity[1]
         parent_id = entity[2]
         name = entity[4]
-        status = entity[6]
+        # status = entity[6]
 
         objid = "%s//%s" % (container.objid, id_gen())
 
@@ -187,8 +186,6 @@ class OntapNetappSvm(OntapNetappResource):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = OntapNetappResource.info(self)
-        ext_obj = self.get_remote_svm(self.controller, self.ext_id, self.container, self.ext_id)
-        info["details"] = ext_obj
         return info
 
     def detail(self):

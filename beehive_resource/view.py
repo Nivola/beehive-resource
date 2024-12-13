@@ -1,8 +1,13 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
-from beecell.simple import id_gen, str2bool
+from marshmallow import fields, Schema
+from marshmallow.validate import OneOf, Range
+
+from beehive_resource.container import Resource
+from beehive_resource.controller import ResourceController
+from beehive_resource.container import Orchestrator
 from beehive.common.apimanager import (
     ApiView,
     ApiManagerError,
@@ -20,19 +25,14 @@ from beehive.common.apimanager import (
     CrudApiJobResponseSchema,
     CrudApiObjectSimpleResponseSchema,
 )
-from beehive_resource.container import Resource
-from marshmallow import fields, Schema
-from marshmallow.validate import OneOf, Range
 from beecell.swagger import SwaggerHelper
+from beecell.simple import str2bool
 
 
 class ResourceApiView(SwaggerApiView):
     resclass = Resource
     parentclass = None
     containerclass = None
-
-    from beehive_resource.container import Orchestrator
-    from beehive_resource.controller import ResourceController
 
     def get_container(
         self,
@@ -43,61 +43,69 @@ class ResourceApiView(SwaggerApiView):
         *args,
         **kvargs,
     ) -> Orchestrator:
+        """
+        Get container.
+        """
+        objdef = self.containerclass.objdef
         container = controller.get_container(oid, connect=False, cache=cache)
-        if self.containerclass is not None and container.objdef != self.containerclass.objdef:
+        if self.containerclass is not None and container.objdef != objdef:
             raise ApiManagerError(
-                "Container %s is not of type %s" % (oid, self.containerclass.objdef),
+                f"Container {oid} is not of type {objdef}",
                 code=400,
             )
         if connect is True:
             container.get_connection(*args, **kvargs)
         return container
 
-    def get_resource_reference(self, controller, oid, container=None, run_customize=True):
-        """ """
-        from beehive_resource.controller import ResourceController
-
-        resourceController: ResourceController = controller
-
-        filter = {}
+    def get_resource_reference(self, controller, oid, container=None, run_customize=True, cache=None):
+        """
+        Get resource reference.
+        """
+        resource_controller: ResourceController = controller
+        filter_d = {}
         if container is not None:
-            filter = {"container_id": container}
-        obj = resourceController.get_resource(oid, entity_class=self.resclass, **filter)
+            filter_d["container_id"] = container
+        if cache is not None:
+            filter_d["cache"] = cache
+        obj = resource_controller.get_resource(oid, entity_class=self.resclass, **filter_d)
         return obj
 
     def get_resource(self, controller: ResourceController, oid):
-        """ """
+        """
+        Get Resource.
+        """
         res = controller.get_resource(oid, entity_class=self.resclass)
         resp = {self.resclass.objname: res.detail()}
         return resp
 
     def get_resources_reference(self, controller: ResourceController, *args, **kvargs):
-        """ """
+        """
+        Get resources reference.
+        """
         parents = None
         kvargs["parents"] = parents
         res, total = controller.get_resources(objdef=self.resclass.objdef, type=self.resclass.objdef, *args, **kvargs)
         return res, total
 
     def get_resources(self, controller: ResourceController, *args, **kvargs):
-        """ """
-        parents = None
+        """
+        Get resources.
+        """
         tags = kvargs.pop("tags", None)
-        details = kvargs.get("details", True)
         kvargs["resourcetags"] = tags
-        kvargs["parents"] = parents
+        kvargs["parents"] = None
         kvargs["filter_expired"] = False
-
-        from beehive_resource.controller import ResourceController
-
-        resourceController: ResourceController = controller
-        res, total = resourceController.get_resources(
+        resource_controller: ResourceController = controller
+        res, total = resource_controller.get_resources(
             objdef=self.resclass.objdef, type=self.resclass.objdef, *args, **kvargs
         )
         resp = [r.info() for r in res]
         return self.format_paginated_response(resp, self.resclass.objname + "s", total, **kvargs)
 
     def get_linked_resources(self, controller: ResourceController, oid, resource_class, link, *args, **kvargs):
-        """ """
+        """
+        Get linked resources.
+        """
         parent = controller.get_resource(oid, entity_class=resource_class)
         data, total = parent.get_linked_resources(link_type=link, *args, **kvargs)
         resp = [d.info() for d in data]
@@ -112,9 +120,11 @@ class ResourceApiView(SwaggerApiView):
         *args,
         **kvargs,
     ):
-        """ """
+        """
+        Get directed linked resources.
+        """
         # resources = []
-        res, tot = controller.get_resources(uuids=oids, objdef=resource_class.objdef)
+        res, _ = controller.get_resources(uuids=oids, objdef=resource_class.objdef)
         resources = [r.oid for r in res]
         kvargs["parents"] = None
         data, total = controller.get_directed_linked_resources(link_type=link, resources=resources, *args, **kvargs)
@@ -122,7 +132,9 @@ class ResourceApiView(SwaggerApiView):
         return self.format_paginated_response(resp, self.resclass.objname + "s", total, **kvargs)
 
     def get_resources_by_parent(self, controller: ResourceController, parent_id, *args, **kvargs):
-        """ """
+        """
+        Get resources by parent.
+        """
         kvargs["parents"] = None
         kvargs["parent"] = parent_id
         res, total = controller.get_resources(objdef=self.resclass.objdef, type=self.resclass.objdef, *args, **kvargs)
@@ -130,28 +142,32 @@ class ResourceApiView(SwaggerApiView):
         return self.format_paginated_response(resp, self.resclass.objname + "s", total, **kvargs)
 
     def create_resource(self, controller: ResourceController, data, check_name=True):
-        """ """
-        data = data.get(self.resclass.objname, {})
+        """
+        Create resource.
+        """
+        objname = self.resclass.objname
+        data = data.get(objname, {})
         # check if already exists
         cid = data.pop("container", None)
         container = self.get_container(controller, cid)
 
-        if check_name is True:
+        if check_name:
+            data_name = data.get("name")
             try:
-                obj = self.get_resource_reference(controller, data.get("name"), container=container.oid)
-            except Exception as ex:
+                obj = self.get_resource_reference(controller, data_name, container=container.oid)
+            except Exception:
                 obj = None
 
             if obj is not None:
                 raise ApiManagerError(
-                    "%s %s already exists" % (self.resclass.objname, data.get("name")),
+                    f"{objname} {data_name} already exists",
                     code=409,
                 )
 
         if self.parentclass is not None:
             parent_id = data.pop(self.parentclass.objname, None)
             if parent_id is not None:
-                self.logger.debug("Parent id: %s" % parent_id)
+                self.logger.debug(f"Parent id: {parent_id}")
                 parent = controller.get_simple_resource(parent_id, entity_class=self.parentclass)
                 data["parent"] = parent.oid
             else:
@@ -162,30 +178,34 @@ class ResourceApiView(SwaggerApiView):
         return res
 
     def clone_resource(self, controller: ResourceController, oid, data):
-        """ """
-        data = data.get(self.resclass.objname, {})
+        """
+        Clone Resource.
+        """
+        objname = self.resclass.objname
+        data = data.get(objname, {})
         # check if already exists
         cid = data.pop("container", None)
         container = self.get_container(controller, cid)
 
         clone_resource = controller.get_resource(oid, entity_class=self.resclass)
         data["clone_resource"] = clone_resource.oid
+        data_name = data.get("name")
 
         try:
             obj = self.get_resource_reference(controller, data.get("name"), container=container.oid)
-        except Exception as ex:
+        except Exception:
             obj = None
 
         if obj is not None:
             raise ApiManagerError(
-                "%s %s already exists" % (self.resclass.objname, data.get("name")),
+                f"{objname} {data_name} already exists",
                 code=409,
             )
 
         if self.parentclass is not None:
             parent_id = data.pop(self.parentclass.objname, None)
             if parent_id is not None:
-                self.logger.debug("Parent id: %s" % parent_id)
+                self.logger.debug(f"Parent id: {parent_id}")
                 parent = controller.get_simple_resource(parent_id, entity_class=self.parentclass)
                 data["parent"] = parent.oid
             else:
@@ -196,27 +216,31 @@ class ResourceApiView(SwaggerApiView):
         return res
 
     def import_resource(self, controller: ResourceController, data):
-        """ """
-        data = data.get(self.resclass.objname, {})
+        """
+        Import Resource.
+        """
+        objname = self.resclass.objname
+        data = data.get(objname, {})
+        data_name = data.get("name")
         # check if already exists
         cid = data.pop("container", None)
         container = self.get_container(controller, cid)
 
         try:
-            obj = self.get_resource_reference(controller, data.get("name"), container=container.oid)
-        except Exception as ex:
+            obj = self.get_resource_reference(controller, data_name, container=container.oid)
+        except Exception:
             obj = None
 
         if obj is not None:
             raise ApiManagerError(
-                "%s %s already exists" % (self.resclass.objname, data.get("name")),
+                "{objname} {data_name} already exists",
                 code=409,
             )
 
         if self.parentclass is not None:
             parent_id = data.pop(self.parentclass.objname, None)
             if parent_id is not None:
-                self.logger.debug("Parent id: %s" % parent_id)
+                self.logger.debug(f"Parent id: {parent_id}")
                 parent = controller.get_resource(parent_id, entity_class=self.parentclass)
                 data["parent"] = parent.oid
             else:
@@ -227,36 +251,46 @@ class ResourceApiView(SwaggerApiView):
         return res
 
     def update_resource(self, controller: ResourceController, oid, data):
-        """ """
+        """
+        Update resource.
+        """
         data = data.get(self.resclass.objname)
         obj = controller.get_resource(oid, entity_class=self.resclass)
         res = obj.update(**data)
         return res
 
     def delete_resource(self, controller: ResourceController, oid):
-        """ """
+        """
+        Delete resource.
+        """
         obj = controller.get_resource(oid, entity_class=self.resclass)
         if obj.get_base_state() not in ["ACTIVE", "ERROR", "UNKNOWN"]:
+            objname = self.resclass.objname
             raise ApiManagerError(
-                "Resource %s %s is not in a valid state" % (self.resclass.objname, oid),
+                f"Resource {objname} {oid} is not in a valid state",
                 code=400,
             )
         res = obj.delete()
         return res
 
     def expunge_resource(self, controller: ResourceController, oid, **kvargs):
-        """ """
-        obj = controller.get_resource(oid, entity_class=self.resclass)
+        """
+        Expunge resource.
+        """
+        obj: Resource = controller.get_resource(oid, entity_class=self.resclass)
         if obj.get_base_state() not in ["ACTIVE", "ERROR", "UNKNOWN"]:
+            objname = self.resclass.objname
             raise ApiManagerError(
-                "Resource %s %s is not in a valid state" % (self.resclass.objname, oid),
+                f"Resource {objname} {oid} is not in a valid state",
                 code=400,
             )
         res = obj.expunge(**kvargs)
         return res
 
     def expunge_resource2(self, controller: ResourceController, oid, **kvargs):
-        """ """
+        """
+        Expinge resource2.
+        """
         obj = controller.get_resource(oid, entity_class=self.resclass)
         res = obj.expunge2(**kvargs)
         return res
@@ -301,6 +335,12 @@ class ResourceResponseSchema(ApiObjectResponseSchema):
 
 
 class CreateResourceBaseRequestSchema(Schema):
+    """
+    :name: resource name
+    :container: container id,uuid or name
+    :tags: comma separated list of tags to assign
+    """
+
     name = fields.String(required=True, example="test", description="The security group name")
     container = fields.String(required=True, default="10", description="Container id, uuid or name")
     tags = fields.String(
@@ -361,7 +401,7 @@ class ListResources(ResourceApiView):
     parameters_schema = ListResourcesRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListResourcesResponseSchema}})
 
-    def get(self, controller, data, *args, **kwargs):
+    def get(self, controller: ResourceController, data, *args, **kwargs):
         tags = data.pop("tags", None)
         data["resourcetags"] = tags
         data["parents"] = {}
@@ -780,7 +820,6 @@ class UpdateResource(ResourceApiView):
             202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema},
         }
     )
-    from beehive_resource.controller import ResourceController
 
     def put(self, controller: ResourceController, data, oid, *args, **kwargs):
         resource: Resource = controller.get_resource(oid, cache=False)
@@ -886,7 +925,7 @@ class DeleteResource(ResourceApiView):
         ]:
             resp = resource.expunge()
             return resp
-        raise ApiManagerError("Resource %s is not in a valid state" % oid, code=400)
+        raise ApiManagerError(f"Resource {oid} is not in a valid state", code=400)
 
 
 class MetricParamsResponseSchema(Schema):
@@ -1045,8 +1084,8 @@ class UpdateResourceState(ResourceApiView):
         {200: {"description": "success", "schema": CrudApiObjectSimpleResponseSchema}}
     )
 
-    def put(self, controller, data, oid, *args, **kwargs):
-        resource = controller.get_simple_resource(oid)
+    def put(self, controller: ResourceController, data, oid, *args, **kwargs):
+        resource: Resource = controller.get_simple_resource(oid)
         resource.set_state(data.get("state"))
         return {"state": data.get("state")}
 
@@ -1060,8 +1099,8 @@ class GetResourceCache(ResourceApiView):
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": CrudApiObjectResponseSchema}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
-        resource = controller.get_simple_resource(oid)
+    def get(self, controller: ResourceController, data, oid, *args, **kwargs):
+        resource: Resource = controller.get_simple_resource(oid)
         res = resource.get_cache()
         return res
 
@@ -1075,8 +1114,8 @@ class CleanResourceCache(ResourceApiView):
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": CrudApiObjectResponseSchema}})
 
-    def put(self, controller, data, oid, *args, **kwargs):
-        resource = controller.get_simple_resource(oid)
+    def put(self, controller: ResourceController, data, oid, *args, **kwargs):
+        resource: Resource = controller.get_simple_resource(oid)
         resource.clean_cache()
         return {"uuid": resource.uuid}
 
@@ -1112,7 +1151,7 @@ class ListContainers(ResourceApiView):
     parameters_schema = ListContainersRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListContainersResponseSchema}})
 
-    def get(self, controller, data, *args, **kwargs):
+    def get(self, controller: ResourceController, data, *args, **kwargs):
         tags = data.pop("tags", None)
         data["resourcetags"] = tags
         containers, total = controller.get_containers(**data)
@@ -1265,8 +1304,6 @@ class CreateContainer(ResourceApiView):
     responses = SwaggerApiView.setResponses({201: {"description": "success", "schema": CrudApiObjectResponseSchema}})
 
     def post(self, controller, data, *args, **kwargs):
-        from beehive_resource.controller import ResourceController
-
         resourceController: ResourceController = controller
         resp = resourceController.add_container(**data.get("resourcecontainer"))
         return ({"uuid": resp}, 201)
@@ -1376,16 +1413,16 @@ class GetContainerJobs(ResourceApiView):
 
 
 class DiscoverRequestSchema(GetApiObjectRequestSchema):
-    type = fields.String(required=True, context="query", defualt="Dummy.SyncResource")
+    type = fields.String(required=False, context="query", example="Dummy.SyncResource")
 
 
 class DiscoverParamsDetailsResponseSchema(Schema):
-    type = fields.String(defualt="beehive_resource.plugins.dummy.controller.DummySyncResource")
-    id = fields.String(defualt="15")
-    parent = fields.String(defualt="10", allow_none=True)
-    type = fields.String(defualt="DummySyncResource")
-    name = fields.String(defualt="test")
-    # level = fields.Integer(defualt=0)
+    type = fields.String(example="beehive_resource.plugins.dummy.controller.DummySyncResource")
+    id = fields.String(example="15")
+    parent = fields.String(example="10", allow_none=True)
+    type = fields.String(example="DummySyncResource")
+    name = fields.String(example="test")
+    # level = fields.Integer(example=0)
 
 
 class DiscoverParamsResponseSchema(Schema):
@@ -1410,8 +1447,38 @@ class Discover(ResourceApiView):
     def get(self, controller, data, oid, *args, **kwargs):
         container = self.get_container(controller, oid)
         restype = data.get("type")
-        # resource_class = import_class(resclass)
-        res = container.discover(restype)
+        if restype is None:
+            restypes = container.get_resource_classes()
+        else:
+            restypes = [restype]
+        res = container.discover(restypes)
+        resp = {"discover_resources": res}
+        return resp
+
+
+class DiscoverRemoteRequestSchema(GetApiObjectRequestSchema):
+    type = fields.String(required=False, context="query", example="Dummy.SyncResource")
+    name = fields.String(required=False, context="query", default=None, description="optional name or name pattern")
+
+
+class DiscoverRemote(ResourceApiView):
+    tags = ["resource"]
+    definitions = {
+        "DiscoverResponseSchema": DiscoverResponseSchema,
+    }
+    parameters = SwaggerHelper().get_parameters(DiscoverRemoteRequestSchema)
+    parameters_schema = DiscoverRemoteRequestSchema
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": DiscoverResponseSchema}})
+
+    def get(self, controller, data, oid, *args, **kwargs):
+        container = self.get_container(controller, oid)
+        restype = data.get("type")
+        resname = data.get("name")
+        if restype is None:
+            restypes = container.get_resource_classes()
+        else:
+            restypes = [restype]
+        res = container.discover_remote(restypes, name=resname)
         resp = {"discover_resources": res}
         return resp
 
@@ -1549,6 +1616,7 @@ class ListLinksRequestSchema(PaginatedRequestQuerySchema):
         description="entities list page size. -1 to get all the records",
         validate=Range(min=-1, max=1000, error="Size is out from range"),
     )
+    objid = fields.String(context="query", description="resource objid")
 
 
 class ListLinksParamsDetailsResponseSchema(Schema):
@@ -1575,7 +1643,7 @@ class ListLinks(ResourceApiView):
     parameters_schema = ListLinksRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListLinksResponseSchema}})
 
-    def get(self, controller, data, *args, **kwargs):
+    def get(self, controller: ResourceController, data, *args, **kwargs):
         tags = data.pop("tags", None)
         data["resourcetags"] = tags
         links, total = controller.get_links(**data)
@@ -1758,10 +1826,8 @@ class ListTags(ResourceApiView):
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListTagsResponseSchema}})
 
     def get(self, controller, data, *args, **kwargs):
-        from beehive_resource.controller import ResourceController
-
-        resourceController: ResourceController = controller
-        tags, total = resourceController.get_tags(**data)
+        resource_controller: ResourceController = controller
+        tags, total = resource_controller.get_tags(**data)
         res = [r.info() for r in tags]
         return self.format_paginated_response(res, "resourcetags", total, **data)
 
@@ -1975,132 +2041,149 @@ class ListJobs(ResourceApiView):
         return {"jobs": jobs, "count": count}
 
 
+class DeleteCacheContainerRequestSchema(Schema):
+    pass
+
+
+class DeleteCacheContainer(ResourceApiView):
+    tags = ["resource"]
+    definitions = {}
+    parameters = SwaggerHelper().get_parameters(DeleteCacheContainerRequestSchema)
+    parameters_schema = DeleteCacheContainerRequestSchema
+    responses = SwaggerApiView.setResponses({204: {"description": "no response"}})
+
+    def delete(self, controller: ResourceController, data, *args, **kwargs):
+        self.logger.debug(f"controller.containers: {controller.containers}")
+        controller.containers = {}
+        return 204
+
+
 class ResourceAPI(ApiView):
     """Resource api routes V1:"""
 
     @staticmethod
     def register_api(module, **kwargs):
+        mbp = module.base_path
         rules = [
             # new route
-            ("%s/containers" % module.base_path, "GET", ListContainers, {}),
-            ("%s/containers" % module.base_path, "POST", CreateContainer, {}),
-            ("%s/containers/count" % module.base_path, "GET", CountContainers, {}),
-            ("%s/containers/types" % module.base_path, "GET", ListContainerTypes, {}),
-            ("%s/containers/<oid>" % module.base_path, "GET", GetContainer, {}),
-            ("%s/containers/<oid>" % module.base_path, "PUT", UpdateContainer, {}),
-            ("%s/containers/<oid>" % module.base_path, "DELETE", DeleteContainer, {}),
-            # ('%s/containers/<oid>/jobs' % module.base_path, 'GET', GetContainerJobs, {}),
-            ("%s/containers/<oid>/ping" % module.base_path, "GET", PingContainer, {}),
-            # ('%s/containers/<oid>/count' % module.base_path, 'GET', GetContainerResourcesCount, {}),
+            (f"{mbp}/containers", "GET", ListContainers, {}),
+            (f"{mbp}/containers", "POST", CreateContainer, {}),
+            (f"{mbp}/containers/cache", "DELETE", DeleteCacheContainer, {}),
+            (f"{mbp}/containers/count", "GET", CountContainers, {}),
+            (f"{mbp}/containers/types", "GET", ListContainerTypes, {}),
+            (f"{mbp}/containers/<oid>", "GET", GetContainer, {}),
+            (f"{mbp}/containers/<oid>", "PUT", UpdateContainer, {}),
+            (f"{mbp}/containers/<oid>", "DELETE", DeleteContainer, {}),
+            (f"{mbp}/containers/<oid>/ping", "GET", PingContainer, {}),
             (
-                "%s/containers/<oid>/perms" % module.base_path,
+                f"{mbp}/containers/<oid>/perms",
                 "GET",
                 GetContainerPerms,
                 {},
             ),
-            ("%s/containers/<oid>/discover" % module.base_path, "GET", Discover, {}),
+            (f"{mbp}/containers/<oid>/discover", "GET", Discover, {}),
+            (f"{mbp}/containers/<oid>/discover_remote", "GET", DiscoverRemote, {}),
             (
-                "%s/containers/<oid>/discover/types" % module.base_path,
+                f"{mbp}/containers/<oid>/discover/types",
                 "GET",
                 DiscoverType,
                 {},
             ),
             (
-                "%s/containers/<oid>/discover" % module.base_path,
+                f"{mbp}/containers/<oid>/discover",
                 "PUT",
                 SynchronizeResources,
                 {},
             ),
             (
-                "%s/containers/<oid>/discover/scheduler" % module.base_path,
+                f"{mbp}/containers/<oid>/discover/scheduler",
                 "GET",
                 GetScheduler,
                 {},
             ),
             (
-                "%s/containers/<oid>/discover/scheduler" % module.base_path,
+                f"{mbp}/containers/<oid>/discover/scheduler",
                 "POST",
                 CreateScheduler,
                 {},
             ),
             (
-                "%s/containers/<oid>/discover/scheduler" % module.base_path,
+                f"{mbp}/containers/<oid>/discover/scheduler",
                 "DELETE",
                 RemoveScheduler,
                 {},
             ),
-            ("%s/entities" % module.base_path, "GET", ListResources, {}),
-            ("%s/entities" % module.base_path, "POST", CreateResource, {}),
-            ("%s/entities/import" % module.base_path, "POST", ImportResource, {}),
-            ("%s/entities/count" % module.base_path, "GET", CountResources, {}),
-            ("%s/entities/types" % module.base_path, "GET", ListResourceTypes, {}),
-            ("%s/entities/<oid>" % module.base_path, "GET", GetResource, {}),
-            ("%s/entities/<oid>" % module.base_path, "PUT", UpdateResource, {}),
-            ("%s/entities/<oid>" % module.base_path, "PATCH", PatchResource, {}),
-            ("%s/entities/<oid>" % module.base_path, "DELETE", DeleteResource, {}),
-            ("%s/entities/check" % module.base_path, "GET", CheckResources, {}),
-            # ('%s/entities/<oid>/jobs' % module.base_path, 'GET', GetResourceJobs, {}),
+            (f"{mbp}/entities", "GET", ListResources, {}),
+            (f"{mbp}/entities", "POST", CreateResource, {}),
+            (f"{mbp}/entities/import", "POST", ImportResource, {}),
+            (f"{mbp}/entities/count", "GET", CountResources, {}),
+            (f"{mbp}/entities/types", "GET", ListResourceTypes, {}),
+            (f"{mbp}/entities/<oid>", "GET", GetResource, {}),
+            (f"{mbp}/entities/<oid>", "PUT", UpdateResource, {}),
+            (f"{mbp}/entities/<oid>", "PATCH", PatchResource, {}),
+            (f"{mbp}/entities/<oid>", "DELETE", DeleteResource, {}),
+            (f"{mbp}/entities/check", "GET", CheckResources, {}),
             (
-                "%s/entities/<oid>/errors" % module.base_path,
+                f"{mbp}/entities/<oid>/errors",
                 "GET",
                 GetResourceErrors,
                 {},
             ),
-            ("%s/entities/<oid>/tree" % module.base_path, "GET", GetResourceTree, {}),
-            ("%s/entities/<oid>/perms" % module.base_path, "GET", GetResourcePerms, {}),
+            (f"{mbp}/entities/<oid>/tree", "GET", GetResourceTree, {}),
+            (f"{mbp}/entities/<oid>/perms", "GET", GetResourcePerms, {}),
             (
-                "%s/entities/<oid>/linked" % module.base_path,
+                f"{mbp}/entities/<oid>/linked",
                 "GET",
                 GetLinkedResources,
                 {},
             ),
             (
-                "%s/entities/<oid>/metrics" % module.base_path,
+                f"{mbp}/entities/<oid>/metrics",
                 "GET",
                 GetResourceMetrics,
                 {},
             ),
             (
-                "%s/entities/<oid>/config" % module.base_path,
+                f"{mbp}/entities/<oid>/config",
                 "GET",
                 GetResourceConfig,
                 {},
             ),
             (
-                "%s/entities/<oid>/config" % module.base_path,
+                f"{mbp}/entities/<oid>/config",
                 "PUT",
                 UpdateResourceConfig,
                 {},
             ),
             (
-                "%s/entities/<oid>/state" % module.base_path,
+                f"{mbp}/entities/<oid>/state",
                 "PUT",
                 UpdateResourceState,
                 {},
             ),
-            ("%s/entities/<oid>/cache" % module.base_path, "GET", GetResourceCache, {}),
+            (f"{mbp}/entities/<oid>/cache", "GET", GetResourceCache, {}),
             (
-                "%s/entities/<oid>/cache" % module.base_path,
+                f"{mbp}/entities/<oid>/cache",
                 "PUT",
                 CleanResourceCache,
                 {},
             ),
-            ("%s/entities/<oid>/check" % module.base_path, "GET", CheckResource, {}),
-            ("%s/links" % module.base_path, "GET", ListLinks, {}),
-            ("%s/links" % module.base_path, "POST", CreateLink, {}),
-            ("%s/links/count" % module.base_path, "GET", CountLinks, {}),
-            ("%s/links/<oid>" % module.base_path, "GET", GetLink, {}),
-            ("%s/links/<oid>" % module.base_path, "DELETE", DeleteLink, {}),
-            ("%s/links/<oid>" % module.base_path, "PUT", UpdateLink, {}),
-            ("%s/links/<oid>/perms" % module.base_path, "GET", GetLinkPerms, {}),
-            ("%s/tags" % module.base_path, "GET", ListTags, {}),
-            ("%s/tags" % module.base_path, "POST", CreateTag, {}),
-            ("%s/tags/count" % module.base_path, "GET", CountTags, {}),
-            ("%s/tags/<oid>" % module.base_path, "GET", GetTag, {}),
-            ("%s/tags/<oid>" % module.base_path, "PUT", UpdateTag, {}),
-            ("%s/tags/<oid>" % module.base_path, "DELETE", DeleteTag, {}),
-            ("%s/tags/<oid>/perms" % module.base_path, "GET", GetTagPerms, {}),
-            ("%s/jobs" % module.base_path, "GET", ListJobs, {}),
+            (f"{mbp}/entities/<oid>/check", "GET", CheckResource, {}),
+            (f"{mbp}/links", "GET", ListLinks, {}),
+            (f"{mbp}/links", "POST", CreateLink, {}),
+            (f"{mbp}/links/count", "GET", CountLinks, {}),
+            (f"{mbp}/links/<oid>", "GET", GetLink, {}),
+            (f"{mbp}/links/<oid>", "DELETE", DeleteLink, {}),
+            (f"{mbp}/links/<oid>", "PUT", UpdateLink, {}),
+            (f"{mbp}/links/<oid>/perms", "GET", GetLinkPerms, {}),
+            (f"{mbp}/tags", "GET", ListTags, {}),
+            (f"{mbp}/tags", "POST", CreateTag, {}),
+            (f"{mbp}/tags/count", "GET", CountTags, {}),
+            (f"{mbp}/tags/<oid>", "GET", GetTag, {}),
+            (f"{mbp}/tags/<oid>", "PUT", UpdateTag, {}),
+            (f"{mbp}/tags/<oid>", "DELETE", DeleteTag, {}),
+            (f"{mbp}/tags/<oid>/perms", "GET", GetTagPerms, {}),
+            (f"{mbp}/jobs", "GET", ListJobs, {}),
         ]
 
         ApiView.register_api(module, rules, **kwargs)

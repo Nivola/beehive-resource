@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import logging
 from beecell.simple import id_gen, dict_get, truncate
@@ -181,6 +181,14 @@ class AwxJobTemplate(AwxResource):
         :return: kvargs
         :raise ApiManagerError:
         """
+        from beedrones.awx.client import AwxManager
+
+        # job_template_type
+        # - machine_only: use ssh credentials and inventory to execute playbook on remote machines
+        # - remote_only: "empty" inventory, no ssh credentials, optional vault credentials to POST on remote container
+        # - ... TO BE EXTENDED
+        job_template_type = kvargs.get("job_template_type", "machine_only")
+
         awx_name = kvargs.get("name")
 
         def get_organization_id(name):
@@ -203,8 +211,6 @@ class AwxJobTemplate(AwxResource):
                 password = None
                 # ssh_key_unlock = True
 
-            from beedrones.awx.client import AwxManager
-
             awxManager: AwxManager = container.conn
             res = awxManager.credential.add_ssh(
                 name,
@@ -218,13 +224,39 @@ class AwxJobTemplate(AwxResource):
             logger.info("Ssh credentials '{}' created: {}".format(name, ext_id))
             return ext_id
 
-        def add_inventory(organization, rand):
-            # append random code to avoid getting duplicate name error from awx
-            name = "-".join(("TEMP-%s-inventory", rand)) % awx_name
+        def check_is_vault_credentials(vault_cred_id):
+            awxManager: AwxManager = container.conn
+            res = awxManager.credential.get(vault_cred_id)
+            if res.get("kind") != "vault":
+                raise Exception(
+                    "Wrong credential type for ext_id %s. Expected 'vault' but was %s"
+                    % (vault_cred_id, res.get("kind"))
+                )
+            return vault_cred_id
+
+        def add_inventory(organization, rand, full_name=None):
+            # if full name, create with specific name (used for fixed name inventories, such as for staas)
+            # otherwise create random name using pattern (previous behavior)
+            if full_name is None:
+                # append random code to avoid getting duplicate name error from awx
+                name = "-".join(("TEMP-%s-inventory", rand)) % awx_name
+            else:
+                name = full_name
             res = container.conn.inventory.add(name, organization)
             ext_id = res.get("id")
             logger.info("Inventory '{}' created: {}".format(name, ext_id))
             return ext_id
+
+        def get_add_empty_inventory(organization):
+            # add common empty inventory "EMPTY_INVENTORY"
+            # used e.g. for staas since it's mandatory to give an inventory
+            # even if not used
+            awxManager: AwxManager = container.conn
+            res = awxManager.inventory.list(name="EMPTY_INVENTORY")
+            if (len(res)) == 0:
+                return add_inventory(organization, "", "EMPTY_INVENTORY")
+            else:
+                return res[0].get("id")
 
         def add_hosts(hosts, inventory):
             for host in hosts:
@@ -249,6 +281,8 @@ class AwxJobTemplate(AwxResource):
                     variables[k] = v
             return variables
 
+        logger.debug("+++++ pre_create - container: %s" % container)
+        logger.debug("+++++ pre_create - kvargs: %s" % kvargs)
         org_name = kvargs.get("add").pop("organization")
         hosts = kvargs.get("add").pop("hosts", [])
         project_name = kvargs.get("add").pop("project")
@@ -260,30 +294,38 @@ class AwxJobTemplate(AwxResource):
             rand = id_gen(8)
             # get organization id
             org_ext_id = get_organization_id(org_name)
-            # create temporary ssh credentials
-            ssh_creds_ext_id = kvargs.get("launch").pop("ssh_cred_id", None)
-            if ssh_creds_ext_id is None:
-                ssh_creds_ext_id = add_ssh_credentials(org_ext_id, ssh_creds, rand)
-            # create temporary inventory
-            inventory_ext_id = kvargs.get("add").pop("inventory", None)
-            if inventory_ext_id is None:
-                inventory_ext_id = add_inventory(org_ext_id, rand)
-                # add hosts to inventory
-                add_hosts(hosts, inventory_ext_id)
             # get project ext_id
             project = container.get_simple_resource(project_name, entity_class=AwxProject)
             project_ext_id = project.ext_id
             logger.info("Project '{}' retrieved: {}".format(project_name, project_ext_id))
+
+            if job_template_type == "machine_only":
+                # create temporary ssh credentials
+                ssh_creds_ext_id = kvargs.get("launch").pop("ssh_cred_id", None)
+                if ssh_creds_ext_id is None:
+                    ssh_creds_ext_id = add_ssh_credentials(org_ext_id, ssh_creds, rand)
+                # create temporary inventory
+                inventory_ext_id = kvargs.get("add").pop("inventory", None)
+                if inventory_ext_id is None:
+                    inventory_ext_id = add_inventory(org_ext_id, rand)
+                    # add hosts to inventory
+                    add_hosts(hosts, inventory_ext_id)
+                kvargs["add"]["inventory"] = inventory_ext_id
+                kvargs["launch"]["ssh_creds_id"] = ssh_creds_ext_id
+            elif job_template_type == "remote_only":
+                vault_creds_ext_id = kvargs.get("launch").pop("vault_cred_id", 11)  # None TODO update in cmp
+                if vault_creds_ext_id is not None:
+                    kvargs["launch"]["vault_creds_id"] = check_is_vault_credentials(vault_creds_ext_id)
+                kvargs["add"]["inventory"] = get_add_empty_inventory(org_ext_id)
             # create comma-separated list of job tags
             job_tags = ",".join(job_tag for job_tag in job_tags)
         except Exception as ex:
             logger.error(ex, exc_info=True)
             raise Exception(ex)
 
-        kvargs["add"]["inventory"] = inventory_ext_id
         kvargs["add"]["project"] = project_ext_id
         kvargs["add"]["job_tags"] = job_tags
-        kvargs["launch"]["ssh_creds_id"] = ssh_creds_ext_id
+
         kvargs["launch"]["extra_vars"] = to_dict(extra_vars)
 
         steps = [

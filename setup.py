@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from sys import version_info
 from setuptools import setup
@@ -93,7 +93,6 @@ if __name__ == "__main__":
             "beehive_resource.plugins.ssh_gateway.views",
             "beehive_resource.plugins.vsphere",
             "beehive_resource.plugins.vsphere.entity",
-            "beehive_resource.plugins.vsphere.task",
             "beehive_resource.plugins.vsphere.task_v2",
             "beehive_resource.plugins.vsphere.views",
             "beehive_resource.plugins.zabbix",

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2021-2022 Regione Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive.common.apimanager import (
     ApiManagerError,
@@ -175,6 +176,14 @@ class SendMonitoringFolderActionParamsDashboardRequestSchema(Schema):
     account = fields.String(required=False, example="account", description="account to replace in dashboard")
 
 
+class SendMonitoringFolderActionParamsDeleteDashboardRequestSchema(Schema):
+    dashboard_to_search = fields.String(
+        required=True,
+        example="dashboard-to-search",
+        description="dashboard name to add",
+    )
+
+
 class SendMonitoringFolderActionParamsPermissionRequestSchema(Schema):
     # folder_id_from = fields.String(required=False, allow_none=True, example='default', description='folder from copy dashboard')
     team_viewer = fields.String(
@@ -196,6 +205,12 @@ class SendMonitoringFolderActionParamsRequestSchema(Schema):
         required=False,
         allow_none=True,
         description="add dashboard to folder",
+    )
+    delete_dashboard = fields.Nested(
+        SendMonitoringFolderActionParamsDeleteDashboardRequestSchema,
+        required=False,
+        allow_none=True,
+        description="delete dashboard to folder",
     )
     add_permission = fields.Nested(
         SendMonitoringFolderActionParamsPermissionRequestSchema,
@@ -231,7 +246,7 @@ class SendMonitoringFolderAction(ProviderMonitoringFolder):
 
     def put(self, controller, data, oid, *args, **kwargs):
         instance: ComputeMonitoringFolder
-        instance = self.get_resource_reference(controller, oid)
+        instance = self.get_resource_reference(controller, oid, cache=False)
 
         actions = data.get("action")
         schedule = data.get("schedule")

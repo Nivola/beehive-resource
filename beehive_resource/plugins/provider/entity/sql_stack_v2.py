@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import logging
 
@@ -174,7 +174,7 @@ class SqlHelper(object):
         self.args = args
         self.kvargs = kvargs
 
-        self.engines = ["mysql", "postgresql", "oracle", "sqlserver"]
+        self.engines = ["mysql", "postgresql", "oracle", "sqlserver", "mariadb"]
 
         self.engine_params = {}
         self.stack_v2_params = {}
@@ -219,12 +219,15 @@ class SqlCreateHelper(SqlHelper):
         self.controller = controller
         self.container = container
 
+        from beehive_resource.plugins.provider.entity.sql_stack_v2_mariadb import MariaDBCreateHelper
+
         self.child_classes = [
             MysqlCreateHelper,
             PostgresqlCreateHelper,
             OracleCreateHelperNew,
             # OracleCreateHelper,
             SqlserverCreateHelper,
+            MariaDBCreateHelper,
         ]
 
         self.name = self.kvargs.get("name")
@@ -331,6 +334,7 @@ class SqlCreateHelper(SqlHelper):
         self.zbx_srv_usr = conn_params.get("user")
         pwd = conn_params.get("pwd")
         self.zbx_srv_pwd = orchestrator.decrypt_data(pwd).decode("utf-8")
+        self.zbx_srv_ip = orchestrator.get_ip_address(self.zbx_srv_uri)
 
         # orchestrator_idx = self.site.get_orchestrators_by_tag(self.orchestrator_tag, index_field='type')
         # self.orchestrator = orchestrator_idx.get('openstack', None)
@@ -826,7 +830,8 @@ class SqlCreateHelper(SqlHelper):
                     "p_no_proxy": "localhost,10.0.0.0/8",
                     "p_zabbix_proxy_ip": self.zbx_proxy_ip,
                     "p_zabbix_proxy_name": self.zbx_proxy_name,
-                    "p_zabbix_server": self.zbx_srv_uri,
+                    "p_zabbix_server_ip": self.zbx_srv_ip,
+                    "p_zabbix_server_uri": self.zbx_srv_uri,
                     "p_zabbix_server_username": self.zbx_srv_usr,
                     "p_zabbix_server_password": self.zbx_srv_pwd,
                     "p_custom_host_groups": self.zabbix_host_groups,
@@ -868,6 +873,10 @@ class SqlCreateHelper(SqlHelper):
 
 
 class MysqlCreateHelper(SqlCreateHelper):
+    playbook_extension_mgmt: str = "extensionMgmtMysql.yml"
+    playbook_enable_login_shell: str = "enable_login_shell.yml"
+    playbook_user_mgmt: str = "UserMgmtMysql.yml"
+
     def __init__(self, controller, container, *args, **kvargs):
         SqlCreateHelper.__init__(self, controller, container, *args, **kvargs)
         # set default engine params
@@ -1010,7 +1019,7 @@ class MysqlCreateHelper(SqlCreateHelper):
                         "extra_vars": {},
                     }
                 ],
-                "playbook": "enable_login_shell.yml",
+                "playbook": self.playbook_enable_login_shell,
                 "extra_vars": {"p_user": user, "p_shell": shell},
             },
         }
@@ -1036,7 +1045,7 @@ class MysqlCreateHelper(SqlCreateHelper):
                         "extra_vars": {},
                     }
                 ],
-                "playbook": "UserMgmtMysql.yml",
+                "playbook": self.playbook_user_mgmt,
                 "extra_vars": {
                     "p_mysql_db_port": self.port,
                     "p_mysql_login_name": self.admin_user,
@@ -1070,7 +1079,7 @@ class MysqlCreateHelper(SqlCreateHelper):
                         "extra_vars": {},
                     }
                 ],
-                "playbook": "extensionMgmtMysql.yml",
+                "playbook": self.playbook_extension_mgmt,
                 "extra_vars": {
                     "p_mysql_db_port": self.port,
                     "p_mysql_root_username": self.admin_user,
@@ -1089,12 +1098,32 @@ class PostgresqlCreateHelper(SqlCreateHelper):
         SqlCreateHelper.__init__(self, controller, container, *args, **kvargs)
         # set default engine params
         self.engine_params = PostgresqlBase.engine_params
+        self.postgis_extension: bool = True
+        self.db_name: str = None
+        self.encoding: str = "UTF-8"
+        self.lc_collate: str = "en_US.UTF-8"
+        self.lc_ctype: str = "en_US.UTF-8"
+        self.role_name: str = None
+        self.password: str = None
+        self.schema_name: str = None
+        self.extensions: str = ""
 
     def internal_run(self):
         self.license = dict_get(self.engine_params, "license")
         self.admin_user = "postgres"
         self.admin_pwd = random_password(length=20, strong=True)
-        self.postgis_extension = bool2str(self.kvargs.get("geo_extension", True))
+
+        postgresql_params: dict = self.kvargs.get("postgresql_params", {})
+        self.postgis_extension = bool2str(postgresql_params.get("geo_extension", True))
+        self.db_name = postgresql_params.get("db_name", None)
+        self.encoding = postgresql_params.get("encoding", "UTF-8")
+        self.lc_collate = postgresql_params.get("lc_collate", "en_US.UTF-8")
+        self.lc_ctype = postgresql_params.get("lc_ctype", "en_US.UTF-8")
+        self.role_name = postgresql_params.get("role_name", None)
+        self.password = postgresql_params.get("password", None)
+        self.schema_name = postgresql_params.get("schema_name", None)
+        self.extensions = postgresql_params.get("extensions", "")
+
         self.engine_major_version = SqlHelper.get_engine_major_version(self.version, 2)
         self.image = self.get_image()
         self.os_ver = self.image.get_os_version()
@@ -1168,6 +1197,14 @@ class PostgresqlCreateHelper(SqlCreateHelper):
                     "p_postgis_ext": self.postgis_extension,
                     "p_postgres_admin_pwd": self.admin_pwd,
                     "p_postgres_server_ram": self.server_ram_mb,
+                    "p_new_db_name": self.db_name,
+                    "p_new_role_name": self.role_name,
+                    "p_new_role_pwd": self.password,
+                    "p_new_schema_name": self.schema_name,
+                    "p_optional_extensions": self.extensions,
+                    "p_new_db_encoding": self.encoding,
+                    "p_new_db_lc_collate": self.lc_collate,
+                    "p_new_db_lc_ctype": self.lc_ctype,
                 },
             },
         }
@@ -1555,11 +1592,14 @@ class SqlImportHelper(SqlHelper):
         self.controller = controller
         self.container = container
 
+        from beehive_resource.plugins.provider.entity.sql_stack_v2_mariadb import MariaDBImportHelper
+
         self.child_classes = [
             MysqlImportHelper,
             PostgresqlImportHelper,
             OracleImportHelper,
             SqlserverImportHelper,
+            MariaDBImportHelper,
         ]
 
         physical_id = self.kvargs.get("physical_id")
@@ -1805,11 +1845,14 @@ class SqlUpdateHelper(SqlHelper):
     def __init__(self, stack, *args, **kvargs):
         SqlHelper.__init__(self, *args, **kvargs)
 
+        from beehive_resource.plugins.provider.entity.sql_stack_v2_mariadb import MariaDBUpdateHelper
+
         self.child_classes = [
             MysqlUpdateHelper,
             PostgresqlUpdateHelper,
             OracleUpdateHelper,
             SqlserverUpdateHelper,
+            MariaDBUpdateHelper,
         ]
 
         self.stack = stack
@@ -2053,11 +2096,14 @@ class SqlActionHelper(SqlHelper):
 
         self.logger = getLogger(self.__class__.__module__ + "." + self.__class__.__name__)
 
+        from beehive_resource.plugins.provider.entity.sql_stack_v2_mariadb import MariaDBActionHelper
+
         self.child_classes = [
             MysqlActionHelper,
             PostgresqlActionHelper,
             OracleActionHelper,
             SqlserverActionHelper,
+            MariaDBActionHelper,
         ]
 
         self.stack = stack
@@ -2236,7 +2282,7 @@ class SqlActionHelper(SqlHelper):
         vpc_links, total = self.compute_instance.get_links(type="vpc")
         server_ip = vpc_links[0].attribs.get("fixed_ip", {}).get("ip", "")
 
-        job_template_args["name"] = "%s-register_on_haproxy-jobtemplate-%s" % (
+        job_template_args["name"] = "%s-register_on_haproxy-jobtemplate-%s" % (  # name job visible on Awx
             self.stack.name,
             id_gen(10),
         )
@@ -2265,7 +2311,8 @@ class SqlActionHelper(SqlHelper):
             {
                 "step": ComputeStackAction.task_path + "create_awx_job_template_step",
                 "args": [job_template_args, orchestrator],
-            }
+            },
+            # ComputeStackAction.task_path + "haproxy_save_port",
         ]
         self.kvargs["steps"] = steps
 
@@ -3142,7 +3189,15 @@ class OracleActionHelper(SqlActionHelper):
 
 
 class SqlserverActionHelper(SqlActionHelper):
-    pass
+    def __init__(self, *args, **kvargs):
+        SqlActionHelper.__init__(self, *args, **kvargs)
+        # set default engine params
+        self.engine_params = SqlserverBase.engine_params
+
+    def internal_run(self):
+        check = getattr(self, self.operation)
+        if check is not None:
+            check(**self.kvargs)
 
 
 class SqlComputeStackV2(ComputeStackV2):
@@ -3442,6 +3497,8 @@ class SqlComputeStackV2(ComputeStackV2):
             kvargs.get("engine")
         )
         helper: SqlCreateHelper = helper_class(controller, container, *args, **kvargs)
+        # example
+        # helper: PostgresqlCreateHelper = helper_class(controller, container, *args, **kvargs)
         kvargs = helper.run()
 
         return kvargs

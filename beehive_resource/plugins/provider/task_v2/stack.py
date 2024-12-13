@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from logging import getLogger
 
 from beecell.simple import id_gen
+from beehive.common import DNS_TTL
 from beehive.common.task_v2 import task_step, run_sync_task, TaskError
 from beehive_resource.plugins.provider.entity.base import orchestrator_mapping
 from beehive_resource.plugins.provider.entity.stack import ComputeStack, Stack
@@ -191,7 +192,7 @@ class StackTask(AbstractProviderResourceTask):
         uuids = None
         if resolve is True:
             try:
-                uuids = compute_stack.set_dns_recorda(force=True, ttl=30)
+                uuids = compute_stack.set_dns_recorda(force=True, ttl=DNS_TTL)
                 task.progress(
                     step_id,
                     msg="Register stack %s in dns with records %s" % (oid, uuids),

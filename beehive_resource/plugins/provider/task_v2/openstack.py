@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import copy
 from logging import getLogger
@@ -439,7 +439,17 @@ class ProviderOpenstack(AbstractProviderHelper):
 
         return router_id
 
-    def create_rule(self, zone, source, destination, service):
+    @staticmethod
+    def get_reserved_rule_type(*args, **kvargs):
+        """Dummy method to maintain the same structure as vsphere"""
+        return None
+
+    @staticmethod
+    def get_reserved_rule(*args, **kvargs):
+        """Dummy method to maintain the same structure as vsphere"""
+        return None
+
+    def create_rule(self, zone, source, destination, service, reserved):
         """Create openstack rule.
 
         :param zone: availability zone
@@ -451,6 +461,7 @@ class ProviderOpenstack(AbstractProviderHelper):
                 {'port':80, 'protocol':6} -> tcp:80
                 {'port':80, 'protocol':17} -> udp:80
                 {'protocol':1, 'subprotocol':8} -> icmp:echo request
+        :param reserved:
         :return: list
         :raise TaskError: :class:`TaskError`
         :raise ApiManagerError: :class:`ApiManagerError`
@@ -782,6 +793,16 @@ class ProviderOpenstack(AbstractProviderHelper):
 
         return rule_id
 
+    @staticmethod
+    def update_section(*args, **kvargs):
+        """Dummy method to maintain the same structure as vsphere"""
+        pass
+
+    @staticmethod
+    def update_reserved_rule(*args, **kvargs):
+        """Dummy method to maintain the same structure as vsphere"""
+        pass
+
     def import_server(self, params):
         """Import openstack server.
 
@@ -1001,6 +1022,7 @@ class ProviderOpenstack(AbstractProviderHelper):
             flavor_id = params.get("flavor")
             environments = params.get("security_groups")
             admin_pass = params.get("admin_pass")
+            admin_username = params.get("admin_username")
             networks = params.get("networks")
             zone_boot_volume = params.get("zone_boot_volume")
             zone_other_volumes = params.get("zone_other_volumes")
@@ -1088,6 +1110,7 @@ class ProviderOpenstack(AbstractProviderHelper):
                     user_data = OS.user_data(
                         gateway=subnet["gateway"],
                         users=users,
+                        admin_username=admin_username,
                         pwd=admin_pass,
                         sshkey=sshkey,
                         domain=fixed_ip.get("dns_search", "nivolalocal"),

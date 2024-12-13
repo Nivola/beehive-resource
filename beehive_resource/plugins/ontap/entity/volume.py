@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beecell.simple import id_gen
 import logging
@@ -20,7 +20,7 @@ class OntapNetappVolume(OntapNetappResource):
     objdesc = "OntapNetapp Volume"
 
     default_tags = ["ontap", "storage"]
-    # task_base_path = 'beehive_resource.plugins.ontap_netapp.task_v2.ontap_volume.OntapNetappVolumeTask.'
+    task_base_path = "beehive_resource.plugins.ontap.task_v2.ontap_volume.OntapVolumeTask."
 
     def __init__(self, *args, **kvargs):
         """ """
@@ -36,32 +36,68 @@ class OntapNetappVolume(OntapNetappResource):
     # discover, synchronize
     #
     @staticmethod
-    def discover_new(container, ext_id, res_ext_ids):
+    def discover_remote(container, ext_id=None, name=None):
+        """
+        Discover remote volumes that may or may not be already in cmp
+        """
+        manager = container.conn
+        if ext_id:
+            items = [manager.volume.get(ext_id)]
+        else:
+            items = manager.volume.list(**{"name": name})
+        return items
+
+    @staticmethod
+    def discover_new(container, ext_id=None, res_ext_ids=[]):
         """Discover method used when synchronize beehive container with remote platform.
 
-        TODO:
-
         :param container: client used to communicate with remote platform
-        :param ext_id: remote platform entity id
+        :param ext_id: remote platform entity id. USED ONLY WHEN SYNCHRONIZE A SINGLE EXT ID REMOTE OBJECT
         :param res_ext_ids: list of remote platform entity ids from beehive resources
         :return: list of tuple (resource class, ext_id, parent_id, resource class objdef, name, parent_class)
 
         :raises ApiManagerError:
         """
+        items = OntapNetappVolume.discover_remote(container=container, ext_id=ext_id)
+
         res = []
+        for item in items:
+            uuid = item.get("uuid")
+            name = item.get("name")
+            if uuid not in res_ext_ids:
+                res.append(
+                    (
+                        OntapNetappVolume,
+                        uuid,
+                        None,
+                        OntapNetappVolume.objdef,
+                        name,
+                        None,
+                        (dict_get(item, "svm.uuid"), dict_get(item, "svm.name")),
+                    )
+                )
         return res
 
     @staticmethod
     def discover_died(container):
         """Discover method used when check if resource already exists in remote platform or was been modified.
 
-        TODO:
-
         :param container: client used to communicate with remote platform
-        :return: list of remote entities
+        :return: list of all cmp entities of the specific type
         :raises ApiManagerError:
         """
-        items = []
+        # TODO
+        # NB: list of changed resources is always "wrong" because it checks name
+        # and cmp name has several suffixes
+        # from re import sub
+        manager = container.conn
+        items = manager.volume.list()
+        for item in items:
+            # discover_died_entities expects an id field containing the "ext_id"
+            item["id"] = item.get("uuid")
+            # name_without_suffix = sub(r"-avz\d+-\d+-share", "", item.get("name"))
+            # item["name"] = name_without_suffix
+            # print(item.get("name"))
         return items
 
     @staticmethod
@@ -90,18 +126,18 @@ class OntapNetappVolume(OntapNetappResource):
         ext_id = entity[1]
         parent_id = entity[2]
         name = entity[4]
-        status = entity[6]
+        (svm_ext_id, svm_name) = entity[6]
 
         objid = "%s//%s" % (container.objid, id_gen())
 
         res = {
             "resource_class": resclass,
             "objid": objid,
-            "name": name,
+            "name": name.replace("_", "-"),
             "ext_id": ext_id,
             "active": True,
             "desc": resclass.objdesc,
-            "attrib": {},
+            "attrib": {"svm_ext_id": svm_ext_id, "svm_name": svm_name},
             "parent": parent_id,
             "tags": resclass.default_tags,
         }
@@ -124,10 +160,10 @@ class OntapNetappVolume(OntapNetappResource):
         :return: None
         :raises ApiManagerError:
         """
-        for entity in entities:
-            entity.ext_obj = OntapNetappVolume.get_remote_volume(controller, entity.ext_id, container, entity.ext_id)
-            entity.get_svm()
-            entity.get_snapmirror()
+        # for entity in entities:
+        #    entity.ext_obj = OntapNetappVolume.get_remote_volume(controller, entity.ext_id, container, entity.ext_id)
+        #    entity.get_svm()
+        #    entity.get_snapmirror()
         return entities
 
     def post_get(self):
@@ -137,12 +173,13 @@ class OntapNetappVolume(OntapNetappResource):
         :return:
         :raises ApiManagerError:
         """
-        self.ext_obj = self.get_remote_volume(self.controller, self.ext_id, self.container, self.ext_id)
-        self.get_svm()
-        self.get_snapmirror()
+        if self.ext_id is not None:
+            self.ext_obj = self.get_remote_volume(self.controller, self.ext_id, self.container, self.ext_id)
+            # self.get_svm()
+            # self.get_snapmirror()
 
     @staticmethod
-    def pre_create(controller, container, *args, **kvargs):
+    def pre_create(controller, container, *args, **kwargs):
         """Check input params before resource creation. This function is used in container resource_factory method.
 
         :param controller: resource controller instance
@@ -162,43 +199,88 @@ class OntapNetappVolume(OntapNetappResource):
         :return: kvargs
         :raise ApiManagerError:
         """
-        netapp_volume_id = kvargs.get("ontap_volume_id")
-        netapp_volume = OntapNetappVolume.get_remote_volume(controller, netapp_volume_id, container, netapp_volume_id)
-        if netapp_volume == {}:
-            raise ApiManagerError("ontap netapp volume %s was not found" % netapp_volume_id)
-        kvargs["ext_id"] = netapp_volume_id
+        # netapp_volume_id = kvargs.get("ontap_volume_id")
+        # netapp_volume = OntapNetappVolume.get_remote_volume(controller, netapp_volume_id, container, netapp_volume_id)
+        # if netapp_volume == {}:
+        #     raise ApiManagerError("ontap netapp volume %s was not found" % netapp_volume_id)
+        # kvargs["ext_id"] = netapp_volume_id
+        #
+        # # get svm
+        # netapp_svm_id = dict_get(netapp_volume, "svm.uuid")
+        # # netapp_svm = container.client.svm.get(netapp_svm_id)
+        #
+        # # check netapp svm resource exists
+        # svm_resource = controller.get_resource_by_extid(netapp_svm_id)
+        #
+        # # create netapp svm resource
+        # if svm_resource is None:
+        #     netapp_svm = OntapNetappVolume.get_remote_svm(controller, netapp_svm_id, container, netapp_svm_id)
+        #     name = netapp_svm.get("name")
+        #     svm_conf = {
+        #         "name": name,
+        #         "desc": name,
+        #         "ext_id": netapp_svm_id,
+        #         "parent": None,
+        #     }
+        #     resource_uuid, code = container.resource_factory(OntapNetappSvm, **svm_conf)
+        #     svm_resource = controller.get_simple_resource(resource_uuid.get("uuid"))
 
-        # get svm
-        netapp_svm_id = dict_get(netapp_volume, "svm.uuid")
-        # netapp_svm = container.client.svm.get(netapp_svm_id)
+        # kvargs["attribute"]["svm"] = svm_resource.oid
+        share_params = kwargs.get("share_params")
+        ontap_name = kwargs.get("name").replace("-", "_")
+        share_protocol = share_params.get("share_proto")
+        if share_protocol == "nfs":
+            security_style = "unix"
+        elif share_protocol == "cifs":
+            security_style = "ntfs"
+        else:
+            raise Exception("Unsupported share protocol: %s. Allowed values are [nfs,cifs]" % share_protocol)
+        extra_vars = {
+            "p_cluster": share_params.get("cluster"),
+            "p_vserver": share_params.get("svm"),
+            "p_volume": ontap_name,
+            "p_aggr": "aggr_faspod2_02_BIS1_SATA",
+            "p_volume_size": share_params.get("size"),
+            "p_protocol": share_protocol,
+            "p_security_style": security_style,
+            "p_snapshot_policy": share_params.get("snapshot_policy"),
+            "p_volume_type": "rw",
+            # "p_su_security": "none",
+            # "p_rw_rule": "none",
+            "p_client": share_params.get("client_fqdn"),
+            "p_iscompliance": False,
+            "p_encrypt": False,
+            "p_operation": "create",
+        }
 
-        # check netapp svm resource exists
-        svm_resource = controller.get_resource_by_extid(netapp_svm_id)
+        if share_params.get("snaplock_cluster") is not None:
+            extra_vars.update(
+                {
+                    "p_iscompliance": True,
+                    "p_destination_cluster": share_params.get("snaplock_cluster"),
+                    "p_destination_vserver": share_params.get("snaplock_svm"),
+                    "p_destination_aggr": "aggr10_faspodge3_02_SATA",
+                    "p_rpo": "24h",
+                }
+            )
+        kwargs["extra_vars"] = extra_vars
+        kwargs["ontap_name"] = ontap_name
+        steps = [
+            OntapNetappVolume.task_base_path + "create_resource_pre_step",
+            OntapNetappVolume.task_base_path + "volume_create_physical_step",
+            OntapNetappVolume.task_base_path + "create_resource_post_step",
+        ]
+        kwargs["steps"] = steps
+        kwargs["sync"] = True  # TODO check
+        return kwargs
 
-        # create netapp svm resource
-        if svm_resource is None:
-            netapp_svm = OntapNetappVolume.get_remote_svm(controller, netapp_svm_id, container, netapp_svm_id)
-            name = netapp_svm.get("name")
-            svm_conf = {
-                "name": name,
-                "desc": name,
-                "ext_id": netapp_svm_id,
-                "parent": None,
-            }
-            resource_uuid, code = container.resource_factory(OntapNetappSvm, **svm_conf)
-            svm_resource = controller.get_simple_resource(resource_uuid.get("uuid"))
-
-        kvargs["attribute"]["svm"] = svm_resource.oid
-
-        return kvargs
-
-    def pre_update(self, *args, **kvargs):
+    def pre_update(self, *args, **kwargs):
         """Pre update function. This function is used in update method."""
-        return kvargs
+        return kwargs
 
-    def pre_delete(self, *args, **kvargs):
+    def pre_delete(self, *args, **kwargs):
         """Pre delete function. This function is used in delete method."""
-        return kvargs
+        return kwargs
 
     #
     # info
@@ -211,15 +293,6 @@ class OntapNetappVolume(OntapNetappResource):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = OntapNetappResource.info(self)
-
-        info["details"] = self.ext_obj
-        info["size"] = self.get_size()
-        if self.svm:
-            info["svm"] = self.svm.small_info()
-        if self.snapmirror:
-            info["snapmirror"] = self.has_snapmirror()
-        info["export_locations"] = self.get_export_locations()
-        info["share_proto"] = self.get_share_proto()
         return info
 
     def detail(self):
@@ -230,19 +303,28 @@ class OntapNetappVolume(OntapNetappResource):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = OntapNetappResource.detail(self)
+        # NB: DOES NOT WORK for beehive res entities get -id...
         info["size"] = self.get_size()
-        if self.svm:
-            info["svm"] = self.svm.small_info()
+        # if self.svm:
+        #    info["svm"] = self.svm.small_info()
         if self.snapmirror:
             info["snapmirror"] = self.has_snapmirror()
-        info["export_locations"] = self.get_export_locations()
-        info["share_proto"] = self.get_share_proto()
+        # try:
+        #    info["export_locations"] = self.get_export_locations()
+        # except:
+        #    info["export_locations"] = "N/A"
+        # info["share_proto"] = self.get_share_proto()
         return info
 
     def get_size(self):
         res = 0
         if self.ext_obj is not None:
-            res = round(dict_get(self.ext_obj, "space.size") / 1073741824, 3)
+            self.logger.debug("AAAAA ext_obj %s", self.ext_obj)
+            size = dict_get(self.ext_obj, "space.size")
+            if size is None:
+                raise Exception("space.size undefined")
+            if size is not None:
+                res = round(size / 1073741824, 3)
         return res
 
     def get_svm(self):
@@ -337,8 +419,12 @@ class OntapNetappVolume(OntapNetappResource):
                         self.controller, policy_id, self.container, policy_id
                     )
                     for rule in export_policy.pop("rules", []):
-                        if rule.get("rw_rule", None) != "never":
-                            access_level = "ro"
+                        # temporary code (to rewrite)
+                        if "never" in rule.get("rw_rule"):
+                            if "never" in rule.get("ro_rule"):
+                                access_level = "never"
+                            else:
+                                access_level = "ro"
                         else:
                             access_level = "rw"
                         acl = {
@@ -355,38 +441,12 @@ class OntapNetappVolume(OntapNetappResource):
         return res
 
     def get_snapmirror(self):
-        """get volume snapmirror config"""
-        if self.ext_obj is not None and dict_get(self.ext_obj, "snapmirror.is_protected", default=False) is True:
+        """
+        get volume snapmirror destination list. use it to cross-check with links to snapmirror volumes in cmp
+        """
+        if self.has_snapmirror():
             ext_id = "%s:%s" % (self.svm.name, self.ext_obj.get("name"))
-            snapmirror_info = self.get_remote_snapmirror(self.controller, self.ext_id, self.container, ext_id)
-
-            # # get destination container
-            # try:
-            #     container = self.controller.get_containers(desc=dict_get(snapmirror_info, 'cluster.name'))
-            #     container_id = container.oid
-            # except:
-            #     container_id = None
-
-            # get destination volume
-            try:
-                svm, volume = dict_get(snapmirror_info, "destination.path").split(":")
-                volume = self.controller.get_resource(volume)
-                volume_info = volume.small_info()
-            except:
-                volume_info = None
-
-            self.snapmirror = {
-                # 'source': {
-                #     'path': dict_get(snapmirror_info, 'source.path')
-                # },
-                "dest": {
-                    # 'container': container.info(),
-                    "volume": volume_info
-                    # 'path': dict_get(snapmirror_info, 'destination.path'),
-                },
-                "id": dict_get(snapmirror_info, "uuid"),
-                "policy": dict_get(snapmirror_info, "policy"),
-            }
+            self.snapmirror_list = self.get_remote_snapmirror(self.controller, self.ext_id, self.container, ext_id)
 
     def has_snapmirror(self):
         """check if snapmirror is configured"""

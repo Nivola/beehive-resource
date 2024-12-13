@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import logging
 from beehive.common.data import truncate, operation
@@ -105,20 +105,30 @@ class ComputeQuotas(object):
             quotas.append(item)
         return quotas
 
-    def check_availability(self, allocated, to_allocate):
+    def check_availability(self, allocated, to_allocate, check_all=True):
         """Check if new quota can be allocated or max limits are raised.
 
         :param allocated: quota already allocated
         :param to_allocate: quota that should be allocated
+        :param check_all: check all quotas if true
         :return: True if check is ok
         :rtype: dict
         :raises ApiManagerError: if quotas are exceeded.
         """
         total = self.quotas
 
+        if not check_all:
+            # check only specific quotas
+            quotas_to_check = to_allocate.keys()
+
         for k, v in allocated.items():
+            if not check_all and (k not in quotas_to_check):
+                # ignore check
+                self.logger.debug("Skipping check for quota %s" % k)
+                continue
+            self.logger.debug("Checking quota %s" % k)
             quota_to_allocate = to_allocate.get(k, 0)
-            new_allocated = v + quota_to_allocate
+            new_allocated = v + int(quota_to_allocate)
 
             quota_total = total.get(k, 0)
             if new_allocated > quota_total:

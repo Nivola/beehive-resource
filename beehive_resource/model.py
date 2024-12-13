@@ -1,29 +1,28 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import logging
 import datetime
-import ujson as json
 from datetime import datetime
-from sqlalchemy import Column, Integer, Float, String, Boolean, Text
-from sqlalchemy import Table, ForeignKey, DateTime
+from uuid import uuid4
+
+from sqlalchemy import Column, Integer, String, Boolean, Text, Table, ForeignKey, DateTime, create_engine, exc
 from sqlalchemy.orm import relationship, backref
-from sqlalchemy import create_engine, exc
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import text
+from sqlalchemy.sql.expression import desc
+
 from beecell.simple import (
     truncate,
     get_timestamp_from_date,
     get_date_from_timestamp,
     format_date,
 )
-from sqlalchemy.sql.expression import column, desc
 from beecell.db import ModelError
-from uuid import uuid4
+from beecell.simple import jsonDumps
 from beehive.common.data import query, transaction, cache_query
 from beehive.common.model import Base, AbstractDbManager, BaseEntity
-from beecell.simple import jsonDumps
 
 Base = declarative_base()
 
@@ -542,6 +541,52 @@ class ResourceLink(Base, BaseEntity):
 
 class ResourceDbManager(AbstractDbManager):
     """ """
+
+    from typing import List, Type, Tuple, Any, Union, Dict, TypeVar
+
+    ENTITY = TypeVar("ENTITY")
+
+    @query
+    def get_paginated_entities(
+        self,
+        entityclass: Type[ENTITY],
+        tags: List[str] = [],
+        page=0,
+        size=10,
+        order: str = "DESC",
+        field: str = "t3.id",
+        filters: List[str] = [],
+        tables: List[Tuple[str, str]] = [],
+        joins: List[Tuple[str, str, str, bool, bool]] = [],
+        select_fields: List[str] = [],
+        custom_select: str = None,
+        with_perm_tag: bool = True,
+        *args,
+        **kvargs,
+    ) -> List[ENTITY]:
+        """Method override to simplify queries.
+        Perm_tags are no longer written in register_object
+        """
+        # set with_perm_tag
+        # with_perm_tag = False
+        kvargs["with_perm_tag"] = False
+
+        return super().get_paginated_entities(
+            entityclass,
+            tags,
+            page,
+            size,
+            order,
+            field,
+            filters,
+            tables,
+            joins,
+            select_fields,
+            custom_select,
+            # with_perm_tag,
+            *args,
+            **kvargs,
+        )
 
     @staticmethod
     def create_table(db_uri):
@@ -1252,6 +1297,7 @@ class ResourceDbManager(AbstractDbManager):
             filters.append("AND type_id in :types")
         if kvargs.get("container_id", None) is not None:
             filters.append("AND container_id=:container_id")
+
         if kvargs.get("json_attribute_contain", None) is not None:
             attribute = kvargs.pop("json_attribute_contain", None)
             if attribute is not None and isinstance(attribute, dict):
@@ -1278,10 +1324,12 @@ class ResourceDbManager(AbstractDbManager):
                 filters.append(")")
             else:
                 filters.append("AND attribute like :attribute")
+
         if kvargs.get("parent_id", None) is not None:
             filters.append("AND parent_id=:parent_id")
         if kvargs.get("parent_ids", None) is not None:
             filters.append("AND parent_id in :parent_ids")
+
         state = kvargs.get("state", None)
         if state is not None:
             if isinstance(state, str):
@@ -1291,6 +1339,7 @@ class ResourceDbManager(AbstractDbManager):
             filters.append(" AND t3.expiry_date<=:filter_expiry_date")
         else:
             filters.append(" AND (t3.expiry_date>:filter_expiry_date OR t3.expiry_date is null)")
+
         if kvargs.get("resourcetags", None) is not None:
             custom_select = (
                 "(SELECT t1.*, GROUP_CONCAT(DISTINCT t2.name ORDER BY t2.name) as tags "
@@ -1659,6 +1708,51 @@ class ResourceDbManager(AbstractDbManager):
         return res
 
     @query
+    def get_aggregated_resource_from_physical_resource(self, resource_id, parent_id=None):
+        """
+        Get aggregated resource from physical resource
+
+        :param resource_id: Physical resource ID.
+        :param parent_id: Aggregated resource parent ID. Set when physical resource is linked to more then one
+                          aggregated resource. [optional]
+        :return Resource instance or None.
+        """
+        session = self.get_session()
+        sql = """
+SELECT r.*
+FROM resource r
+JOIN resource_link rl1 ON rl1.start_resource_id = r.id
+JOIN resource_link rl2 ON rl2.start_resource_id = rl1.end_resource_id
+WHERE rl1.type LIKE 'relation%'
+  AND rl2.end_resource_id = :resource_id
+  AND rl2.type = 'relation'
+"""
+        params = {"resource_id": resource_id}
+        if parent_id is not None:
+            sql += " AND r.parent_id = :parent_id"
+            params["parent_id"] = parent_id
+        return session.query(Resource).from_statement(text(sql)).params(**params).first()
+
+    @query
+    def get_main_zone_instance(self, oid):
+        """
+        Get main availability zone instance
+
+        :param oid: id
+        :return Resource:
+        """
+        session = self.get_session()
+        sql = """
+SELECT r.* FROM resource r, resource_link rl
+WHERE  rl.start_resource_id = :oid
+  AND rl.name LIKE '%-instance-link'
+  AND rl.end_resource_id = r.id
+  AND r.attribute LIKE :attribute_filter
+"""
+        params = {"oid": oid, "attribute_filter": '%"main":true%'}
+        return session.query(Resource).from_statement(text(sql)).params(**params).first()
+
+    @query
     def get_indirected_linked_resources_internal(
         self, resources, link_type=None, container_id=None, objdef=None, objdefs=None
     ):
@@ -1795,7 +1889,7 @@ class ResourceDbManager(AbstractDbManager):
         return res, total
 
     @transaction
-    def add_resource_tag(self, resource, tag):
+    def add_resource_tag(self, resource: Resource, tag):
         """Add a tag to a resource.
 
         :param Resource resource: resource instance
@@ -2033,6 +2127,7 @@ class ResourceDbManager(AbstractDbManager):
                 filters.append("AND start_resource_id=:start_resource")
             if kvargs.get("end_resource", None) is not None:
                 filters.append("AND end_resource_id=:end_resource")
+
         if kvargs.get("type", None) is not None:
             filters.append("AND t3.type like :type")
         if kvargs.get("resourcetags", None) is not None:
@@ -2045,6 +2140,9 @@ class ResourceDbManager(AbstractDbManager):
             )
             kvargs = self.order_query_resourcetags(kvargs)
             filters.append("AND t3.tags=:resourcetags")
+
+        if kvargs.get("objid", None) is not None:
+            filters.append("AND objid like :objid")
 
         res, total = self.get_paginated_entities(
             ResourceLink, filters=filters, custom_select=custom_select, *args, **kvargs

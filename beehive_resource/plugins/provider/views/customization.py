@@ -1,13 +1,14 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
     GetApiObjectRequestSchema,
     CrudApiObjectTaskResponseSchema,
+    CrudApiObjectJobResponseSchema,
 )
 from beehive_resource.plugins.provider.entity.customization import ComputeCustomization
 from beehive_resource.plugins.provider.entity.applied_customization import (
@@ -18,6 +19,7 @@ from beehive_resource.plugins.provider.views import (
     ProviderAPI,
     LocalProviderApiView,
     CreateProviderResourceRequestSchema,
+    UpdateProviderResourceRequestSchema,
 )
 from beehive_resource.view import (
     ListResourcesRequestSchema,
@@ -100,6 +102,11 @@ class CreateCustomizationAwxProjectRequestSchema(Schema):
         default="",
         description="The location where the project is stored",
     )
+    scm_branch = fields.String(
+        example="1.6.0",
+        default="master",
+        description="Specific branch to checkout",
+    )
 
 
 class CreateCustomizationParamRequestSchema(CreateProviderResourceRequestSchema):
@@ -136,6 +143,60 @@ class CreateCustomization(ProviderCustomization):
 
     def post(self, controller, data, *args, **kwargs):
         return self.create_resource(controller, data)
+
+
+class UpdateCustomizationTemplateRequestSchema(Schema):
+    scm_type = fields.String(
+        required=True,
+        example="git",
+        default="git",
+        description="The source control system used to store the project",
+    )
+    scm_url = fields.String(
+        required=True,
+        example="https://github.com/awx_projects/nginx",
+        default="",
+        description="The location where the project is stored",
+    )
+    scm_branch = fields.String(
+        example="1.6.0",
+        default="master",
+        description="Specific branch to checkout",
+    )
+
+
+class UpdateCustomizationParamRequestSchema(UpdateProviderResourceRequestSchema):
+    awx_project = fields.Nested(
+        UpdateCustomizationTemplateRequestSchema,
+        required=False,
+        description="list of orchestrator templates to link",
+        allow_none=True,
+    )
+
+
+class UpdateCustomizationRequestSchema(Schema):
+    customization = fields.Nested(UpdateCustomizationParamRequestSchema)
+
+
+class UpdateCustomizationBodyRequestSchema(GetApiObjectRequestSchema):
+    body = fields.Nested(UpdateCustomizationRequestSchema, context="body")
+
+
+class UpdateCustomization(ProviderCustomization):
+    definitions = {
+        "UpdateCustomizationRequestSchema": UpdateCustomizationRequestSchema,
+        "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
+    }
+    parameters = SwaggerHelper().get_parameters(UpdateCustomizationBodyRequestSchema)
+    parameters_schema = UpdateCustomizationRequestSchema
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
+
+    def put(self, controller, data, oid, *args, **kwargs):
+        """
+        Update image
+        Update image
+        """
+        return self.update_resource(controller, oid, data)
 
 
 class DeleteCustomization(ProviderCustomization):
@@ -406,6 +467,7 @@ class ComputeCustomizationAPI(ProviderAPI):
             ("%s/customizations" % base, "GET", ListCustomizations, {}),
             ("%s/customizations/<oid>" % base, "GET", GetCustomization, {}),
             ("%s/customizations" % base, "POST", CreateCustomization, {}),
+            ("%s/customizations/<oid>" % base, "PUT", UpdateCustomization, {}),
             ("%s/customizations/<oid>" % base, "DELETE", DeleteCustomization, {}),
             (
                 "%s/customizations/<oid>/applied" % base,

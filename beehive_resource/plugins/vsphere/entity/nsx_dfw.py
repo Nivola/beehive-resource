@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beecell.simple import truncate, id_gen
 from beehive.common.task_v2 import prepare_or_run_task
@@ -506,14 +506,7 @@ class NsxDfw(NsxResource):
         self.verify_permisssions("update")
 
         # run celery job
-        params.update(
-            {
-                "cid": self.container.oid,
-                "objid": self.objid,
-                "alias": "NsxRule.update"
-                # 'alias': 'rule-%s.update' % params['ruleid']
-            }
-        )
+        params.update({"cid": self.container.oid, "objid": self.objid, "alias": "NsxRule.update"})
         params.update(self.get_user())
         res = prepare_or_run_task(self, self.rule_update_task, params, sync=params.pop("sync", False))
         self.logger.info("Update dfw section rule %s using task %s" % (self.uuid, res))

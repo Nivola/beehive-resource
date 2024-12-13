@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive_resource.plugins.vsphere.entity.vs_resource_pool import VsphereResourcePool
 from beehive_resource.plugins.vsphere.views import VsphereAPI, VsphereApiView

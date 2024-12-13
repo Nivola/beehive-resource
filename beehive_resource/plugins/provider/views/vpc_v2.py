@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 from marshmallow.validate import OneOf
 
 from beehive_resource.plugins.provider.entity.site import Site
@@ -89,6 +89,13 @@ class GetVpc(ProviderVpc):
 
 class CreateVpcParamRequestSchema(CreateProviderResourceRequestSchema):
     compute_zone = fields.String(required=True, example="1", description="parent compute zone id")
+    # orchestrator_select_types = fields.List(
+    #     fields.String(example="vsphere"),
+    #     required=False,
+    #     allow_none=True,
+    #     context="query",
+    #     description="orchestrator select types",
+    # )
     cidr = fields.String(
         required=True,
         example="192.168.200.0/21",
@@ -711,6 +718,13 @@ class AddVpcPrivateNetworkRequestSchema(Schema):
         missing="default",
         description="orchestrator tag. Use to select a " "subset of orchestrators where entity must be created.",
     )
+    # orchestrator_select_types = fields.List(
+    #     fields.String(example="vsphere"),
+    #     required=False,
+    #     allow_none=True,
+    #     context="query",
+    #     description="orchestrator select types",
+    # )
 
 
 class AddVpcSiteNetworkRequestSchema(Schema):
@@ -739,8 +753,8 @@ class AddVpcNetwork(ProviderVpc):
 
     def post(self, controller, data, oid, *args, **kwargs):
         container = controller.get_containers(container_type="Provider")[0][0]
-        resource = self.get_resource_reference(controller, oid, container=container.oid)
-        return resource.add_network(**data)
+        vpc: Vpc = self.get_resource_reference(controller, oid, container=container.oid)
+        return vpc.add_network(**data)
 
 
 class DeleteVpcPrivateNetworkRequestSchema(Schema):

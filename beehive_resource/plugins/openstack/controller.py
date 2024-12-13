@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from datetime import datetime, timedelta
 from beecell.simple import truncate
@@ -307,9 +307,12 @@ class OpenstackContainer(Orchestrator):
         #     token = self.tokens.get(project_name, None)
         #     self.logger.debug('Use connection token: %s' % token)
 
-        self.logger.debug("+++++ Use connection token - project_name: %s" % project_name)
+        self.logger.debug(
+            "+++++ get_connection %s - Use connection token - project_name: %s" % (self.name, project_name)
+        )
+        self.logger.debug("+++++ get_connection %s - Use connection token - tokens: %s" % (self.name, self.tokens))
         token = self.tokens.get(project_name, None)
-        self.logger.debug("+++++ Use connection token: %s" % token)
+        self.logger.debug("+++++ get_connection - Use connection token: %s" % token)
 
         # create new token
         if token is None or token.get("token", None) is None:
@@ -320,11 +323,20 @@ class OpenstackContainer(Orchestrator):
             # validate = self.conn.validate_token(token['token'])
 
             # check token expire
+            import pytz
+
+            tz_rome = pytz.timezone("Europe/Rome")
+            tz_utc = pytz.utc
+
             expires_at = token.get("expires_at", "1970-01-01T00:00:00.000000Z")
             a = datetime.strptime(expires_at, "%Y-%m-%dT%H:%M:%S.%fZ")
+            a = a.replace(tzinfo=tz_utc)
+
             b = datetime.utcnow() + timedelta(minutes=30)
-            self.logger.info("+++++ get_connection - a: %s" % a.strftime("%Y-%m-%d %H:%M:%S"))
-            self.logger.info("+++++ get_connection - b: %s" % b.strftime("%Y-%m-%d %H:%M:%S"))
+            b = b.replace(tzinfo=tz_utc)
+
+            self.logger.info("+++++ get_connection - a (expires_at): %s" % a.astimezone(tz_rome))
+            self.logger.info("+++++ get_connection - b (now +30min): %s" % b.astimezone(tz_rome))
 
             validate = a >= b
             self.logger.info("+++++ get_connection - validate: %s" % validate)
@@ -332,10 +344,10 @@ class OpenstackContainer(Orchestrator):
             # self.logger.warn(b)
             # self.logger.warn(validate)
             if validate is True:
-                self.logger.info("+++++ Token %s is valid" % token)
+                self.logger.info("+++++ get_connection - Token %s is valid" % token)
                 openstackManager = self.__get_connection(token, project_name)
             else:
-                self.logger.info("+++++ Token %s was expired" % token)
+                self.logger.info("+++++ get_connection - Token %s was expired" % token)
                 openstackManager = self.__new_connection(project_name)
 
         Orchestrator.get_connection(self)

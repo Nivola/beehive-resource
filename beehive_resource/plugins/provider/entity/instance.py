@@ -1,38 +1,41 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
+
 from ipaddress import IPv4Network
 from urllib.parse import urlparse
-
-import ujson as json
 from base64 import b64decode
 from datetime import datetime
 from random import randint
-from passlib.handlers.sha2_crypt import sha512_crypt
-from beecell.simple import format_date, truncate, dict_get, id_gen, dict_set
+from logging import getLogger
+from six import ensure_text
+import ujson as json
+from beecell.crypto_util.sha512_crypto import sha512_crypt
+from beecell.simple import jsonDumps, format_date, dict_get, id_gen, dict_set
 from beecell.types.type_string import str2bool
+from beehive.common import DNS_TTL
 from beehive.common.apiclient import BeehiveApiClientError
 from beehive.common.apimanager import ApiManagerError
 from beehive.common.data import trace, operation
-from beehive.common.task_v2 import prepare_or_run_task, run_async
+from beehive.common.task_v2 import prepare_or_run_task
 from beehive_resource.container import Resource
-from beehive_resource.model import ResourceState
-from beehive_resource.plugins.dns.controller import DnsRecordCname, DnsZone, DnsRecordA
+
+# from beehive_resource.model import ResourceState
+from beehive_resource.plugins.dns.controller import DnsZone, DnsRecordA
 from beehive_resource.plugins.openstack.entity.ops_server import OpenstackServer
 from beehive_resource.plugins.provider.entity.aggregate import ComputeProviderResource
+from beehive_resource.plugins.provider.entity.base import LocalProviderResource
 from beehive_resource.plugins.provider.entity.flavor import ComputeFlavor
 from beehive_resource.plugins.provider.entity.image import ComputeImage, Image
 from beehive_resource.plugins.provider.entity.security_group import SecurityGroup
-from beehive_resource.plugins.provider.entity.site import Site
+from beehive_resource.plugins.provider.entity.site import OrchestratorError, Site
 from beehive_resource.plugins.provider.entity.volume import ComputeVolume, Volume
 from beehive_resource.plugins.provider.entity.volumeflavor import ComputeVolumeFlavor
 from beehive_resource.plugins.provider.entity.vpc_v2 import Vpc, SiteNetwork
 from beehive_resource.plugins.provider.entity.zone import AvailabilityZoneChildResource
 from beehive_resource.plugins.vsphere.entity.vs_server import VsphereServer
-from six import ensure_text
-from logging import getLogger
-from beecell.simple import jsonDumps
+
 
 logger = getLogger(__name__)
 
@@ -116,6 +119,16 @@ class ComputeInstance(ComputeProviderResource):
             return True
         return False
 
+    def is_ubuntu(self):
+        if self.image is not None:
+            image_name = self.image.get_configs().get("os")
+        else:
+            image_name = self.get_attribs(key="os.name")
+
+        if image_name is not None and "ubuntu" in image_name.lower():
+            return True
+        return False
+
     def get_normalized_os(self) -> str:
         """get normalized name for os
 
@@ -138,6 +151,8 @@ class ComputeInstance(ComputeProviderResource):
             return "centos"
         elif os.find("ubuntu") >= 0:
             return "ubuntu"
+        elif os.find("debian") >= 0:
+            return "debian"
         elif os.find("oraclelinux") >= 0:
             return "oraclelinux"
         else:
@@ -148,10 +163,12 @@ class ComputeInstance(ComputeProviderResource):
         images, total = self.get_linked_resources(link_type="image", with_perm_tag=False, run_customize=False)
         if total > 0:
             image = images[0]
-            name = image.get_attribs(key="configs.os")
+            name = image.get_attribs(key="configs.os").lower()
             version = str(image.get_attribs(key="configs.os_ver"))
-            if (version == "8" and name in ["OracleLinux", "RedhatLinux", "centos"]) or (
-                version == "18" and name in ["ubuntu"]
+            if (
+                (version == "8" and name in ("oraclelinux", "redhatlinux", "centos"))
+                or (version in ("18", "20", "22", "24") and name == "ubuntu")
+                or (version in ("11", "12") and name == "debian")
             ):
                 return True
         return False
@@ -269,8 +286,10 @@ class ComputeInstance(ComputeProviderResource):
         return info
 
     def get_ip_address(self):
+        ip_address = None
         vpc_links, total = self.get_links(type="vpc")
-        ip_address = vpc_links[0].attribs.get("fixed_ip", {}).get("ip", "")
+        if len(vpc_links) > 0:
+            ip_address = vpc_links[0].attribs.get("fixed_ip", {}).get("ip", "")
         return ip_address
 
     def get_fqdn(self):
@@ -298,15 +317,18 @@ class ComputeInstance(ComputeProviderResource):
     def get_real_admin_user(self):
         """return admin user used for remote connection"""
         username = "root"
-        if self.is_windows() is True:
+        if self.is_windows():
             username = "Administrator"
+        elif self.is_ubuntu():
+            username = "ubuntu"
         return username
 
     def get_real_admin_credential(self):
         """return admin credential used for remote connection"""
         credential = self.get_credential()
         res = {
-            "username": self.get_real_admin_user(),
+            # "username": self.get_real_admin_user(),
+            "username": credential.get("username", None),
             "password": credential.get("password", None),
         }
 
@@ -324,15 +346,9 @@ class ComputeInstance(ComputeProviderResource):
         """
 
         def func():
-            ret = self.get_physical_server_param("get_status")
-            if ret is None:
-                ret = None
-            return ret
+            return self.get_physical_server_param("get_status")
 
-        if self.state not in [2, 4]:
-            res = func()
-        else:
-            res = self.cache_data(self.runstate_cache_key, func, cache, ttl)
+        res = self.cache_data(self.runstate_cache_key, func, cache, ttl)
         return res
 
     def get_runstate_DEPRECATED(self):
@@ -383,7 +399,7 @@ class ComputeInstance(ComputeProviderResource):
                 info = self.__get_host(info)
                 self.set_cache("info", info)
         except:
-            self.logger.warn("", exc_info=True)
+            self.logger.warn("error in entity info", exc_info=True)
         return info
 
     def detail(self):
@@ -411,7 +427,7 @@ class ComputeInstance(ComputeProviderResource):
                 info = self.__get_host(info)
                 self.set_cache("detail", info)
         except:
-            self.logger.warn("", exc_info=True)
+            self.logger.warn("error in entity detail", exc_info=True)
         return info
 
     def __check_or_update_sg(self, update=False):
@@ -608,23 +624,13 @@ class ComputeInstance(ComputeProviderResource):
 
     def get_physical_server(self):
         """Get physical server"""
+        oid = self.oid
         if self.physical_server is None:
-            if self.main_zone_instance is None:
-                # get main zone instance
-                res = self.controller.get_directed_linked_resources_internal(
-                    resources=[self.oid],
-                    link_type="relation%",
-                )
-                for _, zone_instances in res.items():
-                    for zone_instance in zone_instances:
-                        if zone_instance is not None and zone_instance.get_attribs().get("main", False):
-                            self.main_zone_instance = zone_instance
-                            break
-
+            self.main_zone_instance = self.controller.get_main_zone_instance(oid)
+            self.logger.debug(f"Get main avz instance for compute instance {oid}: {self.main_zone_instance}")
             if self.main_zone_instance is not None:
                 self.physical_server = self.main_zone_instance.get_physical_server()
-
-        self.logger.debug("Get compute instance %s physical server: %s" % (self.uuid, self.physical_server))
+        self.logger.debug(f"Get physical server for compute instance {oid}: {self.physical_server}")
         return self.physical_server
 
     def get_physical_server_param(self, method, *args, **kwargs):
@@ -1057,6 +1063,7 @@ class ComputeInstance(ComputeProviderResource):
         metadata = kvargs.get("metadata", {})
         host_group = kvargs.get("host_group", "default")
         check_main_vol_size = kvargs.get("check_main_vol_size", True)
+        admin_username = kvargs.get("admin_username")
 
         # get compute zone
         compute_zone = container.get_simple_resource(compute_zone_id)
@@ -1177,8 +1184,6 @@ class ComputeInstance(ComputeProviderResource):
                 block_device["volume_size"] = volume_size
                 block_device["uuid"] = obj.uuid
             elif source_type == "volume":
-                if orchestrator_type == "vsphere":
-                    raise ApiManagerError("Source type volume is not yet supported for type vsphere")
                 obj = container.get_simple_resource(block_device["uuid"], entity_class=ComputeVolume)
                 obj.check_active()
                 block_device["uuid"] = obj.oid
@@ -1263,7 +1268,9 @@ class ComputeInstance(ComputeProviderResource):
         if key_name is not None:
             # read key value
             keys = compute_zone.get_ssh_keys(oid=key_name)
-            metadata["pubkey"] = ensure_text(b64decode(keys[0]["pub_key"]))
+            pubkey = keys[0]["pub_key"]
+            pubkey = ensure_text(b64decode(pubkey))
+            metadata["pubkey"] = pubkey
 
         orchestrator_tag = kvargs.get("orchestrator_tag", "default")
 
@@ -1290,6 +1297,8 @@ class ComputeInstance(ComputeProviderResource):
             "resolve": kvargs.get("resolve", True),
             "manage": manage,
             "multi_avz": multi_avz,
+            "admin_username": admin_username,
+            "clone_source_uuid": kvargs.get("clone_source_uuid"),
             "attribute": {
                 "type": orchestrator_type,
                 "orchestrator_tag": orchestrator_tag,
@@ -1544,9 +1553,7 @@ class ComputeInstance(ComputeProviderResource):
         # check authorization
         self.verify_permisssions("update")
 
-        if self.is_windows() is True:
-            username = "Administrator"
-
+        username = self.get_real_admin_user()
         try:
             # get node
             # self.logger.debug('+++++ get_credential - self.fqdn: %s' % self.fqdn)
@@ -1556,6 +1563,11 @@ class ComputeInstance(ComputeProviderResource):
 
             # self.logger.debug('+++++ get_credential - username: %s' % username)
             user = self.api_client.get_ssh_user(node_id=uuid, username=username)
+
+            # if os Ubuntu and in ssh user "ubuntu" not exists try get user "root"
+            if self.is_ubuntu() and user is None:
+                user = self.api_client.get_ssh_user(node_id=uuid, username="root")
+
             return user
         except BeehiveApiClientError as ex:
             raise ApiManagerError(ex.value)
@@ -1688,14 +1700,14 @@ class ComputeInstance(ComputeProviderResource):
                     recorda.post_get()
 
                 self.logger.debug("Compute instance %s recorda %s" % (self.uuid, recorda))
-                self.set_cache("get_dns_recorda", recorda, ttl=3600)
+                self.set_cache("get_dns_recorda", recorda, ttl=DNS_TTL)
             return recorda
         except ApiManagerError as ex:
             self.logger.error(ex.value, exc_info=True)
             return None
 
     @trace(op="update")
-    def set_dns_recorda(self, force=True, ttl=30):
+    def set_dns_recorda(self, force=True, ttl=DNS_TTL):
         """Set compute instance dns recorda.
 
         :param force: If True force registration of record in dns
@@ -1785,7 +1797,7 @@ class ComputeInstance(ComputeProviderResource):
             res = []
             physical_server = self.get_physical_server()
             res = physical_server.get_snapshots()
-            self.set_cache("get_snapshots", res, ttl=3600)
+            self.set_cache("get_snapshots", res, ttl=DNS_TTL)
         return res
 
     #
@@ -1846,6 +1858,8 @@ class ComputeInstance(ComputeProviderResource):
         job = None
         restore_points = []
         restore_point_total = 0
+        # default res
+        res = {"job": "", "restore_points": restore_points, "restore_point_total": restore_point_total}
 
         hypervisor = self.get_hypervisor()
         self.logger.debug("+++++ AAA - get_physical_backup_status - hypervisor: %s" % (hypervisor))
@@ -1868,56 +1882,62 @@ class ComputeInstance(ComputeProviderResource):
             self.logger.debug("+++++ AAA - get_physical_backup_status - site_id: %s" % (site_id))
             site: Site = self.controller.get_resource(site_id)
 
-            hypervisor_tag = "default"
-            orchestrator_idx_veeam = site.get_orchestrators_by_tag(hypervisor_tag, select_types=["veeam"])
-            self.logger.debug("+++++ AAA - get_backup_jobs - orchestrator_idx_veeam: %s" % orchestrator_idx_veeam)
-            veeam_id_container = list(orchestrator_idx_veeam.keys())[0]
-            self.logger.debug("+++++ AAA - get_backup_jobs - veeam_id_container: %s" % veeam_id_container)
+            try:
+                hypervisor_tag = "default"
+                orchestrator_idx_veeam = site.get_orchestrators_by_tag(hypervisor_tag, select_types=["veeam"])
+                self.logger.debug("+++++ AAA - get_backup_jobs - orchestrator_idx_veeam: %s" % orchestrator_idx_veeam)
+                veeam_id_container = list(orchestrator_idx_veeam.keys())[0]
+                self.logger.debug("+++++ AAA - get_backup_jobs - veeam_id_container: %s" % veeam_id_container)
 
-            from beehive_resource.controller import ResourceController
-            from beehive_resource.plugins.veeam.controller import VeeamContainer, VeeamManager
+                from beehive_resource.controller import ResourceController
+                from beehive_resource.plugins.veeam.controller import VeeamContainer, VeeamManager
 
-            resourceController: ResourceController = self.controller
-            veeamContainer: VeeamContainer = resourceController.get_container(veeam_id_container)
-            veeamContainer.get_connection()
+                resourceController: ResourceController = self.controller
+                veeamContainer: VeeamContainer = resourceController.get_container(veeam_id_container)
+                veeamContainer.get_connection()
 
-            physical_server: Resource = self.get_physical_server()
-            server_name = physical_server.name
-            ext_id = physical_server.ext_id
-            self.logger.debug(
-                "+++++ AAA - get_backup_jobs - list restore point for server_name: %s - ext_id: %s"
-                % (server_name, ext_id)
-            )
-            # server_name = "dev-beehive-01" # test
+                physical_server: Resource = self.get_physical_server()
+                server_name = physical_server.name
+                ext_id = physical_server.ext_id
+                self.logger.debug(
+                    "+++++ AAA - get_backup_jobs - list restore point for server_name: %s - ext_id: %s"
+                    % (server_name, ext_id)
+                )
+                # server_name = "dev-beehive-01" # test
 
-            page = page + 1
+                page = page + 1
 
-            from beedrones.veeam.restore_point import VeeamRestorePoint
+                from beedrones.veeam.restore_point import VeeamRestorePoint
 
-            veeamManager: VeeamManager = veeamContainer.conn_veeam
-            veeamRestorePoint: VeeamRestorePoint = veeamManager.restorepoint
-            veeam_restore_point = veeamRestorePoint.list(restorepoint_name=server_name, page_size=size, page=page)
+                veeamManager: VeeamManager = veeamContainer.conn_veeam
+                veeamRestorePoint: VeeamRestorePoint = veeamManager.restorepoint
+                veeam_restore_point = veeamRestorePoint.list(restorepoint_name=server_name, page_size=size, page=page)
 
-            veeam_restore_point_data = veeam_restore_point["data"]
-            veeam_restore_point_pagination = veeam_restore_point["pagination"]
-            restore_point_total = veeam_restore_point_pagination["total"]
-            self.logger.debug("+++++ AAA - get_backup_jobs - veeam_restore_point_data: %s" % veeam_restore_point_data)
+                veeam_restore_point_data = veeam_restore_point["data"]
+                veeam_restore_point_pagination = veeam_restore_point["pagination"]
+                restore_point_total = veeam_restore_point_pagination["total"]
+                self.logger.debug(
+                    "+++++ AAA - get_backup_jobs - veeam_restore_point_data: %s" % veeam_restore_point_data
+                )
 
-            resource_type = "ComputeInstance"
-            restore_points = [
-                {
-                    "id": restore_point.get("id"),
-                    "name": restore_point.get("name"),
-                    "desc": "-",
-                    "created": restore_point.get("creationTime"),
-                    "type": "-",
-                    "status": "-",
-                    "hypervisor": hypervisor,
-                    "site": site.name,
-                    "resource_type": resource_type,
-                }
-                for restore_point in veeam_restore_point_data
-            ]
+                resource_type = "ComputeInstance"
+                restore_points = [
+                    {
+                        "id": restore_point.get("id"),
+                        "name": restore_point.get("name"),
+                        "desc": "-",
+                        "created": restore_point.get("creationTime"),
+                        "type": "-",
+                        "status": "-",
+                        "hypervisor": hypervisor,
+                        "site": site.name,
+                        "resource_type": resource_type,
+                    }
+                    for restore_point in veeam_restore_point_data
+                ]
+            except OrchestratorError as oe:
+                logger.error("+++++ error orchestrator veeam")
+                logger.error(oe)  # , exc_info=True)
 
             res = {"job": "", "restore_points": restore_points, "restore_point_total": restore_point_total}
 
@@ -2066,6 +2086,7 @@ class ComputeInstance(ComputeProviderResource):
             "vm_monit": "#",
             "vm_log": "#",
             # 'vm_bck': '#',
+            "vm_power_on": "#",
             "vcpu": "#",
             "gbram": "GB",
             # 'gbdisk_hi': 'GB',
@@ -2084,6 +2105,7 @@ class ComputeInstance(ComputeProviderResource):
             "vm_log": "vm_log",
             "vm_os_ty": f"vm_{os}_{hypervisor}",
             # 'vm_bck': 'vm_bck',
+            "vm_power_on": "vm_power_on",
         }
 
         if hypervisor == "openstack":
@@ -2106,6 +2128,7 @@ class ComputeInstance(ComputeProviderResource):
             )
 
         metrics = {
+            # metric_labels.get("vm_power_on"): False,
             metric_labels.get("vcpu"): 0,
             metric_labels.get("gbram"): 0,
             # metric_labels.get('gbdisk_low'): 0,
@@ -2125,7 +2148,9 @@ class ComputeInstance(ComputeProviderResource):
             disk = data.get("disk")
             memory = 0
             cpu = 0
+            vm_power_on = 0
             if data.get("state") == "poweredOn":
+                vm_power_on = 1
                 memory = data.get("memory")
                 if memory is None:
                     memory = data.get("ram")
@@ -2135,6 +2160,7 @@ class ComputeInstance(ComputeProviderResource):
                 self.set_configs("quotas.compute.ram", memory)
 
             metrics = {
+                metric_labels.get("vm_power_on"): vm_power_on,
                 metric_labels.get("vcpu"): cpu,
                 metric_labels.get("gbram"): memory / 1024,
                 # metric_labels.get('gbdisk_low'): disk,
@@ -2230,6 +2256,8 @@ class ComputeInstance(ComputeProviderResource):
         data["ansible_connection"] = "ssh"
 
         # set python3 path
+        # fv memo: potrebbe aver senso settare
+        # ansible_python_interpreter: /usr/libexec/platform-python
         if self.is_image_py3() is True:
             data["ansible_python_interpreter"] = "/usr/bin/python3"
         else:
@@ -2574,7 +2602,7 @@ class ComputeInstance(ComputeProviderResource):
             key_id = keys[0]["uuid"]
             user_ssh_key = b64decode(keys[0].get("pub_key")).decode("utf-8")
 
-        ansible_pwd = sha512_crypt.using(rounds=5000).hash(user_pwd)
+        ansible_pwd = sha512_crypt(user_pwd, rounds=5000)
 
         internal_steps = [
             {
@@ -2707,7 +2735,9 @@ class ComputeInstance(ComputeProviderResource):
     def pre_monitoring(self):
         # get vpc
         vpcs, total = self.get_linked_resources(link_type="vpc", authorize=False, run_customize=False)
-        vpc = vpcs[0]
+        from beehive_resource.plugins.provider.entity.vpc_v2 import Vpc
+
+        vpc: Vpc = vpcs[0]
         vpc.check_active()
 
         # get site
@@ -2718,13 +2748,16 @@ class ComputeInstance(ComputeProviderResource):
         # get zabbix server connection params
         orchestrator_tag = "tenant"
         orchestrators = site.get_orchestrators_by_tag(orchestrator_tag, select_types=["zabbix"])
-        orchestrator = next(iter(orchestrators.keys()))
+        orchestrator, orchestrator_config = next(iter(orchestrators.items()))
+
+        awx_orchestrator_tag = orchestrator_config.get("awx_orchestrator_tag", "default")
         zabbix_container = self.controller.get_container(orchestrator, connect=False)
         conn_params = zabbix_container.conn_params["api"]
         zbx_srv_uri = conn_params.get("uri")
         zbx_srv_usr = conn_params.get("user")
         pwd = conn_params.get("pwd")
         zbx_srv_pwd = zabbix_container.decrypt_data(pwd).decode("utf-8")
+        zbx_srv_ip = zabbix_container.get_ip_address(zbx_srv_uri)
 
         # get proxy
         all_proxies = vpc.get_proxies(site.oid)
@@ -2734,11 +2767,13 @@ class ComputeInstance(ComputeProviderResource):
         return {
             "ip_repository": ip_repository,
             "proxy": proxy,
+            "zabbix_server_ip": zbx_srv_ip,
             "zabbix_server_uri": zbx_srv_uri,
             "zabbix_server_username": zbx_srv_usr,
             "zabbix_server_password": zbx_srv_pwd,
             "zabbix_proxy_ip": zbx_proxy_ip,
             "zabbix_proxy_name": zbx_proxy_name,
+            "awx_orchestrator_tag": awx_orchestrator_tag,
         }
 
     def enable_monitoring(self, *args, **kvargs):
@@ -2751,11 +2786,13 @@ class ComputeInstance(ComputeProviderResource):
         params = self.pre_monitoring()
         ip_repository = params.get("ip_repository")
         proxy = params.get("proxy")
+        zbx_srv_ip = params.get("zabbix_server_ip")
         zbx_srv_uri = params.get("zabbix_server_uri")
         zbx_srv_usr = params.get("zabbix_server_username")
         zbx_srv_pwd = params.get("zabbix_server_password")
         zbx_proxy_ip = params.get("zabbix_proxy_ip")
         zbx_proxy_name = params.get("zabbix_proxy_name")
+        awx_orchestrator_tag = params.get("awx_orchestrator_tag", "default")
 
         # get custom hostgroup
         host_group = kvargs.get("host_group")
@@ -2781,15 +2818,24 @@ class ComputeInstance(ComputeProviderResource):
             ComputeInstance.task_path + "apply_customization_action_step",
             ComputeInstance.task_path + "enable_monitoring_step",
         ]
+
+        if awx_orchestrator_tag is not None and awx_orchestrator_tag != "default":
+            customization = f"zabbix-agent-{awx_orchestrator_tag}"
+        else:
+            customization = "zabbix-agent"
+        orchestrator_tag = awx_orchestrator_tag
+
         res = {
             "internal_steps": internal_steps,
-            "customization": "zabbix-agent",
+            "customization": customization,  # e.g. "zabbix-agent", "zabbix-agent-V2"
             "playbook": "install.yml",
+            "orchestrator_tag": orchestrator_tag,  # e.g. "V2", "default"
             "extra_vars": {
                 "p_ip_repository": ip_repository,
                 "p_proxy_server": proxy,
                 "p_no_proxy": "localhost,10.0.0.0/8",
-                "p_zabbix_server": zbx_srv_uri,
+                "p_zabbix_server_ip": zbx_srv_ip,
+                "p_zabbix_server_uri": zbx_srv_uri,
                 "p_zabbix_server_username": zbx_srv_usr,
                 "p_zabbix_server_password": zbx_srv_pwd,
                 "p_zabbix_proxy_ip": zbx_proxy_ip,
@@ -2842,18 +2888,27 @@ class ComputeInstance(ComputeProviderResource):
                 zbx_srv_uri = params_monitoring.get("zabbix_server_uri")
                 zbx_srv_usr = params_monitoring.get("zabbix_server_username")
                 zbx_srv_pwd = params_monitoring.get("zabbix_server_password")
+                awx_orchestrator_tag = params_monitoring.get("awx_orchestrator_tag", "default")
 
                 # set tasks
                 internal_steps = [
                     ComputeInstance.task_path + "apply_customization_action_step",
                     ComputeInstance.task_path + "disable_monitoring_step",
                 ]
+
+                if awx_orchestrator_tag is not None and awx_orchestrator_tag != "default":
+                    customization = f"zabbix-agent-{awx_orchestrator_tag}"
+                else:
+                    customization = "zabbix-agent"
+                orchestrator_tag = awx_orchestrator_tag
+
                 res = {
                     "internal_steps": internal_steps,
-                    "customization": "zabbix-agent",
+                    "customization": customization,  # "zabbix-agent",
                     "playbook": "deregister.yml",
+                    "orchestrator_tag": orchestrator_tag,
                     "extra_vars": {
-                        "p_zabbix_server": zbx_srv_uri,
+                        "p_zabbix_server_uri": zbx_srv_uri,
                         "p_zabbix_server_username": zbx_srv_usr,
                         "p_zabbix_server_password": zbx_srv_pwd,
                         "p_target_host": self.fqdn,
@@ -2877,18 +2932,27 @@ class ComputeInstance(ComputeProviderResource):
                 zbx_srv_uri = params_monitoring.get("zabbix_server_uri")
                 zbx_srv_usr = params_monitoring.get("zabbix_server_username")
                 zbx_srv_pwd = params_monitoring.get("zabbix_server_password")
+                awx_orchestrator_tag = params_monitoring.get("awx_orchestrator_tag", "default")
 
                 # set tasks
                 internal_steps = [
                     ComputeInstance.task_path + "apply_customization_action_step",
                     ComputeInstance.task_path + "disable_monitoring_step",
                 ]
+
+                if awx_orchestrator_tag is not None and awx_orchestrator_tag != "default":
+                    customization = f"zabbix-agent-{awx_orchestrator_tag}"
+                else:
+                    customization = "zabbix-agent"
+                orchestrator_tag = awx_orchestrator_tag
+
                 res = {
                     "internal_steps": internal_steps,
-                    "customization": "zabbix-agent",
+                    "customization": customization,  # "zabbix-agent",
                     "playbook": "uninstall.yml",
+                    "orchestrator_tag": orchestrator_tag,
                     "extra_vars": {
-                        "p_zabbix_server": zbx_srv_uri,
+                        "p_zabbix_server_uri": zbx_srv_uri,
                         "p_zabbix_server_username": zbx_srv_usr,
                         "p_zabbix_server_password": zbx_srv_pwd,
                         "p_target_host": self.fqdn,
@@ -2897,6 +2961,34 @@ class ComputeInstance(ComputeProviderResource):
                 }
 
         return res
+
+    def get_orchestrator_tag(self):
+        # get site
+        site_id = self.get_attribs().get("availability_zone")
+        site: Site = self.controller.get_resource(site_id)
+
+        # get customization
+        from beehive_resource.plugins.provider.entity.customization import (
+            ComputeCustomization,
+        )
+        from beehive_resource.plugins.awx.entity.awx_project import AwxProject
+
+        compute_customization: ComputeCustomization = self.controller.get_simple_resource(
+            "filebeat", entity_class=ComputeCustomization
+        )
+        customization: LocalProviderResource = compute_customization.get_local_resource(site_id)
+        awx_project: AwxProject = customization.get_physical_resource(AwxProject.objdef)
+        self.logger.debug("+++++ get_orchestrator_tag - awx_project: %s" % awx_project)
+
+        # get orchestrator by container_id of AWX project
+        orchestrator_id = awx_project.container_id
+        self.logger.debug("+++++ get_orchestrator_tag - orchestrator_id: %s" % orchestrator_id)
+        orchestrator = site.get_orchestrator_by_id(orchestrator_id, select_types=["awx"])
+        self.logger.debug("+++++ get_orchestrator_tag - orchestrator: %s" % orchestrator)
+        orchestrator_tag = dict_get(orchestrator, "tag", default="default")
+        self.logger.debug("+++++ get_orchestrator_tag - orchestrator_tag: %s" % orchestrator_tag)
+
+        return orchestrator_tag
 
     def enable_log_module(self, *args, **kvargs):
         """Enable log module
@@ -2926,10 +3018,12 @@ class ComputeInstance(ComputeProviderResource):
         #     'input': 'file'
         # }
 
+        orchestrator_tag = self.get_orchestrator_tag()
         res = {
             "internal_steps": internal_steps,
             "customization": "filebeat",
             "playbook": "modules_start.yml",
+            "orchestrator_tag": orchestrator_tag,
             "extra_vars": {"p_module": module_params},
         }
         return res
@@ -2954,14 +3048,12 @@ class ComputeInstance(ComputeProviderResource):
             ComputeInstance.task_path + "disable_log_module_step",
         ]
 
-        # params = {
-        #     'name': module
-        # }
-
+        orchestrator_tag = self.get_orchestrator_tag()
         res = {
             "internal_steps": internal_steps,
             "customization": "filebeat",
             "playbook": "modules_stop.yml",
+            "orchestrator_tag": orchestrator_tag,
             "extra_vars": {"p_module": module_params},
         }
         return res
@@ -2975,6 +3067,7 @@ class ComputeInstance(ComputeProviderResource):
         """
         self.logger.info("+++++ disable_logging - args: {}".format(args))
         self.logger.info("+++++ disable_logging - kvargs: {}".format(kvargs))
+        orchestrator_tag = self.get_orchestrator_tag()
 
         # set tasks
         internal_steps = [
@@ -2986,6 +3079,7 @@ class ComputeInstance(ComputeProviderResource):
             "internal_steps": internal_steps,
             "customization": "filebeat",
             "playbook": "uninstall.yml",
+            "orchestrator_tag": orchestrator_tag,
             "extra_vars": {},
         }
         return res
@@ -3004,7 +3098,7 @@ class ComputeInstance(ComputeProviderResource):
 
         # get site
         site_id = self.get_attribs().get("availability_zone")
-        site = self.controller.get_resource(site_id)
+        site: Site = self.controller.get_resource(site_id)
         ip_repository = site.get_attribs().get("repo")
         parent_desc = self.get_parent().desc
 
@@ -3022,10 +3116,31 @@ class ComputeInstance(ComputeProviderResource):
         if inputs is None:
             inputs = ["/var/log/messages", "/var/log/*.log"]
 
+        # get customization
+        from beehive_resource.plugins.provider.entity.customization import (
+            ComputeCustomization,
+        )
+        from beehive_resource.plugins.awx.entity.awx_project import AwxProject
+
+        compute_customization: ComputeCustomization = self.controller.get_simple_resource(
+            "filebeat", entity_class=ComputeCustomization
+        )
+        customization: LocalProviderResource = compute_customization.get_local_resource(site_id)
+        awx_project: AwxProject = customization.get_physical_resource(AwxProject.objdef)
+        self.logger.debug("+++++ enable_logging - awx_project: %s" % awx_project)
+
+        # get orchestrator by container_id of AWX project
+        orchestrator_id = awx_project.container_id
+        self.logger.debug("+++++ enable_logging - orchestrator_id: %s" % orchestrator_id)
+        orchestrator = site.get_orchestrator_by_id(orchestrator_id, select_types=["awx"])
+        self.logger.debug("+++++ enable_logging - orchestrator: %s" % orchestrator)
+        orchestrator_tag = dict_get(orchestrator, "tag", default="default")
+        self.logger.debug("+++++ enable_logging - orchestrator_tag: %s" % orchestrator_tag)
+
         # get awx container
-        orchestrator_tag = "default"
-        orchestrators = site.get_orchestrators_by_tag(orchestrator_tag, select_types=["awx"])
-        orchestrator = next(iter(orchestrators.values()))
+        # orchestrator_tag = "default"
+        # orchestrators = site.get_orchestrators_by_tag(orchestrator_tag, select_types=["awx"])
+        # orchestrator = next(iter(orchestrators.values()))
 
         # get awx inventory
         inventories = dict_get(orchestrator, "config.inventories", default=[])
@@ -3034,16 +3149,6 @@ class ComputeInstance(ComputeProviderResource):
         inventory = inventories[0]
         inventory_id = inventory.get("id")
         ssh_cred_id = inventory.get("credential")
-
-        # get customization
-        from beehive_resource.plugins.provider.entity.customization import (
-            ComputeCustomization,
-        )
-        from beehive_resource.plugins.awx.entity.awx_project import AwxProject
-
-        compute_customization = self.controller.get_simple_resource("filebeat", entity_class=ComputeCustomization)
-        customization = compute_customization.get_local_resource(site_id)
-        awx_project = customization.get_physical_resource(AwxProject.objdef)
 
         template_name = "filebeat-%s-create-cert-%s" % (index_name, id_gen(8))
         job_template_args = [
@@ -3065,6 +3170,7 @@ class ComputeInstance(ComputeProviderResource):
                 "step": ComputeInstance.task_path + "create_awx_job_template_step",
                 "args": job_template_args,
             },
+            # ComputeInstance.task_path + "pass_certificate_step",
             ComputeInstance.task_path + "apply_customization_action_step",
             ComputeInstance.task_path + "enable_logging_step",
         ]
@@ -3072,6 +3178,7 @@ class ComputeInstance(ComputeProviderResource):
             "internal_steps": internal_steps,
             "customization": "filebeat",
             "playbook": "install.yml",
+            "orchestrator_tag": orchestrator_tag,
             "extra_vars": {
                 "p_ip_repository": ip_repository,
                 "p_proxy_server": proxy,
@@ -3109,8 +3216,11 @@ class ComputeInstance(ComputeProviderResource):
 
         # set awx_job_template params
         name = "%s-ad-hoc-cmd-%s" % (self.name, id_gen())
-        pwd = self.get_credential().get("password")
-        user = self.get_real_admin_user()
+
+        credential = self.get_credential()
+        pwd = credential.get("password")
+        # user = self.get_real_admin_user()
+        user = credential.get("username")
 
         extra_vars = {
             "ansible_user": user,
@@ -3305,10 +3415,13 @@ class Instance(AvailabilityZoneChildResource):
         main = kvargs.get("main")
 
         # get availability_zone
-        availability_zone = container.get_simple_resource(kvargs.get("parent"))
+        from beehive_resource.plugins.provider.entity.zone import AvailabilityZone
+
+        availability_zone: AvailabilityZone = container.get_simple_resource(kvargs.get("parent"))
 
         # select remote orchestrators
-        orchestrator_idx = availability_zone.get_orchestrators_by_tag(orchestrator_tag)
+        # orchestrator_idx = availability_zone.get_orchestrators_by_tag(orchestrator_tag)
+        orchestrator_idx = availability_zone.get_hypervisors_by_tag(orchestrator_tag)
 
         # select main available orchestrators
         available_main_orchestrators = []
@@ -3385,15 +3498,19 @@ class Instance(AvailabilityZoneChildResource):
         :raise ApiManagerError:
         """
         orchestrator_tag = kvargs.pop("orchestrator_tag")
+        # orchestrator_select_types = kvargs.pop("orchestrator_select_types", None)
         orchestrator_type = kvargs.pop("type")
         main = kvargs.get("main")
 
         # get availability_zone
-        availability_zone = container.get_simple_resource(kvargs.get("parent"))
+        from beehive_resource.plugins.provider.entity.zone import AvailabilityZone
+
+        availability_zone: AvailabilityZone = container.get_simple_resource(kvargs.get("parent"))
         site_id = availability_zone.parent_id
 
         # get zone volumes
         compute_instance = container.get_simple_resource(kvargs.get("compute_instance"))
+
         compute_volumes, tot = compute_instance.get_linked_resources(
             link_type_filter="volume%",
             entity_class=ComputeVolume,
@@ -3422,7 +3539,8 @@ class Instance(AvailabilityZoneChildResource):
                     zone_other_volumes.append(volume.oid)
 
         # select remote orchestrators
-        orchestrator_idx = availability_zone.get_orchestrators_by_tag(orchestrator_tag)
+        # orchestrator_idx = availability_zone.get_orchestrators_by_tag(orchestrator_tag, select_types=orchestrator_select_types)
+        orchestrator_idx = availability_zone.get_hypervisors_by_tag(orchestrator_tag)
 
         # select main available orchestrators
         available_main_orchestrators = []
@@ -3508,32 +3626,12 @@ class Instance(AvailabilityZoneChildResource):
         main = kvargs.get("main")
 
         # get availability_zone
-        availability_zone = container.get_simple_resource(kvargs.get("parent"))
-        # site_id = availability_zone.parent_id
+        from beehive_resource.plugins.provider.entity.zone import AvailabilityZone
 
-        # get zone volumes
-        # compute_instance = container.get_simple_resource(kvargs.get('compute_instance'))
-        # compute_volumes, tot = compute_instance.get_linked_resources(
-        #     link_type_filter='volume%', entity_class=ComputeVolume, objdef=ComputeVolume.objdef, run_customize=False)
-
-        # get boot and other zone volumes
-        # zone_boot_volume = None
-        # zone_other_volumes = []
-
-        # if main is True:
-        #     for compute_volume in compute_volumes:
-        #         volumes, tot = compute_volume.get_linked_resources(
-        #             link_type_filter='relation.%s' % site_id, entity_class=Volume, objdef=Volume.objdef,
-        #             run_customize=False)
-        #         volume = volumes[0]
-        #         bootable = compute_volume.is_bootable()
-        #         if bootable is True:
-        #             zone_boot_volume = volume.oid
-        #         else:
-        #             zone_other_volumes.append(volume.oid)
+        availability_zone: AvailabilityZone = container.get_simple_resource(kvargs.get("parent"))
 
         # select remote orchestrators
-        orchestrator_idx = availability_zone.get_orchestrators_by_tag(orchestrator_tag)
+        orchestrator_idx = availability_zone.get_hypervisors_by_tag(orchestrator_tag)
 
         # select main available orchestrators
         available_main_orchestrators = []
@@ -3580,7 +3678,9 @@ class Instance(AvailabilityZoneChildResource):
         :param hypervisor_tag: orchestrator tag
         :raises ApiManagerError: if query empty return error.
         """
-        orchestrator_idx = self.get_orchestrators_by_tag(hypervisor_tag, index_field="type")
+        # orchestrator_idx = self.get_orchestrators_by_tag(hypervisor_tag, index_field="type")
+        orchestrator_idx = self.get_hypervisors_by_tag(hypervisor_tag, index_field="type")
+
         # if hypervisor is None return all the orchestrator else return only main orchestrator
         if hypervisor is not None:
             orchestrators = [orchestrator_idx[hypervisor]]

@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from logging import getLogger
+from beecell.simple import dict_get
 from beedrones.vsphere.client import VsphereError
 from beehive.common.task_v2 import task_step, TaskError
 from beehive.common.task_v2.manager import task_manager
@@ -194,11 +195,13 @@ class NsxDfwTask(AbstractResourceTask):
         :return: True, params
         """
         cid = params.get("cid", None)
-        sectionid = params.get("sectionid", None)
-        ruleid = params.get("ruleid", None)
+        sectionid = params.get("sectionId", None)
+        ruleid = params.get("id", None)
         name = params.get("name", None)
         action = params.get("action", None)
         disable = params.get("disable", None)
+        source = dict_get(params, "sources.source")
+        destination = dict_get(params, "destinations.destination")
 
         container = task.get_container(cid)
         conn = container.conn
@@ -206,7 +209,15 @@ class NsxDfwTask(AbstractResourceTask):
 
         # update nsx dfw rule
         conn.network.nsx.dfw.query_status()  # get etag
-        res = conn.network.nsx.dfw.update_rule(sectionid, ruleid, new_action=action, new_disable=disable, new_name=name)
+        res = conn.network.nsx.dfw.update_rule(
+            sectionid,
+            ruleid,
+            new_action=action,
+            new_disable=disable,
+            new_name=name,
+            new_sources=source,
+            new_destinations=destination,
+        )
         task.progress(step_id, msg="Update nsx dfw rule %s" % res)
 
         return True, params
@@ -237,6 +248,7 @@ class NsxDfwTask(AbstractResourceTask):
             # delete nsx dfw rule
             conn.network.nsx.dfw.query_status()  # get etag
             res = conn.network.nsx.dfw.delete_rule(sectionid, ruleid)
+            logger.debug(f"Nsx dfw rule {ruleid} deleted: {res}")
             task.progress(step_id, msg="Delete nsx dfw rule %s" % ruleid)
         except:
             task.progress(step_id, msg="ERROR: nsx dfw rule %s does not exist" % ruleid)

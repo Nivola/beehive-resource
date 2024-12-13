@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
+from beehive.common.apimanager import ApiManagerError
 from beehive_resource.container import Provider
 from beehive_resource.plugins.provider.entity.region import Region
 from beehive_resource.plugins.provider.entity.zone import ComputeZone
-from beehive.common.apimanager import ApiManagerError
 
 
 class LocalProvider(Provider):
@@ -43,7 +43,6 @@ class LocalProvider(Provider):
         :param resource_id: physical resource id
         :return:
         """
-        res = None
 
         get_linked = self.controller.get_indirected_linked_resources_internal
 
@@ -77,27 +76,19 @@ class LocalProvider(Provider):
         raise ApiManagerError("No zone resource found for physical resource %s" % resource_id)
 
     def get_aggregated_resource_from_physical_resource(self, resource_id, parent_id=None):
-        """Get aggregated resource from physical resource
+        """
+        Get aggregated resource from physical resource
 
         :param resource_id: physical resource id
-        :param parent_id: aggregated resource parent. Set when physical resource is linked to more then one aggregated
-            resource. [optional]
+        :param parent_id: aggregated resource parent. Set when physical resource is linked to more then one
+            aggregated resource. [optional]
         :return:
         """
-        get_linked = self.controller.get_indirected_linked_resources_internal
-
-        # check resource has a parent provider zone resource
-        zone_ress = get_linked([resource_id], link_type="relation").get(resource_id, [])
-
-        # check provider zone has a parent provider aggregated resource
-        if len(zone_ress) > 0:
-            aggr_ress = get_linked([zone_ress[0].oid], link_type="relation.%").get(zone_ress[0].oid, [])
-
-            if len(aggr_ress) > 0:
-                if parent_id is not None:
-                    aggr_ress = [a for a in aggr_ress if a.parent_id == parent_id]
-                aggr_res = aggr_ress[0]
-                self.logger.debug("Get aggregated resource from physical resource %s: %s" % (resource_id, aggr_res))
-                return aggr_res
-
-        raise ApiManagerError("No aggregated resource found for physical resource %s" % resource_id)
+        aggr_res = self.controller.get_aggregated_resource_from_physical_resource(resource_id, parent_id=parent_id)
+        if aggr_res is None:
+            raise ApiManagerError(f"No aggregated resource found for physical resource {resource_id}")
+        msg = f"Get aggregated resource from physical resource {resource_id}: {aggr_res}"
+        if parent_id is not None:
+            msg += f" for parent {parent_id}"
+        self.logger.debug(msg)
+        return aggr_res

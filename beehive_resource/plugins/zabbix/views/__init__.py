@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2018-2022 Regione Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive_resource.plugins.zabbix.controller import ZabbixContainer
 from beehive.common.apimanager import ApiView

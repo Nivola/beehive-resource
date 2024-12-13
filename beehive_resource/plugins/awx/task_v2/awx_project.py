@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive.common.task_v2 import task_step
 from beehive.common.task_v2.manager import task_manager
@@ -34,10 +34,13 @@ class AwxProjectTask(AbstractResourceTask):
         scm_branch = params.get("scm_branch", "master")
         scm_update_on_launch = params.get("scm_update_on_launch", False)
         scm_creds = params.get("scm_creds")
+        # default_environment = params.get("default_environment", None)
         task.progress(step_id, msg="Get configuration params")
 
+        from beedrones.awx.client import AwxManager
+
         container = task.get_container(cid)
-        conn = container.conn
+        conn: AwxManager = container.conn
         inst = conn.project.add(
             name,
             description=desc,
@@ -47,6 +50,7 @@ class AwxProjectTask(AbstractResourceTask):
             scm_branch=scm_branch,
             scm_update_on_launch=scm_update_on_launch,
             credential=scm_creds,
+            # default_environment=default_environment
         )
         inst_id = inst["id"]
         task.progress(step_id, msg="Create awx project %s" % inst_id)

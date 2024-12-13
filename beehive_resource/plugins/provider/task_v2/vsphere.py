@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import ujson as json
 from beecell.simple import id_gen, import_class, dict_set, dict_get
@@ -13,6 +13,7 @@ from beehive_resource.plugins.provider.entity.vpc_v2 import SiteNetwork, Private
 from beehive_resource.plugins.provider.task_v2 import AbstractProviderHelper, getLogger
 from beehive_resource.plugins.vsphere.entity.nsx_edge import NsxEdge
 from beehive_resource.plugins.vsphere.entity.nsx_logical_switch import NsxLogicalSwitch
+from beehive_resource.plugins.vsphere.entity.nsx_manager import NsxManager
 from beehive_resource.plugins.vsphere.entity.vs_dvpg import VsphereDvpg
 from beehive_resource.plugins.vsphere.entity.nsx_security_group import NsxSecurityGroup
 from beehive_resource.plugins.vsphere.entity.nsx_dfw import NsxDfwSection, NsxDfwRule
@@ -26,7 +27,15 @@ from beehive_resource.plugins.vsphere.entity.vs_volumetype import VsphereVolumeT
 logger = getLogger(__name__)
 
 
+class ReservedRuleTypes(object):
+    OUTBOUND_ALL = "outbound_all"
+
+
 class ProviderVsphere(AbstractProviderHelper):
+    def __init__(self, task, step, orchestrator, resource, controller=None):
+        super().__init__(task, step, orchestrator, resource, controller)
+        self.section = None
+
     def type_mapping(self, mtype, mvalue):
         """Get vsphere type mapping
 
@@ -51,6 +60,8 @@ class ProviderVsphere(AbstractProviderHelper):
                 resource = self.get_simple_resource(mvalue)
                 sg = resource.get_physical_resource_from_container(self.cid, NsxSecurityGroup.objdef)
                 res = {"type": "SecurityGroup", "value": sg.ext_id, "name": None}
+            elif mtype == "IPSet":
+                res = {"type": "IPSet", "value": mvalue, "name": None}
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
             return None
@@ -323,13 +334,13 @@ class ProviderVsphere(AbstractProviderHelper):
             return None
 
         try:
-            nsx_manager = self.container.get_nsx_manager()
+            nsx_manager: NsxManager = self.container.get_nsx_manager()
             startip = allocation_pools[0]["start"]
             stopip = allocation_pools[0]["end"]
 
             # check ippool already exists
             if overlap is False:
-                pools = nsx_manager.get_ippools(pool_range=(startip, stopip))
+                pools = nsx_manager.get_ippools(pool_range=(startip, stopip))  # aaa
                 if len(pools) > 0:
                     return pools[0]["objectId"]
 
@@ -392,10 +403,65 @@ class ProviderVsphere(AbstractProviderHelper):
             self.logger.error(ex, exc_info=True)
             raise TaskError(ex)
 
-    def create_rule(self, zone, source, destination, service):
+    def get_section(self, zone):
+        """
+
+        :param zone:
+        :return:
+        """
+        cress = zone.get_physical_resources(self.cid, CustomResource.objdef)
+        sections = [c for c in cress if c.attribs["sub_type"] == NsxDfwSection.objdef]
+        return sections[0]
+
+    def update_section(self, zone, rule_type, rule_id):
+        """
+
+        :param zone:
+        :param rule_type:
+        :param rule_id:
+        :return:
+        """
+        if self.section is None:
+            self.section = self.get_section(zone)
+
+        if (
+            rule_type == ReservedRuleTypes.OUTBOUND_ALL
+            and self.section.get_attribs(key=f"reserved_rules.{rule_type}") is None
+        ):
+            rule_id = rule_id[0]
+            self.section.set_configs(key=f"reserved_rules.{rule_type}", value=rule_id)
+
+    @staticmethod
+    def get_reserved_rule_type(source, destination, service):
+        """
+
+        :param source:
+        :param destination:
+        :param service:
+        :return:
+        """
+        if destination["type"] == "Cidr" and destination["value"] == "0.0.0.0/0":
+            return ReservedRuleTypes.OUTBOUND_ALL
+        return None
+
+    def get_reserved_rule(self, zone, rule_type):
+        """
+
+        :param zone:
+        :param rule_type:
+        :return:
+        """
+        if self.section is None:
+            self.section = self.get_section(zone)
+
+        if rule_type == ReservedRuleTypes.OUTBOUND_ALL:
+            return self.section.get_attribs(key=f"reserved_rules.{rule_type}")
+        return None
+
+    def create_rule(self, zone, source, destination, service, reserved):
         """Create vsphere rule.
 
-        :param zone: availability zone
+        :param zone:
         :param source: source
         :param destination: destination
         :param service: service.
@@ -404,6 +470,7 @@ class ProviderVsphere(AbstractProviderHelper):
                 {'port':80, 'protocol':6} -> tcp:80
                 {'port':80, 'protocol':17} -> udp:80
                 {'protocol':1, 'subprotocol':8} -> icmp:echo request
+        :param reserved:
         :return: resource id
         :raise TaskError: If task fails
         :raise ApiManagerError: :class:`ApiManagerError`
@@ -412,9 +479,9 @@ class ProviderVsphere(AbstractProviderHelper):
             name = "%s-%s-dfwrule" % (self.resource.name, self.cid)
 
             # get section id
-            cress = zone.get_physical_resources(self.cid, CustomResource.objdef)
-            section = [c for c in cress if c.attribs["sub_type"] == NsxDfwSection.objdef][0]
-            section = section.ext_id
+            if self.section is None:
+                self.section = self.get_section(zone)
+            section_id = self.section.ext_id
 
             policies = []
 
@@ -429,7 +496,6 @@ class ProviderVsphere(AbstractProviderHelper):
             sources = self.type_mapping(source["type"], source["value"])
             # destinations
             dests = self.type_mapping(destination["type"], destination["value"])
-
             # service
             port = service
 
@@ -437,31 +503,85 @@ class ProviderVsphere(AbstractProviderHelper):
             if source["type"] == destination["type"] and source["value"] == destination["value"]:
                 appliedto = self.type_mapping(source["type"], source["value"])
 
-                policies.append(self.create_nsx_rule(section, name + "-out", "out", sources, dests, port, appliedto))
-                policies.append(self.create_nsx_rule(section, name + "-in", "in", sources, dests, port, appliedto))
+                # policies.append(self.create_nsx_rule(
+                #     section_id,
+                #     name + "-out",
+                #     "out",
+                #     sources,
+                #     dests,
+                #     port,
+                #     appliedto)
+                # )
+                # policies.append(self.create_nsx_rule(
+                #     section_id,
+                #     name + "-in",
+                #     "in",
+                #     sources,
+                #     dests,
+                #     port,
+                #     appliedto)
+                # )
+                policies.append(
+                    self.create_nsx_rule(section_id, name + "-inout", "inout", sources, dests, port, appliedto)
+                )
 
             # cidr -> sgrule
             elif source["type"] == "Cidr" and destination["type"] in ["RuleGroup"]:
-                policies.append(self.create_nsx_rule(section, name + "-in", "in", sources, dests, port, appliedto))
+                policies.append(self.create_nsx_rule(section_id, name + "-in", "in", sources, dests, port, appliedto))
 
             # env -> cidr
             elif destination["type"] == "Cidr" and source["type"] in ["RuleGroup"]:
-                policies.append(self.create_nsx_rule(section, name + "-out", "out", sources, dests, port, appliedto))
+                # reuse = False
+                # if reserved:
+                #     res = self.section.name.split('-')
+                #     name = f"{res[0]}-{res[1]}-dfwrule-reserved-outbound-all-out"
+                #     reuse = True
+                policies.append(
+                    self.create_nsx_rule(
+                        section_id,
+                        name + "-out",
+                        "out",
+                        sources,
+                        dests,
+                        port,
+                        appliedto,
+                        # reuse=reuse,
+                    )
+                )
 
             # sgrule1 -> sgrule2
             # sgrule -> server
             # server -> sgrule
             # server -> server
             else:
-                policies.append(self.create_nsx_rule(section, name + "-out", "out", sources, dests, port, appliedto))
-                policies.append(self.create_nsx_rule(section, name + "-in", "in", sources, dests, port, appliedto))
+                # policies.append(self.create_nsx_rule(
+                #     section_id,
+                #     name + "-out",
+                #     "out",
+                #     sources,
+                #     dests,
+                #     port,
+                #     appliedto)
+                # )
+                # policies.append(self.create_nsx_rule(
+                #     section_id,
+                #     name + "-in",
+                #     "in",
+                #     sources,
+                #     dests,
+                #     port,
+                #     appliedto)
+                # )
+                policies.append(
+                    self.create_nsx_rule(section_id, name + "-inout", "inout", sources, dests, port, appliedto)
+                )
 
             return policies
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
             raise TaskError(ex)
 
-    def create_nsx_rule(self, section_id, name, direction, source, dest, service, appliedto, logged=True):
+    def create_nsx_rule(self, section_id, name, direction, source, dest, service, appliedto, logged=True, reuse=False):
         """Create nsx rule
 
         :param section_id:
@@ -472,6 +592,7 @@ class ProviderVsphere(AbstractProviderHelper):
         :param service:
         :param appliedto:
         :param logged:
+        :param reuse:
         :raise TaskError: If task fails
         :raise ApiManagerError: :class:`ApiManagerError`
         """
@@ -528,10 +649,67 @@ class ProviderVsphere(AbstractProviderHelper):
         rule_resource_id = resource_model.id
         self.container.update_resource_state(rule_resource_id, 2)
         self.container.activate_resource(rule_resource_id)
-        self.add_link({"uuid": rule_resource_id})
+        self.add_link(prepared_task={"uuid": rule_resource_id}, attrib={"reuse": reuse})
         self.progress("create rule resource: %s" % rule_resource_id)
 
-        return rule_id
+        return rule_resource_id
+
+    def update_reserved_rule(self, zone, rule_type, rule_id, source, destination, service):
+        """
+
+        :param zone:
+        :param rule_type:
+        :param rule_id:
+        :param source:
+        :param destination:
+        :param service:
+        :return:
+        """
+        if self.section is None:
+            self.section = self.get_section(zone)
+
+        if rule_type == ReservedRuleTypes.OUTBOUND_ALL:
+            rule_id = self.section.get_attribs(key=f"reserved_rules.{rule_type}")
+            rule = self.get_simple_resource(rule_id)
+            self.update_nsx_rule(self.section.ext_id, rule, src=source)
+        else:
+            raise TaskError("Unknown reserved rule type")
+
+    def update_nsx_rule(self, section_id, rule, src=None, dst=None, srv=None, op=None):
+        """
+
+        :param section_id:
+        :param rule:
+        :param src:
+        :param dst:
+        :param srv:
+        :param op:
+        :return:
+        """
+        # get distributed firewall
+        dfw = self.container.get_nsx_dfw()
+        self.progress("Get nsx dfw %s" % dfw)
+
+        # get rule config
+        rule_config = dfw.get_rule(section_id, rule.ext_id)
+
+        rule_config.pop("sources", None)
+        rule_config.pop("destinations", None)
+
+        if src is not None:
+            rule_config["sources"] = {"source": [self.type_mapping(src["type"], src["value"])]}
+        if dst is not None:
+            rule_config["destinations"] = {"destination": [self.type_mapping(dst["type"], dst["value"])]}
+
+        # update vsphere rule
+        rule_config["sync"] = True
+        prepared_task, code = dfw.update_rule(rule_config)
+        res = self.run_sync_task(prepared_task, msg="top nsx dfw rule update")
+
+        # add link to vsphere rule
+        self.add_link(prepared_task={"uuid": rule.oid}, attrib={"reuse": False})
+
+        return True
 
     def import_server(self, params):
         """Import vsphere server.
@@ -582,7 +760,8 @@ class ProviderVsphere(AbstractProviderHelper):
             flavor_id = params.get("flavor")
             image_id = params.get("image")
             security_groups = params.get("security_groups")
-            admin_pass = params.get("admin_pass")
+            admin_password = params.get("admin_pass")
+            admin_username = params.get("admin_username")
             networks = params.get("networks")
             zone_boot_volume = params.get("zone_boot_volume")
             zone_other_volumes = params.get("zone_other_volumes")
@@ -610,19 +789,29 @@ class ProviderVsphere(AbstractProviderHelper):
             dvs_ext_id = dvs.ext_id
             self.logger.debug("create_server - dvs - dvs_id: %s - dvs_ext_id: %s" % (dvs_id, dvs_ext_id))
 
+            # get server source id
+            clone_source_uuid = params.get("clone_source_uuid")
+            source_server = None
+            is_clone = clone_source_uuid is not None
+            if is_clone:
+                source_compute_instance = self.get_resource(clone_source_uuid)
+                source_server = source_compute_instance.get_physical_server().oid
+
             server_conf = {
                 "parent": folder.oid,
                 "name": name,
                 "desc": self.resource.desc,
                 "flavorRef": None,
                 "availability_zone": availability_zone,
-                "adminPass": admin_pass,
+                "adminPass": admin_password,
+                "admin_username": admin_username,
                 "networks": [],
                 "security_groups": [],
                 "user_data": user_data,
                 "metadata": metadata,
                 "personality": personality,
                 "block_device_mapping_v2": [],
+                "clone_source_oid": source_server,
             }
 
             # set image
@@ -632,8 +821,9 @@ class ProviderVsphere(AbstractProviderHelper):
             image_attribs = json.loads(image_link.attributes)
             server_conf["imageRef"] = str(remote_image.oid)
 
-            # get admin password
-            server_conf.get("metadata", {}).update({"template_pwd": image_attribs.get("template_pwd", "")})
+            # get template password and update metadata
+            template_pwd = image_attribs.get("template_pwd", "")
+            metadata.update({"template_pwd": template_pwd})
 
             # set customization_spec_name
             server_conf["customization_spec_name"] = image_attribs.get(
@@ -716,8 +906,12 @@ class ProviderVsphere(AbstractProviderHelper):
                 server_conf["networks"].append(config)
 
             # configure boot volume
-            volume = self.get_simple_resource(zone_boot_volume)
+            logger.debug("zone_boot_volume: %s" % zone_boot_volume)
+            from beehive_resource.plugins.provider.entity.base import LocalProviderResource
+
+            volume: LocalProviderResource = self.get_simple_resource(zone_boot_volume)
             remote_volume = volume.get_physical_resource_from_container(self.cid, VsphereVolume.objdef)
+            logger.debug("remote_volume (VsphereVolume): %s" % remote_volume)
             conf = {
                 "boot_index": 0,
                 "source_type": "volume",
@@ -750,31 +944,35 @@ class ProviderVsphere(AbstractProviderHelper):
 
             # attach other volumes to server
             template_disks = server.get_template_disks()
-            for zone_other_volume in zone_other_volumes:
-                volume = self.get_simple_resource(zone_other_volume)
-                from_template = volume.get_attribs("metadata.from_template", default=False)
-                remote_volume = volume.get_physical_resource_from_container(self.cid, VsphereVolume.objdef)
-                if from_template is False:
-                    prepared_task, code = server.add_volume(volume=remote_volume.uuid, sync=True, pwd=admin_pass)
-                    self.run_sync_task(
-                        prepared_task,
-                        msg="attach volume %s to server" % zone_other_volume,
-                    )
-                elif from_template is True:
-                    # get a template disk with the same size of the remote volume
-                    for template_disk in template_disks:
-                        if template_disk["size"] == remote_volume.get_size():
-                            # ext_id = template_disk['unit_number']
-                            ext_id = template_disk["disk_object_id"]
-                            remote_volume.update_internal(ext_id=ext_id)
-                            server.add_link(
-                                "%s-%s-volume-link" % (server.oid, remote_volume.oid),
-                                "volume",
-                                remote_volume.oid,
-                                attributes={"boot": False},
-                            )
-                            template_disks.remove(template_disk)
-                self.progress("attach volume %s to server" % zone_other_volume)
+            # While cloning vsphere server this step is not needed because the clone task of vsphere does this job
+            if not is_clone:
+                for zone_other_volume in zone_other_volumes:
+                    volume = self.get_simple_resource(zone_other_volume)
+                    from_template = volume.get_attribs("metadata.from_template", default=False)
+                    remote_volume = volume.get_physical_resource_from_container(self.cid, VsphereVolume.objdef)
+                    if from_template is False:
+                        prepared_task, code = server.add_volume(
+                            volume=remote_volume.uuid, sync=True, pwd=admin_password
+                        )
+                        self.run_sync_task(
+                            prepared_task,
+                            msg="attach volume %s to server" % zone_other_volume,
+                        )
+                    elif from_template is True:
+                        # get a template disk with the same size of the remote volume
+                        for template_disk in template_disks:
+                            if template_disk["size"] == remote_volume.get_size():
+                                # ext_id = template_disk['unit_number']
+                                ext_id = template_disk["disk_object_id"]
+                                remote_volume.update_internal(ext_id=ext_id)
+                                server.add_link(
+                                    "%s-%s-volume-link" % (server.oid, remote_volume.oid),
+                                    "volume",
+                                    remote_volume.oid,
+                                    attributes={"boot": False},
+                                )
+                                template_disks.remove(template_disk)
+                    self.progress("attach volume %s to server" % zone_other_volume)
 
             return server.oid
         except Exception as ex:

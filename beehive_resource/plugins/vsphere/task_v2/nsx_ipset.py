@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 from beedrones.vsphere.client import VsphereNotFound
 from beehive.common.task_v2 import task_step
 from beehive_resource.plugins.vsphere.entity.nsx_ipset import NsxIpSet

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from typing import TypeVar
 from base64 import b64decode
@@ -122,7 +122,7 @@ class SshGatewayContainer(Orchestrator):
     def activate_for_user(self, user, fqdn, port):
         """
         activate ssh gw connection
-        :param user: e.g. abcd@domnt.csi.it
+        :param user: e.g. abcd@def.gh
         :param fqdn: destination fqdn
         :param port: port number
         :return: private key

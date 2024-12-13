@@ -1,14 +1,18 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
-import ujson as json
+from os import path
+from inspect import getfile, isclass
 from logging import getLogger
 from datetime import datetime
+import ujson as json
+from beecell.simple import import_class, jsonDumps
 from beecell.types.type_string import compat, truncate
 from beecell.types.type_date import format_date
 from beecell.types.type_id import id_gen
-from beecell.simple import import_class
+from beecell.db import QueryError, TransactionError
+from beehive.common.data import trace, operation, cache
 from beehive.common.apimanager import ApiController, ApiManagerError
 from beehive.common.task.manager import task_manager
 from beehive_resource.container import (
@@ -17,7 +21,6 @@ from beehive_resource.container import (
     ResourceContainer,
     Resource,
 )
-from beecell.db import QueryError, TransactionError
 from beehive_resource.model import (
     ResourceDbManager,
     Resource as ModelResource,
@@ -26,10 +29,6 @@ from beehive_resource.model import (
     Container as ModelContainer,
     ContainerState,
 )
-from beehive.common.data import trace, operation, cache
-from beecell.simple import jsonDumps
-from os import path
-from inspect import getfile, isclass
 
 logger = getLogger(__name__)
 
@@ -87,6 +86,24 @@ class ResourceController(ApiController):
         """ """
         timestamp = datetime.fromtimestamp(timestamp)
         return format_date(timestamp)
+
+    def check_authorization(self, objtype, objdef, objid, action):
+        """Method override to check user is SuperAdmin"""
+        try:
+            from beehive.common.audit import localAudit
+            from beehive.common.apimanager import ApiMethod
+
+            localAudit().set_objid(objid=objid, objdef=objdef, force=(objdef != ApiMethod.objdef))
+        except Exception as ex:
+            logger.error(ex)
+
+        if operation.authorize is False:
+            return True
+
+        if not self.is_admin_resource():
+            raise ApiManagerError("You are not SuperAdmin", code=403)
+
+        self.logger.debug2("Check authorization OK")
 
     #
     # count
@@ -257,7 +274,9 @@ class ResourceController(ApiController):
         :return: entity instance
         :raise ApiManagerError`:
         """
-        if kvargs.pop("cache", True) is True:
+        cache = kvargs.pop("cache", True)
+        self.logger.debug("+++++ cache: %s" % cache)
+        if cache is True:
             entity = self.manager.get_entity_with_cache(model_class, oid, *args, **kvargs)
         else:
             try:
@@ -321,7 +340,8 @@ class ResourceController(ApiController):
         *args,
         **kvargs,
     ):
-        """Get entities with pagination
+        """Method override to check user is SuperAdmin
+        Get entities with pagination
 
         :param authorize: if False disable authorization check
         :param objtype: objtype to use. Example container, resource
@@ -354,14 +374,8 @@ class ResourceController(ApiController):
             self.logger.debug("Authorization disabled for command")
         elif operation.authorize is True:
             # verify permissions
-            objs = self.can("view", objtype=objtype, definition=objdef)
-            self.logger.warn("Permission tags to apply: %s" % objs)
-
-            # create permission tags
-            for entity_def, ps in objs.items():
-                for p in ps:
-                    tags.append(self.manager.hash_from_permission(entity_def.lower(), p))
-            self.logger.warn("Permission tags to apply: %s" % tags)
+            if not self.is_admin_resource():
+                raise ApiManagerError("You are not SuperAdmin", code=403)
 
         try:
             entities, total = get_entities(
@@ -388,6 +402,7 @@ class ResourceController(ApiController):
 
                 # bypass object that does not match objdef
                 if objdef is not None and objclass.objdef != objdef:
+                    total -= 1
                     continue
 
                 obj = objclass(
@@ -919,6 +934,7 @@ class ResourceController(ApiController):
                 kvargs["uuids"] = uuids.split(",")
             if container is not None:
                 kvargs["container_id"] = self.get_container(container).oid
+
             if parent is not None:
                 parent_id = parent
                 if not isinstance(parent, int):
@@ -936,6 +952,7 @@ class ResourceController(ApiController):
                             kvargs["parent_ids"].append(self.get_simple_resource(parent_item).oid)
                     except:
                         self.logger.warning("resource %s does not exist" % parent_item)
+
             if type is not None:
                 kvargs["types"] = []
                 types = type.split(",")
@@ -1143,6 +1160,52 @@ class ResourceController(ApiController):
             **kwargs,
         )
 
+    @trace(entity="Resource", op="view")
+    def get_aggregated_resource_from_physical_resource(self, resource_id, parent_id=None):
+        """Get aggregate resource from physical. Use this method for internal query without authorization.
+
+        :param resource_id: resource id list
+        :param parent_id: parent id
+        :return: dict like {<resource_id>: [<list o linked resource ids>]}
+        """
+        entity = self.manager.get_aggregated_resource_from_physical_resource(resource_id, parent_id=parent_id)
+        if entity is None:
+            return None
+        entity_class = import_class(entity.type.objclass)
+        res = entity_class(
+            self,
+            oid=entity.id,
+            objid=entity.objid,
+            name=entity.name,
+            active=entity.active,
+            desc=entity.desc,
+            model=entity,
+        )
+        return res
+
+    @trace(entity="Resource", op="view")
+    def get_main_zone_instance(self, oid):
+        """
+        Get main availability zone instance
+
+        :param oid: id
+        :return:
+        """
+        entity = self.manager.get_main_zone_instance(oid)
+        if entity is None:
+            return None
+        entity_class = import_class(entity.type.objclass)
+        res = entity_class(
+            self,
+            oid=entity.id,
+            objid=entity.objid,
+            name=entity.name,
+            active=entity.active,
+            desc=entity.desc,
+            model=entity,
+        )
+        return res
+
     # @trace(entity='ResourceLink', op='view')
     # def get_directed_links_internal(self, resources, link_type=None, *args, **kvargs):
     #     """Get links that start from resources select from an input list.
@@ -1225,6 +1288,8 @@ class ResourceController(ApiController):
 
             return tags, total
 
+        if self.is_admin_resource():
+            kvargs["authorize"] = False
         res, total = ApiController.get_paginated_entities(self, ResourceTag, get_entities, *args, **kvargs)
         return res, total
 
@@ -1251,6 +1316,8 @@ class ResourceController(ApiController):
                 item.links = item.model.links
             return res
 
+        if self.is_admin_resource():
+            kvargs["authorize"] = False
         res, total = ApiController.get_paginated_entities(
             self, ResourceTag, get_entities, customize=customize, *args, **kvargs
         )
@@ -1331,6 +1398,8 @@ class ResourceController(ApiController):
 
             return links, total
 
+        if self.is_admin_resource():
+            kvargs["authorize"] = False
         res, total = ApiController.get_paginated_entities(self, ResourceLink, get_entities, *args, **kvargs)
         return res, total
 

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import logging
 from beehive.common.task_v2 import task_step
@@ -243,6 +243,47 @@ class GrafanaFolderTask(AbstractResourceTask):
             params,
         )
         logger.debug("+++++ add_dashboard_step - res={}".format(res))  # aaa
+        return res, params
+
+    @staticmethod
+    @task_step()
+    def delete_dashboard_step(task: AbstractResourceTask, step_id, params, *args, **kvargs):
+        """Delete server dashboard
+
+        :param task: parent celery task
+        :param str step_id: step id
+        :param dict params: step params
+        :return: True, params
+        """
+
+        def delete_dashboard_action(conn, cid, oid, ext_id, params):
+            logger.debug("delete_dashboard_action - params={}".format(params))
+
+            container: GrafanaContainer
+            container = task.get_container(cid)
+            conn_grafana = container.conn_grafana
+
+            dashboard_to_search = params["dashboard_to_search"]
+            folder_uid_to = params["folder_uid_to"]
+
+            res_folder = conn_grafana.folder.get(folder_uid_to)
+            folder_id_to = res_folder["id"]
+
+            conn_grafana.dashboard.delete_dashboard(
+                dashboard_to_search,
+                folder_id_to,
+            )
+
+        logger.debug("delete_dashboard_step - params={}".format(params))
+        res = GrafanaFolderTask.folder_action(
+            task,
+            step_id,
+            delete_dashboard_action,
+            "Delete dashboard",
+            "Error deleting dashboard",
+            params,
+        )
+        logger.debug("+++++ delete_dashboard_step - res={}".format(res))
         return res, params
 
     @staticmethod

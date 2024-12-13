@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive_resource.plugins.veeam.controller import VeeamContainer
 from beehive_resource.plugins.veeam.views.veeam_job import VeeamJobAPI

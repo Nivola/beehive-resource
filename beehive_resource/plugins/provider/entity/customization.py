@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive_resource.container import Resource
+from beehive_resource.controller import ResourceController
 from beehive_resource.plugins.provider.entity.aggregate import ComputeProviderResource
 from beehive.common.apimanager import ApiManagerError
-from beehive_resource.plugins.provider.entity.zone import AvailabilityZoneChildResource
+from beehive_resource.plugins.provider.entity.zone import AvailabilityZone, AvailabilityZoneChildResource
 from beehive_resource.plugins.provider.entity.applied_customization import (
     AppliedComputeCustomization,
 )
@@ -160,6 +161,67 @@ class ComputeCustomization(ComputeProviderResource):
 
         return kvargs
 
+    def pre_update(self, *args, **kvargs):
+        """Pre update function. This function is used in update method. Extend
+        this function to manipulate and validate update input params.
+
+        :param args: custom params
+        :param kvargs: custom params
+        :param kvargs.cid: container id
+        :param kvargs.id: resource id
+        :param kvargs.uuid: resource uuid
+        :param kvargs.objid: resource objid
+        :param kvargs.ext_id: resource remote id
+        :param kvargs.orchestrator_tag: orchestrators tag
+        :param kvargs.awx_project: remote orchestrator project reference
+        :param kvargs.awx_project.scm_type: the source control system used to store the project
+        :param kvargs.awx_project.scm_url: the location where the project is stored
+        :param kvargs.awx_project.scm_branch: specific branch to checkout
+        :return: kvargs
+        :raise ApiManagerError:
+
+        Ex.
+            {
+                ...
+                'awx_project':{
+                    'scm_type': ...
+                    'scm_url': ..,
+                    'scm_branch': ..,
+                }
+            }
+        """
+        # get zone
+        compute_zone = self.get_parent()
+        multi_avz = True
+
+        # get availability zones
+        avz_ids = ComputeProviderResource.get_active_availability_zones(compute_zone, multi_avz)
+
+        new_avz_ids = []
+        for avz_id in avz_ids:
+            self.controller: ResourceController
+            avz = self.controller.get_resource(avz_id, entity_class=AvailabilityZone)
+            site_id = avz.get_parent().oid
+            zone_customizations, tot_zone_customizations = self.get_linked_resources(
+                link_type="relation.%s" % site_id, authorize=False, run_customize=False
+            )
+            if tot_zone_customizations == 0:
+                new_avz_ids.append(avz_id)
+
+        # create task workflow
+        steps = [ComputeCustomization.task_path + "update_resource_pre_step"]
+        for availability_zone in new_avz_ids:
+            step = {
+                "step": ComputeCustomization.task_base_path + "create_zone_customization_step",
+                "args": [availability_zone],
+            }
+            steps.append(step)
+        steps.append(ComputeCustomization.task_path + "update_resource_post_step")
+        kvargs["steps"] = steps
+        kvargs["name"] = self.name
+
+        return kvargs
+
     def pre_delete(self, *args, **kvargs):
         """Pre delete function. This function is used in delete method.
 
@@ -233,8 +295,14 @@ class Customization(AvailabilityZoneChildResource):
         avz = container.get_simple_resource(avz_id)
 
         # select remote orchestrator
+        # try:
         orchestrator = avz.get_orchestrators_by_tag(orchestrator_tag, select_types=["awx"])
-
+        # except Exception as e:
+        #    controller.logger.error(str(e))
+        #    steps = []
+        #    kvargs["steps"] = steps
+        #    kvargs["sync"] = True
+        #    return kvargs
         # set container
         params = {"orchestrator": list(orchestrator.values())[0]}
         kvargs.update(params)

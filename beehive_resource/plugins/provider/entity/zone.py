@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from datetime import datetime
 from beecell.db import QueryError
@@ -19,7 +19,7 @@ from beehive_resource.plugins.provider.entity.aggregate import (
     ComputeQuotas,
 )
 from beehive_resource.plugins.provider.entity.region import Region
-from beehive_resource.plugins.provider.entity.site import Site, SiteChildResource
+from beehive_resource.plugins.provider.entity.site import OrchestratorError, Site, SiteChildResource
 from typing import List
 
 
@@ -369,6 +369,8 @@ class ComputeZone(ComputeProviderResource):
             raise ApiManagerError("Compute zone %s is already linked to site %s" % (self.oid, site.oid))
 
         orchestrator_tag = params.get("orchestrator_tag")
+        orchestrator_select_types = params.get("orchestrator_select_types")
+
         quota = params.get("quota", None)
         if quota is None:
             quota = self.get_attribs().get("quota")
@@ -385,6 +387,7 @@ class ComputeZone(ComputeProviderResource):
             site=site.oid,
             zone=self.oid,
             orchestrator_tag=orchestrator_tag,
+            orchestrator_select_types=orchestrator_select_types,
             quota=quota,
         )
         return res
@@ -574,6 +577,9 @@ class ComputeZone(ComputeProviderResource):
         vpcs, tot = self.get_resources(authorize=False, run_customize=False, type=Vpc.objdef)
         if tot == 0:
             raise ApiManagerError("no default vpc found in compute zone %s" % self.oid)
+        elif len(vpcs) > 1:
+            self.logger.error("%s vpcs found in compute zone %s" % (len(vpcs), self.oid))
+
         vpc = vpcs[0]
         self.logger.debug("get default compute zone %s vpc: %s" % (self.oid, vpc.oid))
         return vpc
@@ -869,7 +875,7 @@ class ComputeZone(ComputeProviderResource):
         self.logger.debug("Get quotas allocated: %s" % quotas)
         return quotas
 
-    def check_quotas(self, quotas):
+    def check_quotas(self, quotas, check_all=True):
         """Check quotas
 
         :param quotas: new quotas to allocate
@@ -877,7 +883,9 @@ class ComputeZone(ComputeProviderResource):
         # verify permissions
         self.verify_permisssions("use")
 
-        res = self.quotas.check_availability(self.get_quotas_allocated(), quotas)
+        res = self.quotas.check_availability(
+            allocated=self.get_quotas_allocated(), to_allocate=quotas, check_all=check_all
+        )
         self.logger.debug("Check new quotas %s: %s" % (quotas, res))
         return res
 
@@ -969,37 +977,41 @@ class ComputeZone(ComputeProviderResource):
             if hypervisor == "all" or hypervisor == "vsphere":
                 from beehive_resource.plugins.veeam.controller import VeeamContainer
 
-                veeamContainer: VeeamContainer = availabilityZone.get_veeam_container(hypervisor_tag)
+                try:
+                    veeamContainer: VeeamContainer = availabilityZone.get_veeam_container(hypervisor_tag)
 
-                # only BCK - <codice account> - <nome scelto dall'utente>
-                zone_name_slitted = self.name.split("-")
-                zone_code = zone_name_slitted[1]
-                job_name_filter = "BCK-%s-*" % zone_code
-                # job_name_filter = "BCK*" # test all
-                self.logger.debug("+++++ AAA - get_backup_jobs - job_name_filter: %s" % job_name_filter)
+                    # only BCK - <codice account> - <nome scelto dall'utente>
+                    zone_name_slitted = self.name.split("-")
+                    zone_code = zone_name_slitted[1]
+                    job_name_filter = "BCK-%s-*" % zone_code
+                    # job_name_filter = "BCK*" # test all
+                    self.logger.debug("+++++ AAA - get_backup_jobs - job_name_filter: %s" % job_name_filter)
 
-                veeam_jobs = veeamContainer.conn_veeam.job.list(job_name=job_name_filter, page_size=50)
-                veeam_jobs_data = veeam_jobs["data"]
+                    veeam_jobs = veeamContainer.conn_veeam.job.list(job_name=job_name_filter, page_size=50)
+                    veeam_jobs_data = veeam_jobs["data"]
 
-                for veeam_job in veeam_jobs_data:
-                    instances = None
-                    virtualMachines = veeam_job.get("virtualMachines")
-                    includes = dict_get(virtualMachines, "includes")
-                    if includes is not None:
-                        instances = len(includes)
+                    for veeam_job in veeam_jobs_data:
+                        instances = None
+                        virtualMachines = veeam_job.get("virtualMachines")
+                        includes = dict_get(virtualMachines, "includes")
+                        if includes is not None:
+                            instances = len(includes)
 
-                    # API jobs/state
-                    objectsCount = veeam_job.get("objectsCount")
-                    if objectsCount is not None:
-                        instances = objectsCount
+                        # API jobs/state
+                        objectsCount = veeam_job.get("objectsCount")
+                        if objectsCount is not None:
+                            instances = objectsCount
 
-                    job = self.veeam_job_to_job(veeam_job, site)
-                    job.update(
-                        {
-                            "instances": instances,
-                        }
-                    )
-                    jobs.append(job)
+                        job = self.veeam_job_to_job(veeam_job, site)
+                        job.update(
+                            {
+                                "instances": instances,
+                            }
+                        )
+                        jobs.append(job)
+                except OrchestratorError as oe:
+                    self.logger.error("+++++ error orchestrator veeam")
+                    self.logger.error(oe)  # , exc_info=True)
 
             # trilio
             if hypervisor == "all" or hypervisor == "openstack":
@@ -1007,16 +1019,20 @@ class ComputeZone(ComputeProviderResource):
                     OpenstackProject,
                 )
 
-                project: OpenstackProject = availabilityZone.get_openstack_project(hypervisor_tag)
-                workloads = project.get_backup_jobs()
-                for workload in workloads:
-                    job = self.trilio_workload_to_job(workload, site)
-                    job.update(
-                        {
-                            "instances": len(workload.get("instances")),
-                        }
-                    )
-                    jobs.append(job)
+                try:
+                    project: OpenstackProject = availabilityZone.get_openstack_project(hypervisor_tag)
+                    workloads = project.get_backup_jobs()
+                    for workload in workloads:
+                        job = self.trilio_workload_to_job(workload, site)
+                        job.update(
+                            {
+                                "instances": len(workload.get("instances")),
+                            }
+                        )
+                        jobs.append(job)
+                except OrchestratorError as oe:
+                    self.logger.error("+++++ error orchestrator openstack")
+                    self.logger.error(oe)  # , exc_info=True)
 
         return jobs
 
@@ -1977,7 +1993,8 @@ class AvailabilityZone(SiteChildResource):
         :return: {'jobid':..}, 202
         :raise ApiManagerError:
         """
-        orchestrator_idx = self.get_orchestrators_by_tag(kvargs.get("orchestrator_tag"))
+        # orchestrator_idx = self.get_orchestrators_by_tag(kvargs.get("orchestrator_tag"))
+        orchestrator_idx = self.get_hypervisors_by_tag(kvargs.get("orchestrator_tag"))
 
         steps = [
             AvailabilityZone.task_path + "availability_zone_set_quotas_step",
@@ -2036,19 +2053,20 @@ class AvailabilityZone(SiteChildResource):
         """
         quota = kvargs.get("quota")
         orchestrator_tag = kvargs.get("orchestrator_tag")
+        orchestrator_select_types = kvargs.get("orchestrator_select_types", None)
         site_id = kvargs.get("site")
 
         # get site
-        site = container.get_simple_resource(site_id)
+        site: Site = container.get_simple_resource(site_id)
 
         # verify quota
         # site.check_quotas_availability(quota)
 
         # select remote orchestrators
-        orchestrator_idx = site.get_orchestrators_by_tag(orchestrator_tag)
+        orchestrator_idx = site.get_orchestrators_by_tag(orchestrator_tag, select_types=orchestrator_select_types)
         kvargs["orchestrators"] = orchestrator_idx
 
-        params = {"attribute": {"quota": quota, "configs": {}}}
+        params = {"attribute": {"quota": quota, "configs": {"orchestrator_select_types": orchestrator_select_types}}}
         kvargs.update(params)
 
         steps = [

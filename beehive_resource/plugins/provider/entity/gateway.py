@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from datetime import datetime
 from beecell.simple import format_date, truncate, dict_set, dict_get
@@ -175,36 +175,44 @@ class ComputeGateway(ComputeProviderResource):
         :return: list of route info
             {'role':.., 'router':.., 'gateway':.., 'network':.., 'cidr':.., 'transport_gateway':..}
         """
+        from beehive_resource.plugins.provider.entity.vpc_v2 import Vpc
+        from beehive_resource.plugins.provider.entity.vpc_v2 import PrivateNetwork, SiteNetwork
+        from beehive_resource.plugins.vsphere.entity.vs_dvpg import VsphereDvpg
+
         gateways, tot = self.get_linked_resources(
             link_type_filter="relation.%", objdef=Gateway.objdef, run_customize=False
         )
 
         # get transport vpc
-        transport_vpc = self.get_transport_vpc()
+        transport_vpc: Vpc = self.get_transport_vpc()
 
         # get vpc
-        vpc = self.controller.get_simple_resource(vpc_id)
+        vpc: Vpc = self.controller.get_simple_resource(vpc_id)
 
         # routes list
         routes = []
 
+        # two gateway: relation 710, 714
         for gateway in gateways:
+            gateway: Gateway
             role = gateway.get_role()
             site = gateway.get_site()
             site_id = site.oid
 
             # get private network from vpc
-            network = vpc.get_network_by_site(site_id)
+            privateNetwork: PrivateNetwork = vpc.get_network_by_site(site_id)
 
             # get site network from transport vpc
-            transport_network = transport_vpc.get_network_by_site(site_id)
+            transport_network: SiteNetwork = transport_vpc.get_network_by_site(site_id)
 
             # get orchestrators
             host_group = self.get_hostgroup()
             orchestrators_tag = self.get_hypervisor_tag()
             orchestrators = site.get_orchestrators_by_tag(orchestrators_tag, index_field="type")
 
+            ######################
             ###### nsx edge ######
+            ######################
             orchestrator = orchestrators.get("vsphere")
             clusters = dict_get(orchestrator, "config.clusters")
             host_group_config = clusters.get(host_group, None)
@@ -214,16 +222,18 @@ class ComputeGateway(ComputeProviderResource):
             dvs = self.controller.get_simple_resource(dvs_id)
 
             # - get logical switch
-            logical_switch = network.get_vsphere_network()
+            from beehive_resource.plugins.vsphere.entity.nsx_logical_switch import NsxLogicalSwitch
+
+            logical_switch: NsxLogicalSwitch = privateNetwork.get_vsphere_network()
             # portgroup = logical_switch.ext_id
             ip_address = logical_switch.get_gateway()
             cidr = logical_switch.get_private_subnet()
 
             # - get transport portgroup
-            transport_portgroup = transport_network.get_vsphere_network(dvs=dvs.oid).oid
+            transport_portgroup: VsphereDvpg = transport_network.get_vsphere_network(dvs=dvs.oid).oid
 
             # - get edge
-            edge = gateway.get_nsx_edge()
+            edge: NsxEdge = gateway.get_nsx_edge()
             if edge is None:
                 continue
 
@@ -245,9 +255,19 @@ class ComputeGateway(ComputeProviderResource):
                 }
             )
 
+            ##############################
             ###### openstack router ######
+            ##############################
+            # - get router reference
+            router: OpenstackRouter = gateway.get_openstack_router()
+            if router is None:
+                self.logger.info("openstack_router None continue - gateway: %s" % gateway.oid)
+                continue
+
             # - get openstack network
-            ops_network = network.get_openstack_network()
+            from beehive_resource.plugins.openstack.entity.ops_network import OpenstackNetwork
+
+            ops_network: OpenstackNetwork = privateNetwork.get_openstack_network()
 
             # - get subnet and gateway
             subnet_id = ops_network.get_private_subnet_entity().oid
@@ -255,16 +275,12 @@ class ComputeGateway(ComputeProviderResource):
             cidr = ops_network.get_private_subnet()
             network_id = ops_network.oid
 
-            # - get router reference
-            router = gateway.get_openstack_router()
-            if router is None:
-                continue
-
             # - get transport network
-            transport_ops_network = transport_network.get_openstack_network().oid
+            transport_openstack_network: OpenstackNetwork = transport_network.get_openstack_network()
+            transport_ops_network_id = transport_openstack_network.oid
 
             # - get router trasport port
-            ports = [p for p in router.get_ports() if p.network.oid == transport_ops_network]
+            ports = [p for p in router.get_ports() if p.network.oid == transport_ops_network_id]
 
             if len(ports) != 1:
                 raise ApiManagerError("transport network has no port in openstack router %s" % router)
@@ -455,6 +471,7 @@ class ComputeGateway(ComputeProviderResource):
         """
         orchestrator_type = kvargs.get("type", "vsphere")
         orchestrator_tag = kvargs.get("orchestrator_tag")
+        # orchestrator_select_types = kvargs.get("orchestrator_select_types")
         host_group = kvargs.get("host_group", "default")
         compute_zone_id = kvargs.get("parent")
         flavor = kvargs.get("flavor")
@@ -476,14 +493,14 @@ class ComputeGateway(ComputeProviderResource):
         active_availability_zones = []
 
         # get primary availability zone
-        primary_site = controller.get_simple_resource(primary_zone_id, entity_class=Site)
+        primary_site: Site = controller.get_simple_resource(primary_zone_id, entity_class=Site)
         zone_id = ComputeProviderResource.get_active_availability_zone(compute_zone, primary_site)
         active_availability_zones.append(zone_id)
 
         # get secondary availability zone
         secondary_site = None
         if secondary_zone_id is not None:
-            secondary_site = controller.get_simple_resource(secondary_zone_id, entity_class=Site)
+            secondary_site: Site = controller.get_simple_resource(secondary_zone_id, entity_class=Site)
             zone_id = ComputeProviderResource.get_active_availability_zone(compute_zone, secondary_site)
             active_availability_zones.append(zone_id)
 
@@ -524,6 +541,7 @@ class ComputeGateway(ComputeProviderResource):
             "attribute": {
                 "type": orchestrator_type,
                 "orchestrator_tag": orchestrator_tag,
+                # "orchestrator_select_types": orchestrator_select_types,
                 "host_group": host_group,
                 "flavor": flavor,
                 # 'primary_ip_address': primary_ip_address,
@@ -545,6 +563,7 @@ class ComputeGateway(ComputeProviderResource):
             uplink_network_id = uplink_vpc.get_network_by_site(site_id).oid
             transport_network_id = transport_vpc.get_network_by_site(site_id).oid
             volume_flavor_id = compute_volume_flavor.get_flavor_by_site(site_id).oid
+
             if site_id == primary_site.oid:
                 role = "primary"
                 ip_address = primary_ip_address
@@ -557,6 +576,7 @@ class ComputeGateway(ComputeProviderResource):
                 role = "backup"
                 ip_address = None
                 uplink_subnet = None
+
             step = {
                 "step": ComputeGateway.task_path + "create_zone_gateway_step",
                 "args": [
@@ -570,6 +590,7 @@ class ComputeGateway(ComputeProviderResource):
                 ],
             }
             steps.append(step)
+
         steps.append(ComputeGateway.task_path + "create_resource_post_step")
         kvargs["steps"] = steps
 
@@ -755,6 +776,7 @@ class ComputeGateway(ComputeProviderResource):
 
             # add internet ruote to openstack router
             for gateway in gateways:
+                gateway: Gateway
                 if role == "default":
                     gateway_from_role = gateway
 
@@ -762,13 +784,16 @@ class ComputeGateway(ComputeProviderResource):
                 trasport_ip_address = self.__get_vsphere_transport_ip_address(gateway_from_role)
 
                 # create route
-                router = gateway.get_openstack_router()
-                static_route = [{"destination": "0.0.0.0/0", "nexthop": trasport_ip_address}]
-                router.add_routes(static_route)
+                router: OpenstackRouter = gateway.get_openstack_router()
+                if router is None:
+                    self.logger.warning("NOT add openstack router default internet route - gateway: %s" % (gateway.oid))
+                else:
+                    static_route = [{"destination": "0.0.0.0/0", "nexthop": trasport_ip_address}]
+                    router.add_routes(static_route)
 
-                # refresh cache
-                self.controller.get_resource(router.oid)
-                self.logger.debug("add openstack router %s default internet route %s" % (router.oid, static_route))
+                    # refresh cache
+                    self.controller.get_resource(router.oid)
+                    self.logger.debug("add openstack router %s default internet route %s" % (router.oid, static_route))
 
             self.logger.info("set gateway %s default internet route for role %s" % (self.oid, role))
 
@@ -799,19 +824,27 @@ class ComputeGateway(ComputeProviderResource):
 
             # add internet ruote to openstack router
             for gateway in gateways:
+                gateway: Gateway
                 if role == "default":
                     gateway_from_role = gateway
 
                 # get transport ip address to use in route
                 trasport_ip_address = self.__get_vsphere_transport_ip_address(gateway_from_role)
 
-                router = gateway.get_openstack_router()
-                static_route = [{"destination": "0.0.0.0/0", "nexthop": trasport_ip_address}]
-                router.del_routes(static_route)
+                router: OpenstackRouter = gateway.get_openstack_router()
+                if router is None:
+                    self.logger.warning(
+                        "NOT delete openstack router default internet route - gateway: %s" % (gateway.oid)
+                    )
+                else:
+                    static_route = [{"destination": "0.0.0.0/0", "nexthop": trasport_ip_address}]
+                    router.del_routes(static_route)
 
-                # refresh cache
-                self.controller.get_resource(router.oid)
-                self.logger.debug("delete openstack router %s default internet route %s" % (router.oid, static_route))
+                    # refresh cache
+                    self.controller.get_resource(router.oid)
+                    self.logger.debug(
+                        "delete openstack router %s default internet route %s" % (router.oid, static_route)
+                    )
 
             self.logger.info("unset gateway %s default internet route for role %s" % (self.oid, role))
 
@@ -1348,6 +1381,7 @@ class Gateway(AvailabilityZoneChildResource):
         controller.logger.info("Gateway - pre_create - kvargs: %s" % kvargs)
 
         orchestrator_tag = kvargs.get("orchestrator_tag")
+        # orchestrator_select_types = kvargs.get("orchestrator_select_types")
         gateway_type = kvargs.get("type")
         role = kvargs.get("role")
         # host_group = kvargs.get('host_group')
@@ -1355,11 +1389,14 @@ class Gateway(AvailabilityZoneChildResource):
         uplink_ip_address = kvargs.get("ip_address")
 
         # get availability_zone
-        availability_zone = container.get_simple_resource(kvargs.get("parent"))
+        from beehive_resource.plugins.provider.entity.zone import AvailabilityZone
+
+        availability_zone: AvailabilityZone = container.get_simple_resource(kvargs.get("parent"))
         # site_id = availability_zone.parent_id
 
         # select remote orchestrators
-        orchestrator_idx = availability_zone.get_orchestrators_by_tag(orchestrator_tag)
+        # orchestrator_idx = availability_zone.get_orchestrators_by_tag(orchestrator_tag, select_types=orchestrator_select_types)
+        orchestrator_idx = availability_zone.get_hypervisors_by_tag(orchestrator_tag)
 
         # create task workflow
         steps = [
@@ -1370,7 +1407,7 @@ class Gateway(AvailabilityZoneChildResource):
             orchestrator_type = orchestrator["type"]
             physical_role = None
             ip_address = None
-            if orchestrator_type == gateway_type:
+            if orchestrator_type == gateway_type:  # gateway_type sembra sempre "vsphere"
                 physical_role = role
                 ip_address = uplink_ip_address
                 controller.logger.info("Gateway - pre_create - physical_role: %s" % physical_role)

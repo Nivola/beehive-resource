@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from datetime import datetime
 
@@ -30,8 +30,10 @@ from beehive_resource.model import Resource as ModelResource
 from beecell.simple import jsonDumps
 
 from logging import getLogger
+from six import ensure_text
 
 from beehive_resource.util import expunge_resource
+from typing import List
 
 logger = getLogger(__name__)
 
@@ -50,6 +52,48 @@ active_container.conn = None
 
 def get_task(task_name):
     return "%s.tasks.%s" % (__name__.replace(".container", ""), task_name)
+
+
+class ApiResource(ApiObject):
+    def register_object(self, objids, desc=""):
+        """Method override to not register permissions"""
+        self.logger.debug(
+            "Resource - Register api object: %s:%s %s - desc: %s - START" % (self.objtype, self.objdef, objids, desc)
+        )
+
+        objids = [ensure_text(o) for o in objids]
+
+        # add object and permissions
+        # self.api_client.add_object(self.objtype, self.objdef, "//".join(objids), desc)
+
+        # register permission tags
+        # self.register_object_permtags(objids)
+
+        self.logger.debug("Resource - Register api object: %s:%s %s - STOP" % (self.objtype, self.objdef, objids))
+
+        objids.append("*")
+        for child in self.child_classes:
+            self.logger.debug(
+                "Resource - Register api object child - objids: %s - desc: %s - START" % (objids, child.objdesc)
+            )
+            child(self.controller, oid=None).register_object(list(objids), desc=child.objdesc)
+
+    def deregister_object(self, objids):
+        self.logger.debug("Resource - Deregister api object %s:%s %s - START" % (self.objtype, self.objdef, objids))
+
+        # deregister permission tags
+        self.deregister_object_permtags()
+
+        # remove object and permissions
+        objid = "//".join([ensure_text(o) for o in objids])
+        # leave the deletion of sysobjects for the old resources
+        self.api_client.remove_object(self.objtype, self.objdef, objid)
+
+        objids.append("*")
+        for child in self.child_classes:
+            child(self.controller, oid=None).deregister_object(list(objids))
+
+        self.logger.debug("Resource - Deregister api object %s:%s %s - STOP" % (self.objtype, self.objdef, objid))
 
 
 class ResourceContainer(ApiObject):
@@ -1668,7 +1712,8 @@ class ResourceContainer(ApiObject):
         self.logger.debug("Resource type: %s" % restype)
 
         try:
-            resources = self.manager.get_resources_by_type(type=restype, container=self.oid)
+            resourceDbManager: ResourceDbManager = self.manager
+            resources = resourceDbManager.get_resources_by_type(type=restype, container=self.oid)
         except QueryError as ex:
             self.logger.warning(ex, exc_info=False)
 
@@ -1740,53 +1785,75 @@ class ResourceContainer(ApiObject):
             self.logger.debug("------- discover died %s -------" % restype)
 
             itemidx = {i["id"]: i for i in items}
-            for r in resources:
-                if r.ext_id is None or r.ext_id == "":
+            self.logger.debug("+++++ discover_died_entities - itemidx: %s" % itemidx)
+            for resource in resources:
+                if resource.ext_id is None or resource.ext_id == "":
                     continue
 
                 # append died resources
-                if died is True and r.ext_id not in itemidx.keys():
-                    resource_class = import_class(r.type.objclass)
+                if died is True and resource.ext_id not in itemidx.keys():
+                    self.logger.debug("+++++ discover_died_entities - resource.ext_id: %s" % resource.ext_id)
+                    resource_class = import_class(resource.type.objclass)
                     obj = resource_class(
                         self.controller,
-                        oid=r.id,
-                        objid=r.objid,
-                        name=r.name,
-                        desc=r.desc,
-                        active=r.active,
-                        model=r,
+                        oid=resource.id,
+                        objid=resource.objid,
+                        name=resource.name,
+                        desc=resource.desc,
+                        active=resource.active,
+                        model=resource,
                     )
                     obj.container = self
-                    obj.ext_id = r.ext_id
+                    obj.ext_id = resource.ext_id
                     res["died"].append(obj)
-                    self.logger.debug("Resource %s does not exist anymore. It can be deleted." % r.name)
+                    self.logger.debug("Resource %s does not exist anymore. It can be deleted." % resource.name)
 
                 # append changed resources
                 elif changed is True:
-                    if r.name != itemidx[r.ext_id]["name"]:
-                        item = itemidx[r.ext_id]
-                        resource_class = import_class(r.type.objclass)
+                    if resource.name != itemidx[resource.ext_id]["name"]:
+                        item = itemidx[resource.ext_id]
+                        resource_class = import_class(resource.type.objclass)
                         obj = resource_class(
                             self.controller,
-                            oid=r.id,
-                            objid=r.objid,
+                            oid=resource.id,
+                            objid=resource.objid,
                             name=item["name"],
-                            desc=r.desc,
-                            active=r.active,
-                            model=r,
+                            desc=resource.desc,
+                            active=resource.active,
+                            model=resource,
                         )
                         obj.container = self
-                        obj.ext_id = r.ext_id
+                        obj.ext_id = resource.ext_id
                         res["changed"].append(obj)
-                        self.logger.debug("Resource %s is changed." % r.name)
+                        self.logger.debug("Resource %s is changed." % resource.name)
 
             return res
         except (ApiManagerError, Exception) as ex:
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex, code=400)
 
+    def discover_remote(self, restypes: List, ext_id=None, name=None):
+        """
+        discover only remote resources
+        """
+        self.verify_permisssions("use")
+        entities = []
+        try:
+            for restype in restypes:
+                self.logger.debug("Resource type: %s" % restype)
+                # call resource discover_new internal method
+                restype = self.manager.get_resource_types(value=restype)[0]
+                resclass = import_class(restype.objclass)
+                self.logger.debug("------- discover remote %s -------" % restype)
+                entities.extend(resclass.discover_remote(self, ext_id, name))
+                self.logger.debug("------- discover remote %s -------" % restype)
+            return entities
+        except Exception as ex:
+            self.logger.error(ex, exc_info=True)
+            raise ApiManagerError(ex, code=400)
+
     @trace(op="use")
-    def discover(self, restype, ext_id=None):
+    def discover(self, restypes: List, ext_id=None):
         """Discover remote platform entities
 
         :param restype: container resource objdef
@@ -1812,7 +1879,9 @@ class ResourceContainer(ApiObject):
 
         try:
             res = {"new": [], "died": [], "changed": []}
-            entities = self.discover_new_entities(restype, ext_id=ext_id)
+            entities = []
+            for restype in restypes:
+                entities.extend(self.discover_new_entities(restype, ext_id=ext_id))
 
             for r in entities:
                 data = {
@@ -1824,7 +1893,10 @@ class ResourceContainer(ApiObject):
                 }
                 res["new"].append(data)
 
-            entities = self.discover_died_entities(restype)
+            entities = []
+            for restype in restypes:
+                entities.extend(self.discover_died_entities(restype))
+
             for r in entities["died"]:
                 data = {
                     "resclass": "%s.%s" % (r.__class__.__module__, r.__class__.__name__),
@@ -1985,7 +2057,7 @@ class Orchestrator(ResourceContainer):
     category = "orchestrator"
 
 
-class Resource(ApiObject):
+class Resource(ApiResource):
     """Basic resource"""
 
     module = "ResourceModule"
@@ -2196,8 +2268,13 @@ class Resource(ApiObject):
         :raises ApiManagerError: if return error.
         """
         try:
-            if isinstance(value, str) and value.isdigit():
-                value = int(value)
+            if isinstance(value, str):
+                if value.isdigit():
+                    value = int(value)
+                elif value.lower() == "true":
+                    value = True
+                elif value.lower() == "false":
+                    value = False
             self.attribs = dict_set(self.attribs, key, value, separator=".")
             self.update_internal(attribute=self.attribs)
         except TransactionError as ex:
@@ -2283,8 +2360,8 @@ class Resource(ApiObject):
 
         :return: True if it is Active, False otherwise
         """
-        self.logger.warn(self.state)
-        self.logger.warn(self.active)
+        self.logger.debug("state %s" % self.state)
+        self.logger.debug("active: %s" % self.active)
         if self.state == 2 and self.active == 1:
             res = True
             self.logger.info("Resource %s is active: %s" % (self.oid, res))
@@ -2867,13 +2944,19 @@ class Resource(ApiObject):
         # verify permissions
         self.verify_permisssions("update")
 
+        active = None
         if state == "ACTIVE":
             state = ResourceState.ACTIVE
+            active = 1
         elif state == "ERROR":
             state = ResourceState.ERROR
         elif state == "DISABLED":
             state = ResourceState.DISABLED
-        self.update_internal(state=state)
+
+        if active is None:
+            self.update_internal(state=state)
+        else:
+            self.update_internal(state=state, active=active)
 
         self.logger.info("Set resource %s state to %s" % (self.oid, state))
         return True
@@ -3919,7 +4002,7 @@ class CustomResource(Resource):
     objdesc = "Custom resource"
 
 
-class ResourceTag(ApiObject):
+class ResourceTag(ApiResource):
     """Resource tag"""
 
     objtype = "resource"
@@ -3972,7 +4055,7 @@ class ResourceTag(ApiObject):
         return info
 
 
-class ResourceLink(ApiObject):
+class ResourceLink(ApiResource):
     """ """
 
     objtype = "resource"

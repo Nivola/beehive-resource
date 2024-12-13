@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
@@ -226,6 +226,13 @@ class AddSiteParamRequestSchema(UpdateProviderResourceRequestSchema):
     quota = fields.Dict(required=False, description="allocation quota", allow_none=True, missing=None)
     id = fields.String(required=True, example="12", description="Site id, uuid or name")
     orchestrator_tag = fields.String(example="default", default="default", description="Orchestrator tag")
+    orchestrator_select_types = fields.List(
+        fields.String(example="vsphere"),
+        required=False,
+        allow_none=True,
+        context="query",
+        description="orchestrator select types",
+    )
 
 
 class AddSiteRequestSchema(Schema):
@@ -250,8 +257,8 @@ class AddSite(ProviderComputeZone):
         Add site to compute zone
         Add site to compute zone
         """
-        obj = self.get_resource_reference(controller, oid)
-        return obj.add_site(data.get("availability_zone"))
+        computeZone: ComputeZone = self.get_resource_reference(controller, oid)
+        return computeZone.add_site(data.get("availability_zone"))
 
 
 class DeleteSiteParamRequestSchema(Schema):
@@ -449,7 +456,7 @@ class CheckComputeZoneQuotas(ProviderComputeZone):
         """
         compute_zone: ComputeZone = self.get_resource_reference(controller, oid)
         # fv - comment to create test vm
-        res = compute_zone.check_quotas(data.get("quotas"))
+        res = compute_zone.check_quotas(quotas=data.get("quotas"), check_all=data.get("check_all"))
         return {"quotas": data.get("quotas")}
 
 

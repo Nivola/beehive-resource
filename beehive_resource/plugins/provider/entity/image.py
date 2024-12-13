@@ -1,14 +1,17 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beecell.simple import get_value
+
+# from beedrones.cmp.client import CmpApiManagerError
+from beehive.common.apimanager import ApiManagerError
 from beehive_resource.container import Resource
 from beehive_resource.plugins.openstack.entity.ops_image import OpenstackImage
 from beehive_resource.plugins.provider.entity.aggregate import ComputeProviderResource
 from beehive_resource.plugins.provider.entity.site import Site
-from beehive_resource.plugins.provider.entity.zone import AvailabilityZoneChildResource
+from beehive_resource.plugins.provider.entity.zone import AvailabilityZoneChildResource, AvailabilityZone
 from beehive_resource.plugins.vsphere.entity.vs_server import VsphereServer
 
 
@@ -23,7 +26,6 @@ class ComputeImage(ComputeProviderResource):
 
     def __init__(self, *args, **kvargs):
         ComputeProviderResource.__init__(self, *args, **kvargs)
-
         self.availability_zones = []
 
     def info(self):
@@ -194,17 +196,28 @@ class ComputeImage(ComputeProviderResource):
         for template in kvargs.get("templates"):
             orchestrator = controller.get_container(template.pop("orchestrator"))
             template["orchestrator_id"] = orchestrator.oid
+
             site_id = controller.get_resource(template.pop("availability_zone"), entity_class=Site).oid
             template["site_id"] = site_id
             zones, tot = compute_zone.get_linked_resources(link_type="relation.%s" % site_id)
             if tot > 0:
                 template["availability_zone_id"] = zones[0].oid
+
             template_id = template["template_id"]
             if template["orchestrator_type"] == "vsphere":
-                template["template_id"] = orchestrator.get_simple_resource(template_id, entity_class=VsphereServer).oid
-                get_value(template, "template_pwd", None, exception=True)
+                # kargs = {
+                #     "active": True,
+                # }
+                template["template_id"] = orchestrator.get_simple_resource(
+                    template_id, entity_class=VsphereServer, active=True
+                ).oid
+                get_value(
+                    template, "template_pwd", None, exception=True
+                )  # forse solo per controllo che il campo esista!
+
             elif template["orchestrator_type"] == "openstack":
                 template["template_id"] = orchestrator.get_simple_resource(template_id, entity_class=OpenstackImage).oid
+
             try:
                 templates[site_id].append(template)
             except:
@@ -216,6 +229,7 @@ class ComputeImage(ComputeProviderResource):
                 "os": kvargs.get("os"),
                 "os_ver": kvargs.get("os_ver"),
                 "min_disk_size": kvargs.get("min_disk_size"),
+                "min_ram_size": kvargs.get("min_ram_size"),
             }
         }
         kvargs["attribute"] = attrib
@@ -232,6 +246,20 @@ class ComputeImage(ComputeProviderResource):
         kvargs["steps"] = ComputeProviderResource.group_create_step(steps)
 
         return kvargs
+
+    def get_template(self, orchestrator, template):
+        template_id = template["template_id"]
+        orchestrator_type = template["orchestrator_type"]
+        try:
+            if orchestrator_type == "vsphere":
+                return orchestrator.get_resource(template_id, entity_class=VsphereServer, active=True)
+            elif orchestrator_type == "openstack":
+                return orchestrator.get_resource(template_id, entity_class=OpenstackImage)
+        except:
+            availability_zone = template.get("availability_zone")
+            raise ApiManagerError(
+                f"Template {template_id} {orchestrator_type} not found in orchestrator {availability_zone}"
+            )
 
     def pre_update(self, *args, **kvargs):
         """Pre update function. This function is used in update method. Extend
@@ -274,21 +302,46 @@ class ComputeImage(ComputeProviderResource):
 
         # check template
         templates = {}
-        for template in kvargs.get("templates", []):
+        arg_templates = kvargs.get("templates", [])
+
+        for template in arg_templates:
             orchestrator = self.controller.get_container(template.pop("orchestrator"))
+            res = self.get_template(orchestrator, template)
+            template["template_id"] = res.oid
             template["orchestrator_id"] = orchestrator.oid
-            site_id = self.controller.get_resource(template.pop("availability_zone"), entity_class=Site).oid
+
+        site_to_zone = {}
+        controller = self.controller
+        compute_zone_oid = compute_zone.oid
+        templates = {}
+        for template in arg_templates:
+            site_id = controller.get_resource(template.pop("availability_zone"), entity_class=Site).oid
             template["site_id"] = site_id
-            zones, tot = compute_zone.get_linked_resources(link_type="relation.%s" % site_id, authorize=False)
-            zone_templates, tot_zone_tmpls = self.get_linked_resources(
-                link_type="relation.%s" % site_id, authorize=False, run_customize=False
-            )
-            template["availability_zone_id"] = zones[0].oid
-            template_id = template["template_id"]
-            if template["orchestrator_type"] == "vsphere":
-                template["template_id"] = orchestrator.get_resource(template_id, entity_class=VsphereServer).oid
-            elif template["orchestrator_type"] == "openstack":
-                template["template_id"] = orchestrator.get_resource(template_id, entity_class=OpenstackImage).oid
+            if site_id not in site_to_zone:
+                zones = controller.get_directed_linked_resources_internal(
+                    resources=[compute_zone_oid],
+                    link_type=f"relation.{site_id}",
+                    authorize=False,
+                    run_customize=False,
+                    entity_class=AvailabilityZone,
+                    objdef=AvailabilityZone.objdef,
+                )
+                zone_id = zones[compute_zone_oid][0].oid
+                zone_templates = controller.get_directed_linked_resources_internal(
+                    resources=[self.oid],
+                    link_type_filter=f"relation.{site_id}",
+                    authorize=False,
+                    run_customize=False,
+                    entity_class=Image,
+                    objdef=Image.objdef,
+                )
+                tot_zone_tmpls = len(zone_templates)
+                site_to_zone[site_id] = {"zone_oid": zone_id, "tot_zone_tmpls": tot_zone_tmpls}
+
+            zone_info = site_to_zone[site_id]
+            zone_oid = zone_info["zone_oid"]
+            template["availability_zone_id"] = zone_oid
+            tot_zone_tmpls = zone_info["tot_zone_tmpls"]
 
             # check template already linked
             if tot_zone_tmpls == 0:
@@ -297,7 +350,14 @@ class ComputeImage(ComputeProviderResource):
                 except:
                     templates[site_id] = [template]
 
-        self.logger.debug("Append new templates: %s" % kvargs.get("templates", []))
+        self.logger.debug("Append new templates: %s" % templates)
+        if len(templates.items()) == 0:
+            self.set_state("ACTIVE")
+            msg = f"""\
+No templates to add. All templates already linked to {self.oid}. Delete AvailabilityZone and update image. \
+Don't delete image to avoid losing links to vm {self.oid} \
+"""
+            raise Exception(msg)
 
         # create task workflow
         steps = []
@@ -314,6 +374,37 @@ class ComputeImage(ComputeProviderResource):
         kvargs["desc"] = self.desc
         kvargs["os"] = self.get_attribs(key="configs.os")
         kvargs["os_ver"] = self.get_attribs(key="configs.os_ver")
+
+        return kvargs
+
+    def pre_delete(self, *args, **kvargs):
+        """Pre delete function. This function is used in delete method.
+
+        :param args: custom params
+        :param kvargs: custom params
+        :param kvargs.cid: container id
+        :param kvargs.id: resource id
+        :param kvargs.uuid: resource uuid
+        :param kvargs.objid: resource objid
+        :param kvargs.ext_id: resource remote id
+        :param kvargs.preserve: if True preserve resource when stack is removed
+        :return: kvargs
+        :raise ApiManagerError:
+        """
+        # check related objects (Provider.ComputeZone.ComputeVolume, Provider.ComputeZone.ComputeInstance)
+        links, total = self.get_linked_resources(link_type="image")
+        if len(links) > 0:
+            raise ApiManagerError(
+                "ComputeImage %s has links to other resources (ComputeInstance, ComputeVolume) and cannot be deleted"
+                % self.oid
+            )
+
+        # get images (Provider.Region.Site.AvailabilityZone.Image)
+        image, total = self.get_linked_resources(link_type_filter="relation%")
+        childs = [e.oid for e in image]
+
+        # create task workflow
+        kvargs["steps"] = self.group_remove_step(childs)
 
         return kvargs
 

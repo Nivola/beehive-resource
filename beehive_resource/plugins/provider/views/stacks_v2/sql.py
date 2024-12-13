@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from marshmallow import validates_schema, ValidationError
 from marshmallow.validate import OneOf
@@ -146,11 +146,31 @@ class CreateStackOracleParamsRequestSchema(Schema):
 
 class CreateStackPostgresqlParamsRequestSchema(Schema):
     geo_extension = fields.Bool(
+        required=False, example=False, missing=True, allow_none=True, description="If True enable geographic extension"
+    )
+    db_name = fields.String(required=False, example="mydatabase", allow_none=True, description="Database name")
+    encoding = fields.String(
+        default="UTF-8", missing="UTF-8", example="UTF-8", allow_none=True, description="Database Encoding"
+    )
+    lc_collate = fields.String(
+        default="en_US.UTF-8", missing="en_US.UTF-8", example="en_US.UTF-8", description="Database Collate"
+    )
+    lc_ctype = fields.String(
         required=False,
-        example=False,
-        missing=True,
-        allow_none=True,
-        description="If True enable geographic extension",
+        default="en_US.UTF-8",
+        missing="en_US.UTF-8",
+        example="en_US.UTF-8",
+        description="Database Ctype",
+    )
+    role_name = fields.String(required=False, missing=None, example="myuser", allow_none=True, description="Role name")
+    password = fields.String(
+        required=False, missing=None, example="mypassword", allow_none=True, description="Role password"
+    )
+    schema_name = fields.String(
+        required=False, missing=None, example="myschema", allow_none=True, description="Schema name"
+    )
+    extensions = fields.String(
+        default="", missing="", example="postgis", description="comma separeted list of extensions"
     )
 
 
@@ -202,7 +222,7 @@ class CreateStackParamRequestSchema(CreateProviderResourceRequestSchema):
     version = fields.String(required=False, example="5.7", description="Database engine version")
     engine = fields.String(
         required=False,
-        validate=OneOf(["mysql", "postgresql", "oracle", "sqlserver"]),
+        validate=OneOf(["mysql", "postgresql", "oracle", "sqlserver", "mariadb"]),
         example="mysql",
         description="Database engine",
     )

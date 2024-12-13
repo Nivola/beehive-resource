@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from logging import getLogger
 from beehive.common.task_v2 import task_step, run_sync_task
@@ -105,6 +105,8 @@ class RuleTask(AbstractProviderResourceTask):
             "source": source,
             "destination": destination,
             "service": params.get("service"),
+            "reserved": params.get("reserved"),
+            "rule_orchestrator_types": params.get("rule_orchestrator_types"),
         }
         prepared_task, code = provider.resource_factory(Rule, **rule_params)
         group_id = prepared_task["uuid"]
@@ -171,11 +173,18 @@ class RuleTask(AbstractProviderResourceTask):
         destination = params.get("destination")
         service = params.get("service")
         zone_id = params.get("parent")
+        reserved = params.get("reserved")
+        rule_orchestrator_types = params.get("rule_orchestrator_types")
 
         resource = task.get_resource(oid)
         zone = task.get_resource(zone_id)
         task.progress(step_id, msg="Get rule %s" % oid)
 
-        helper = task.get_orchestrator(orchestrator.get("type"), task, step_id, orchestrator, resource)
-        helper.create_rule(zone, source, destination, service)
+        orchestrator_type = orchestrator.get("type")
+        helper = task.get_orchestrator(orchestrator_type, task, step_id, orchestrator, resource)
+        if reserved:
+            if rule_orchestrator_types is not None and orchestrator_type in rule_orchestrator_types:
+                helper.create_rule(zone, source, destination, service, reserved)
+        else:
+            helper.create_rule(zone, source, destination, service, reserved)
         return True, params

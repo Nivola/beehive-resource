@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import logging
 from beecell.simple import id_gen
@@ -316,6 +316,39 @@ class GrafanaFolder(GrafanaResource):
         steps = ["beehive_resource.plugins.grafana.task_v2.grafana_folder.GrafanaFolderTask.add_dashboard_step"]
         res = self.action("add_dashboard", steps, log="Add dashboard", check=check, **kvargs)
         logger.debug("+++++ add_dashboard - res {}".format(res))  # aaa
+        return res, "called"
+
+    @trace(op="update")
+    def delete_dashboard(
+        self,
+        dashboard_to_search,
+        folder_uid_to,
+        *args,
+        **kvargs,
+    ):
+        """Delete dashboard
+
+        :param dashboard: dashboard name
+        :return: {'taskid':..}, 202
+        :raise ApiManagerError:
+        """
+
+        def check(*args, **kvargs):
+            # add check dashboard exists
+            return kvargs
+
+        kvargs.update(
+            {
+                "dashboard_to_search": dashboard_to_search,
+                "folder_uid_to": folder_uid_to,
+                "sync": True,
+            }
+        )
+        logger.debug("delete_dashboard - after update kvargs {}".format(kvargs))
+
+        steps = ["beehive_resource.plugins.grafana.task_v2.grafana_folder.GrafanaFolderTask.delete_dashboard_step"]
+        res = self.action("delete_dashboard", steps, log="Delete dashboard", check=check, **kvargs)
+        logger.debug("+++++ delete_dashboard - res {}".format(res))
         return res, "called"
 
     def get_permission(self):

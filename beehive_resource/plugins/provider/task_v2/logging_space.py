@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from copy import deepcopy
 from beecell.simple import id_gen
@@ -175,11 +175,17 @@ class LoggingSpaceTask(AbstractProviderResourceTask):
         except:
             logger.error("create_elk_space_step - norescreate: %s" % norescreate)
             if norescreate is not None and norescreate == True:
-                logger.error("create_elk_space_step - space NON trovato - name: %s" % elk_space_name)
-                logger.error("create_elk_space_step - link non creato - LoggingSpace - oid: %s" % oid)
-                raise Exception("space NON trovato - name: %s" % elk_space_name)
+                logger.error(
+                    "create_elk_space_step - space NOT found - name: %s - elk_container: %s"
+                    % (elk_space_name, elk_container.oid)
+                )
+                logger.error("create_elk_space_step - LoggingSpace - oid: %s" % oid)
+                raise Exception("space NOT found - name: %s - elk_container: %s" % (elk_space_name, elk_container.oid))
             else:
-                logger.debug("create_elk_space_step - space NON trovato - name: %s" % elk_space_name)
+                logger.debug(
+                    "create_elk_space_step - space NOT found - name: %s - elk_container: %s"
+                    % (elk_space_name, elk_container.oid)
+                )
                 # risorsa non trovata -> la creo
                 # create elk_space
                 # name = '%s-%s-%s' % (name, orchestrator['id'], id_gen())

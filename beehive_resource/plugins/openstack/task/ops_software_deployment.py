@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import ujson as json
 from celery.utils.log import get_task_logger
@@ -62,7 +62,7 @@ def create_swift_items(self, options):
     create swift container
     create swift key
     create swift container object
-    create swift temp URL    
+    create swift temp URL
     """
 
     return True
@@ -153,7 +153,7 @@ def check_swift_object(self, options):
         "deploy_stdout": "",
         "deploy_stderr": "+ mysql -u root '--password=nnn' -e 'DROP USER IF EXISTS '\\''prova'\\''@'\\''%'\\''; DROP DATABASE IF EXISTS prova;'\nmysql: [Warning] Using a password on the command line interface can be insecure.\n",
         "deploy_status_code": 0
-      },    
+      },
 
     """
 

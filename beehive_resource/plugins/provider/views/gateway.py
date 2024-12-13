@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 from marshmallow.validate import OneOf
 
 from beehive_resource.plugins.provider.entity.gateway import ComputeGateway
@@ -82,6 +82,13 @@ class GetGateway(ProviderGateway):
 
 class CreateGatewayParamRequestSchema(CreateProviderResourceRequestSchema):
     compute_zone = fields.String(required=True, example="1", description="parent compute zone id")
+    # orchestrator_select_types = fields.List(
+    #     fields.String(example="vsphere"),
+    #     required=False,
+    #     allow_none=True,
+    #     context="query",
+    #     description="orchestrator select types",
+    # )
     uplink_vpc = fields.String(required=True, example="1", description="uplink vpc")
     transport_vpc = fields.String(required=True, example="1", description="transport vpc")
     primary_zone = fields.String(required=True, example="1", description="primary zone")
@@ -223,7 +230,7 @@ class GetGatewayCredentials(ProviderGateway):
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetGatewayResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
-        compute_gateway = self.get_resource_reference(controller, oid)
+        compute_gateway: ComputeGateway = self.get_resource_reference(controller, oid)
         res = compute_gateway.get_credentials(**data)
         return {"credentials": res}
 
@@ -250,7 +257,7 @@ class AddGatewayVpc(ProviderGateway):
     )
 
     def post(self, controller, data, oid, *args, **kwargs):
-        compute_gateway = self.get_resource_reference(controller, oid)
+        compute_gateway: ComputeGateway = self.get_resource_reference(controller, oid)
         res = compute_gateway.add_internal_vpc(**data)
         return res
 
@@ -277,7 +284,7 @@ class DelGatewayVpc(ProviderGateway):
     )
 
     def delete(self, controller, data, oid, *args, **kwargs):
-        compute_gateway = self.get_resource_reference(controller, oid)
+        compute_gateway: ComputeGateway = self.get_resource_reference(controller, oid)
         res = compute_gateway.del_internal_vpc(**data)
         return res
 
@@ -310,7 +317,7 @@ class SetGatewayDefaultRoute(ProviderGateway):
     )
 
     def put(self, controller, data, oid, *args, **kwargs):
-        compute_gateway = self.get_resource_reference(controller, oid)
+        compute_gateway: ComputeGateway = self.get_resource_reference(controller, oid)
         res = compute_gateway.set_default_route(**data)
         return res
 
@@ -356,7 +363,7 @@ class AddGatewayNatRule(ProviderGateway):
     )
 
     def post(self, controller, data, oid, *args, **kwargs):
-        compute_gateway = self.get_resource_reference(controller, oid)
+        compute_gateway: ComputeGateway = self.get_resource_reference(controller, oid)
         res = compute_gateway.add_nat_rule_action(**data.get("nat_rule"))
         return res
 
@@ -400,7 +407,7 @@ class DelGatewayNatRule(ProviderGateway):
     )
 
     def delete(self, controller, data, oid, *args, **kwargs):
-        compute_gateway = self.get_resource_reference(controller, oid)
+        compute_gateway: ComputeGateway = self.get_resource_reference(controller, oid)
         res = compute_gateway.del_nat_rule_action(**data.get("nat_rule"))
         return res
 
@@ -427,7 +434,7 @@ class GetGatewayNatRule(ProviderGateway):
     )
 
     def get(self, controller, data, oid, *args, **kwargs):
-        compute_gateway = self.get_resource_reference(controller, oid)
+        compute_gateway: ComputeGateway = self.get_resource_reference(controller, oid)
         res = compute_gateway.get_nat_rules()
         return {"nat_rules": res}
 
@@ -504,7 +511,7 @@ class AddGatewayFirewallRule(ProviderGateway):
     )
 
     def post(self, controller, data, oid, *args, **kwargs):
-        compute_gateway = self.get_resource_reference(controller, oid)
+        compute_gateway: ComputeGateway = self.get_resource_reference(controller, oid)
         res = compute_gateway.add_firewall_rule_action(**data.get("firewall_rule"))
         return res
 
@@ -579,7 +586,7 @@ class DelGatewayFirewallRule(ProviderGateway):
     )
 
     def delete(self, controller, data, oid, *args, **kwargs):
-        compute_gateway = self.get_resource_reference(controller, oid)
+        compute_gateway: ComputeGateway = self.get_resource_reference(controller, oid)
         res = compute_gateway.del_firewall_rule_action(**data.get("firewall_rule"))
         return res
 
@@ -611,7 +618,7 @@ class GetGatewayFirewallRule(ProviderGateway):
     )
 
     def get(self, controller, data, oid, *args, **kwargs):
-        compute_gateway = self.get_resource_reference(controller, oid)
+        compute_gateway: ComputeGateway = self.get_resource_reference(controller, oid)
         res = compute_gateway.get_firewall_rules()
         return {"firewall_rules": res}
 

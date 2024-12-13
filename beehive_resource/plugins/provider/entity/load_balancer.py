@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from copy import deepcopy
 from beecell.types.type_dict import dict_get, dict_set
@@ -17,7 +17,7 @@ from beehive_resource.plugins.provider.entity.zone import AvailabilityZoneChildR
 from beehive_resource.plugins.provider.entity.instance import ComputeInstance, Instance
 from beehive_resource.plugins.vsphere.entity.vs_server import VsphereServer
 from beehive_resource.plugins.vsphere.entity.nsx_ipset import NsxIpSet
-from beehive_resource.plugins.provider.entity.vpc_v2 import Vpc
+from beehive_resource.plugins.provider.entity.vpc_v2 import Vpc, SiteNetwork
 
 from logging import getLogger
 
@@ -228,6 +228,10 @@ class ComputeLoadBalancer(ComputeProviderResource):
         # get availability zone
         main_availability_zone = ComputeProviderResource.get_active_availability_zone(compute_zone, site)
 
+        # get site network
+        site_networks, total = controller.get_resources(name=site_network_name, type=SiteNetwork.objdef)
+        site_network_id = site_networks[0].oid
+
         entity_class = ComputeLoadBalancer.__target_type_mapping(target_type)
         for target in targets:
             # get compute resource
@@ -286,7 +290,7 @@ class ComputeLoadBalancer(ComputeProviderResource):
         logger.info("Network appliance %s uplink vnic primary ip: %s" % (net_appl.uuid, primary_ip))
 
         # look for an unallocated ip address to reserve for load balancer
-        reserved_ip = helper.reserve_ip_address(site.oid, site_network_name, gateway_uuid, static_ip)
+        reserved_ip = helper.reserve_ip_address(site.oid, site_network_id, gateway_uuid, static_ip)
         logger.info("Reserved ip address for load balancer frontend: %s" % reserved_ip)
         kvargs["lb_configs"].update({"vip": reserved_ip})
 

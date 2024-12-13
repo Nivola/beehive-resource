@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from datetime import datetime
 
@@ -9,6 +9,7 @@ from beecell.simple import truncate, format_date, id_gen
 from beehive.common.apiclient import BeehiveApiClientError
 from beehive.common.apimanager import ApiManagerError
 from beehive.common.data import trace
+from beehive.common import DNS_TTL
 
 from beehive_resource.plugins.dns.controller import DnsZone, DnsRecordA
 from beehive_resource.plugins.openstack.entity.ops_heat import OpenstackHeatStack
@@ -651,7 +652,7 @@ class ComputeStack(ComputeProviderResource):
         return res
 
     @trace(op="update")
-    def set_dns_recorda(self, force=True, ttl=30):
+    def set_dns_recorda(self, force=True, ttl=DNS_TTL):
         """Set compute instance dns recorda.
 
         :param force: If True force registration of record in dns

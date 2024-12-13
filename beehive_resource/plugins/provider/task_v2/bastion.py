@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from logging import getLogger
 from time import sleep
@@ -54,7 +54,7 @@ class ComputeBastionTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def create_bastion_security_group_step(task, step_id, params, *args, **kvargs):
+    def create_bastion_security_group_step(task, step_id, params: dict, *args, **kvargs):
         """Create bastion security group
 
         :param task: parent celery task
@@ -67,6 +67,8 @@ class ComputeBastionTask(AbstractProviderResourceTask):
         name = params.get("name")
         compute_zone_id = params.get("parent")
         acls = params.get("acl", [])
+        orchestrator_tag = params.get("orchestrator_tag", "default")
+        # orchestrator_select_types = params.get("orchestrator_select_types", None)
 
         provider = task.get_container(cid)
         compute_zone = task.get_simple_resource(compute_zone_id)
@@ -81,6 +83,8 @@ class ComputeBastionTask(AbstractProviderResourceTask):
             "desc": "Availability Zone volume %s" % params.get("desc"),
             "compute_zone": params.get("parent"),
             "sync": True,
+            "orchestrator_tag": orchestrator_tag,
+            # "orchestrator_select_types": orchestrator_select_types,
         }
         prepared_task, code = provider.resource_factory(SecurityGroup, has_quotas=False, **sg_params)
         sg_id = prepared_task["uuid"]
@@ -105,6 +109,8 @@ class ComputeBastionTask(AbstractProviderResourceTask):
                 "service": {"protocol": "tcp", "port": "22"},
                 "reserved": True,
                 "sync": True,
+                "orchestrator_tag": orchestrator_tag,
+                # "orchestrator_select_types": orchestrator_select_types,
             }
             prepared_task, code = provider.resource_factory(ComputeRule, has_quotas=False, **rule_params)
             index += 1
@@ -302,19 +308,20 @@ class ComputeBastionTask(AbstractProviderResourceTask):
         oid = params.get("id")
         cid = params.get("cid")
 
-        resource = task.get_resource(oid)
+        resource: ComputeBastion = task.get_resource(oid)
         provider = task.get_container(cid)
         task.progress(step_id, msg="get resource %s" % oid)
 
         sg_bastion = resource.get_bastion_security_group()
-        rules = sg_bastion.get_rules()
+        if sg_bastion is not None:
+            rules = sg_bastion.get_rules()
 
-        # remove rules
-        for rule in rules:
-            rule.set_container(provider)
-            prepared_task, code = rule.delete(sync=True)
-            run_sync_task(prepared_task, task, step_id)
-            task.progress(step_id, msg="remove bastion security group rule %s" % rule.oid)
+            # remove rules
+            for rule in rules:
+                rule.set_container(provider)
+                prepared_task, code = rule.delete(sync=True)
+                run_sync_task(prepared_task, task, step_id)
+                task.progress(step_id, msg="remove bastion security group rule %s" % rule.oid)
 
         # remove bastion security groups link
         links, total = resource.get_links(type="security-group", size=-1)
@@ -322,11 +329,12 @@ class ComputeBastionTask(AbstractProviderResourceTask):
             link.expunge()
             task.progress(step_id, msg="remove bastion security group link %s" % link.oid)
 
-        # remove security group
-        sg_bastion.set_container(provider)
-        prepared_task, code = sg_bastion.delete(sync=True)
-        run_sync_task(prepared_task, task, step_id)
-        task.progress(step_id, msg="remove bastion security group %s" % sg_bastion.oid)
+        if sg_bastion is not None:
+            # remove security group
+            sg_bastion.set_container(provider)
+            prepared_task, code = sg_bastion.delete(sync=True)
+            run_sync_task(prepared_task, task, step_id)
+            task.progress(step_id, msg="remove bastion security group %s" % sg_bastion.oid)
 
         return oid, params
 
@@ -343,7 +351,7 @@ class ComputeBastionTask(AbstractProviderResourceTask):
         cid = params.get("cid")
         acls = params.get("acl", [])
 
-        resource = task.get_simple_resource(oid)
+        resource: ComputeBastion = task.get_simple_resource(oid)
         provider = task.get_container(cid)
         compute_zone = resource.get_parent()
         compute_zone.set_container(provider)
@@ -355,22 +363,28 @@ class ComputeBastionTask(AbstractProviderResourceTask):
         nat_ip_address = nat_data.get("ip_address")
         nat_port = nat_data.get("port")
 
-        # add nat rule
-        gw.del_nat_rule(
-            action="dnat",
-            original_address=nat_ip_address,
-            translated_address=resource.get_ip_address(),
-            original_port=nat_port,
-            translated_port=22,
-            protocol="tcp",
-            vnic=0,
-            role="default",
-        )
-        task.progress(step_id, msg="delete nat rule for bastion")
+        # delete nat rule
+        translated_address = resource.get_ip_address()
+        if translated_address is None:
+            task.progress(step_id, msg="skip delete nat rule for bastion - translated_address None")
+        else:
+            task.progress(step_id, msg="deleting nat rule for bastion - translated_address: %s" % translated_address)
+            gw.del_nat_rule(
+                action="dnat",
+                original_address=nat_ip_address,
+                translated_address=translated_address,
+                original_port=nat_port,
+                translated_port=22,
+                protocol="tcp",
+                vnic=0,
+                role="default",
+            )
+            task.progress(step_id, msg="delete nat rule for bastion")
 
-        # add firewall rule
+        # delete firewall rule
         for acl in acls:
             source = "ip:%s" % acl.get("subnet")
+            task.progress(step_id, msg="deleting firewall rule for bastion from %s" % source)
             gw.del_firewall_rule(
                 action="accept",
                 enabled=True,

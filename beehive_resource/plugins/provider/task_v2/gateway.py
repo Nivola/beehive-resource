@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from ipaddress import IPv4Network, ip_network
 from logging import getLogger
@@ -174,6 +174,7 @@ class GatewayTask(AbstractProviderResourceTask):
             "flavor": params.get("flavor"),
             "volume_flavor": volume_flavor_id,
             "orchestrator_tag": params.get("orchestrator_tag"),
+            # "orchestrator_select_types": params.get("orchestrator_select_types"),
             "type": params.get("type"),
             "ip_address": ip_address,
             "attribute": {"role": role},
@@ -183,7 +184,10 @@ class GatewayTask(AbstractProviderResourceTask):
 
         # link gateway to compute gateway
         task.get_session(reopen=True)
-        compute_gateway = task.get_simple_resource(oid)
+
+        from beehive_resource.plugins.provider.entity.gateway import ComputeGateway
+
+        compute_gateway: ComputeGateway = task.get_simple_resource(oid)
         compute_gateway.add_link(
             "%s-gateway-link" % gateway_id,
             "relation.%s" % site_id,
@@ -418,7 +422,9 @@ class GatewayTask(AbstractProviderResourceTask):
         oid = params.get("id")
         vpc_id = params.get("vpc")
 
-        compute_gateway = task.get_simple_resource(oid)
+        from beehive_resource.plugins.provider.entity.gateway import ComputeGateway
+
+        compute_gateway: ComputeGateway = task.get_simple_resource(oid)
         task.progress(step_id, msg="get compute_gateway %s" % oid)
 
         # get vpc cidr
@@ -437,7 +443,7 @@ class GatewayTask(AbstractProviderResourceTask):
             network = route["network"]
 
             if isinstance(router, NsxEdge):
-                # create edge vnic
+                # create edge vnic (Virtual Network Interface Card)
                 index = router.get_vnic_available_index()
                 vnic_type = "Internal"
                 router.add_vnic(index, vnic_type, network, gateway)
@@ -448,9 +454,9 @@ class GatewayTask(AbstractProviderResourceTask):
 
                 # create all the routes
                 # ex.
-                # per 192.168.201.0/24 via 192.168.96.3
+                # per 192.168.201.0/24 via 192.168.96.3     # router openstack
                 # per 192.168.202.0/24 via 192.168.96.4
-                # per 192.168.203.0/24 via 192.168.96.5
+                # per 192.168.203.0/24 via 192.168.96.5     # router openstack
                 static_routes = []
                 for route1 in routes:
                     router1 = route1["router"]
@@ -561,7 +567,9 @@ class GatewayTask(AbstractProviderResourceTask):
         oid = params.get("id")
         vpc_id = params.get("vpc")
 
-        compute_gateway = task.get_simple_resource(oid)
+        from beehive_resource.plugins.provider.entity.gateway import ComputeGateway
+
+        compute_gateway: ComputeGateway = task.get_simple_resource(oid)
         task.progress(step_id, msg="get compute_gateway %s" % oid)
 
         # get vpc cidr
@@ -690,7 +698,9 @@ class GatewayTask(AbstractProviderResourceTask):
         oid = params.get("id")
         role = params.get("role")
 
-        compute_gateway = task.get_simple_resource(oid)
+        from beehive_resource.plugins.provider.entity.gateway import ComputeGateway
+
+        compute_gateway: ComputeGateway = task.get_simple_resource(oid)
         task.progress(step_id, msg="get compute_gateway %s" % oid)
 
         compute_gateway.unset_default_internet_route(role=compute_gateway.get_default_role())
@@ -742,7 +752,9 @@ class GatewayTask(AbstractProviderResourceTask):
         dest = params.get("dest")
         appl = params.get("appl")
 
-        compute_gateway = task.get_simple_resource(oid)
+        from beehive_resource.plugins.provider.entity.gateway import ComputeGateway
+
+        compute_gateway: ComputeGateway = task.get_simple_resource(oid)
         task.progress(step_id, msg="get compute_gateway %s" % oid)
 
         compute_gateway.add_firewall_rule(
@@ -777,7 +789,9 @@ class GatewayTask(AbstractProviderResourceTask):
         dest = params.get("dest")
         appl = params.get("appl")
 
-        compute_gateway = task.get_simple_resource(oid)
+        from beehive_resource.plugins.provider.entity.gateway import ComputeGateway
+
+        compute_gateway: ComputeGateway = task.get_simple_resource(oid)
         task.progress(step_id, msg="get compute_gateway %s" % oid)
 
         compute_gateway.del_firewall_rule(
@@ -814,7 +828,9 @@ class GatewayTask(AbstractProviderResourceTask):
         protocol = params.get("protocol")
         vnic = params.get("vnic")
 
-        compute_gateway = task.get_simple_resource(oid)
+        from beehive_resource.plugins.provider.entity.gateway import ComputeGateway
+
+        compute_gateway: ComputeGateway = task.get_simple_resource(oid)
         task.progress(step_id, msg="get compute_gateway %s" % oid)
 
         compute_gateway.add_nat_rule(
@@ -853,7 +869,9 @@ class GatewayTask(AbstractProviderResourceTask):
         protocol = params.get("protocol")
         vnic = params.get("vnic")
 
-        compute_gateway = task.get_simple_resource(oid)
+        from beehive_resource.plugins.provider.entity.gateway import ComputeGateway
+
+        compute_gateway: ComputeGateway = task.get_simple_resource(oid)
         task.progress(step_id, msg="get compute_gateway %s" % oid)
 
         compute_gateway.del_nat_rule(

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive_resource.plugins.provider.entity.security_group import SecurityGroup
 from beehive_resource.plugins.provider.entity.vpc import Vpc
@@ -106,6 +106,13 @@ class GetSecurityGroup(ProviderSecurityGroup):
 
 class CreateSecurityGroupParamRequestSchema(CreateProviderResourceRequestSchema):
     vpc = fields.String(required=True, example="test", description="id of the parent vpc")
+    # orchestrator_select_types = fields.List(
+    #     fields.String(example="vsphere"),
+    #     required=False,
+    #     allow_none=True,
+    #     context="query",
+    #     description="orchestrator select types",
+    # )
 
 
 class CreateSecurityGroupRequestSchema(Schema):
@@ -337,7 +344,7 @@ class CreateSecurityGroupZabbixRule(ProviderSecurityGroup):
 
     def post(self, controller, data, oid, *args, **kwargs):
         availability_zone = data.get("availability_zone")
-        resource = controller.get_resource(oid)
+        resource: SecurityGroup = controller.get_resource(oid)
         res = resource.create_zabbix_proxy_rule(availability_zone)
         return res
 

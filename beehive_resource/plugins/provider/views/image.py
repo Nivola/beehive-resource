@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
@@ -152,6 +152,12 @@ class ImportImageParamRequestSchema(CreateProviderResourceRequestSchema):
         example=20,
         missing=20,
         description="Minimum disk size required to run this image",
+    )
+    min_ram_size = fields.Integer(
+        required=False,
+        example=2,
+        missing=2,
+        description="Minimum ram size required to run this image",
     )
 
 

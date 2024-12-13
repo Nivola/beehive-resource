@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from base64 import b64decode
 from datetime import datetime
@@ -161,7 +161,9 @@ class ComputeBastion(ComputeInstance):
         acl = kvargs.get("acl", [])
 
         # get compute zone
-        compute_zone = container.get_simple_resource(compute_zone_id)
+        from beehive_resource.plugins.provider.entity.zone import ComputeZone
+
+        compute_zone: ComputeZone = container.get_simple_resource(compute_zone_id)
         compute_zone.check_active()
         compute_zone.set_container(container)
         site = container.get_resource(site_id)
@@ -212,7 +214,9 @@ class ComputeBastion(ComputeInstance):
         ]
 
         # get networks
-        vpc = compute_zone.get_default_vpc()
+        from beehive_resource.plugins.provider.entity.vpc_v2 import Vpc
+
+        vpc: Vpc = compute_zone.get_default_vpc()
         vpc_net = vpc.get_network_by_site(site.oid)
         dns_search = vpc_net.get_attribs(key="configs.dns_search", default="nivolalocal")
 
@@ -247,6 +251,7 @@ class ComputeBastion(ComputeInstance):
 
         # get orchestrator tag
         orchestrator_tag = kvargs.get("orchestrator_tag", "default")
+        # orchestrator_select_types = kvargs.get("orchestrator_select_types", None)
 
         # get nat ipaddress and port
         gw = compute_zone.get_default_gateway()
@@ -258,6 +263,7 @@ class ComputeBastion(ComputeInstance):
             "hostname": hostname,
             "dns_search": dns_search,
             "orchestrator_tag": orchestrator_tag,
+            # "orchestrator_select_types": orchestrator_select_types,
             "compute_zone": compute_zone.oid,
             "flavor": flavor.oid,
             "networks": networks,
@@ -274,6 +280,7 @@ class ComputeBastion(ComputeInstance):
             "attribute": {
                 "type": orchestrator_type,
                 "orchestrator_tag": orchestrator_tag,
+                # "orchestrator_select_types": orchestrator_select_types,
                 "availability_zone": site.oid,
                 "host_group": host_group,
                 "fqdn": fqdn,
@@ -416,6 +423,7 @@ class ComputeBastion(ComputeInstance):
 
     def get_bastion_security_group(self):
         """Get bastion security group"""
+        sg = None
         sg_name = "SG-%s" % self.name
         # parent=self.vpcs[0].oid,
         sgs, tot = self.container.get_resources(
@@ -425,10 +433,12 @@ class ComputeBastion(ComputeInstance):
             type=SecurityGroup.objdef,
         )
         if tot == 0:
-            raise ApiManagerError("no bastion security group found in compute zone %s" % self.parent_id)
+            # raise ApiManagerError("no bastion security group found in compute zone %s" % self.parent_id)
+            self.logger.warning("no bastion security group found %s in compute zone %s" % (sg_name, self.parent_id))
+        else:
+            sg = sgs[0]
+            self.logger.debug("get bastion compute zone %s security group: %s" % (self.parent_id, sg.oid))
 
-        sg = sgs[0]
-        self.logger.debug("get bastion compute zone %s security group: %s" % (self.parent_id, sg.oid))
         return sg
 
     #
@@ -547,13 +557,17 @@ class ComputeBastion(ComputeInstance):
         orchestrator_tag = "tenant"
         orchestrators = site.get_orchestrators_by_tag(orchestrator_tag, select_types=["zabbix"])
         orchestrator = next(iter(orchestrators.keys()))
-        zabbix_container = self.controller.get_container(orchestrator, connect=False)
-        zabbix_server = zabbix_container.get_ip_address()
+
+        from beehive_resource.plugins.zabbix.controller import ZabbixContainer
+
+        zabbix_container: ZabbixContainer = self.controller.get_container(orchestrator, connect=False)
+        # zabbix_server = zabbix_container.get_ip_address()
         conn_params = zabbix_container.conn_params["api"]
         zbx_srv_uri = conn_params.get("uri")
         zbx_srv_usr = conn_params.get("user")
         pwd = conn_params.get("pwd")
         zbx_srv_pwd = zabbix_container.decrypt_data(pwd).decode("utf-8")
+        zbx_srv_ip = zabbix_container.get_ip_address(zbx_srv_uri)
 
         zabbix_pwd = random_password(length=20)
         self.set_configs(key="zabbix_proxy", value={"user": "zabbix", "pwd": zabbix_pwd})
@@ -572,9 +586,10 @@ class ComputeBastion(ComputeInstance):
                 "p_proxy_server": "",
                 "p_ip_repository": "",
                 "p_no_proxy": "localhost,10.0.0.0/8",
-                "p_zabbix_server": zabbix_server,
                 "p_zabbix_db_user_name": "zabbix",
                 "p_zabbix_db_user_pwd": zabbix_pwd,
+                # "p_zabbix_server_ip": zbx_srv_ip,
+                "p_zabbix_server": zbx_srv_ip,
                 "p_zabbix_server_uri": zbx_srv_uri,
                 "p_zabbix_server_username": zbx_srv_usr,
                 "p_zabbix_server_password": zbx_srv_pwd,

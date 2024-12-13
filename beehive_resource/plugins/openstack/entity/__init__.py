@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import logging
 from beedrones.trilio.client import TrilioManager
@@ -36,12 +36,12 @@ class OpenstackResource(AsyncResource):
             return None
 
     '''def get_state(self):
-        """Get resoruce state. 
-        
+        """Get resoruce state.
+
         **Return:**
-        
+
             State can be:
-        
+
             * PENDING = 0
             * BUILDING =1
             * ACTIVE = 2
@@ -209,7 +209,7 @@ class OpenstackResource(AsyncResource):
     @cache("openstack.volume.get", ttl=1800)
     def get_remote_volume(controller, postfix, container, ext_id, *args, **kvargs):
         try:
-            remote_entity = container.conn.volume_v3.get(oid=ext_id)
+            remote_entity = container.conn.volume_v3.get(oid=ext_id, *args, **kvargs)
             return remote_entity
         except:
             logger.warning("", exc_info=True)

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from logging import getLogger
 from beehive.common.task_v2 import task_step, run_sync_task
@@ -60,7 +60,12 @@ class ZoneTask(AbstractProviderResourceTask):
         task.progress(step_id, msg="Get availability_zone %s" % cid)
 
         # create physical entities
-        helper = task.get_orchestrator(orchestrator.get("type"), task, step_id, orchestrator, resource)
+        from beehive_resource.plugins.provider.task_v2.openstack import (
+            ProviderOpenstack,
+        )
+        from beehive_resource.plugins.provider.task_v2.vsphere import ProviderVsphere
+
+        helper: ProviderVsphere = task.get_orchestrator(orchestrator.get("type"), task, step_id, orchestrator, resource)
         helper.create_zone_childs(site, quotas=quotas)
 
         return True, params
@@ -146,7 +151,13 @@ class ZoneTask(AbstractProviderResourceTask):
         quotas = params.get("quotas")
 
         resource = task.get_resource(oid)
-        helper = task.get_orchestrator(orchestrator["type"], task, step_id, orchestrator, resource)
+
+        from beehive_resource.plugins.provider.task_v2.openstack import (
+            ProviderOpenstack,
+        )
+        from beehive_resource.plugins.provider.task_v2.vsphere import ProviderVsphere
+
+        helper: ProviderVsphere = task.get_orchestrator(orchestrator["type"], task, step_id, orchestrator, resource)
         helper.set_quotas(quotas)
 
         return True, params

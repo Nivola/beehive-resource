@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from random import randint
 from datetime import datetime
@@ -92,11 +92,20 @@ class ComputeVolume(ComputeProviderResource):
         return None
 
     def get_flavor(self):
+        if self.flavor is not None:
+            return self.flavor
+        physical_volume = self.physical_volume
+        if physical_volume is None:
+            self.logger.warn("Get flavor fail, physical volume does not exist", exc_info=True)
+            return None
         try:
-            physical_flavor = self.physical_volume.get_volume_type()
+            physical_flavor = physical_volume.get_volume_type()
+            if physical_flavor is None:
+                self.logger.warn("Get flavor fail for volume {physical_volume}, physical flavor does not exist")
+                return None
             self.flavor = self.container.get_aggregated_resource_from_physical_resource(physical_flavor.oid)
         except:
-            self.logger.warn("", exc_info=True)
+            self.logger.warn("Get flavor fail", exc_info=True)
             self.flavor = None
         return self.flavor
 
@@ -1135,7 +1144,9 @@ class Volume(AvailabilityZoneChildResource):
         main = kvargs.get("main")
 
         # get availability_zone
-        availability_zone = controller.get_resource(kvargs.get("parent"))
+        from beehive_resource.plugins.provider.entity.zone import AvailabilityZone
+
+        availability_zone: AvailabilityZone = controller.get_resource(kvargs.get("parent"))
 
         if orchestrator_id is not None:
             # main orchestrator is where volume will be created
@@ -1143,7 +1154,8 @@ class Volume(AvailabilityZoneChildResource):
             orchestrator_idx = availability_zone.get_orchestrators()
         else:
             # select remote orchestrators
-            orchestrator_idx = availability_zone.get_orchestrators_by_tag(orchestrator_tag)
+            # orchestrator_idx = availability_zone.get_orchestrators_by_tag(orchestrator_tag)
+            orchestrator_idx = availability_zone.get_hypervisors_by_tag(orchestrator_tag)
 
             # select main available orchestrators
             available_main_orchestrators = []
@@ -1158,7 +1170,11 @@ class Volume(AvailabilityZoneChildResource):
                     index = randint(0, len(available_main_orchestrators) - 1)
                     main_orchestrator = str(available_main_orchestrators[index]["id"])
                 else:
-                    raise ApiManagerError("No available orchestrator exist where create volume", code=404)
+                    raise ApiManagerError(
+                        "No available orchestrator exist where create volume - orchestrator_type: %s"
+                        % orchestrator_type,
+                        code=404,
+                    )
 
         # set container
         params = {

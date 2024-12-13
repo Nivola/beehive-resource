@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import json
 from time import sleep
@@ -192,26 +192,36 @@ class AwxContainer(Orchestrator):
         if self.conn is None:
             pass
 
-    def wait_for_awx_job(self, job_query_func, job_id, maxtime=3600, delta=1, job_error_func=None):
-        job = job_query_func(job_id)
+    def wait_for_awx_job(
+        self, job_query_func, job_id, maxtime=3600, delta=1, job_error_func=None, job_success_func=None
+    ):
+        job = job_query_func(job_id)  # job-get
         status = job["status"]
+        self.logger.debug("wait for awx job %s - status %s" % (job_id, status))
         elapsed = 0
+
         while status not in ["successful", "failed", "error", "canceled"]:
-            self.logger.debug("wait for awx job %s" % job_id)
             job = job_query_func(job_id)
             status = job["status"]
+            self.logger.debug("wait for awx job %s - status %s" % (job_id, status))
             sleep(delta)
             elapsed += delta
             if elapsed >= maxtime:
                 raise TimeoutError("awx job %s query timeout" % job_id)
+
         if status in ["failed", "error"]:
             self.logger.error(job["result_traceback"])
             err = ""
             if job_error_func is not None:
                 err = job_error_func()
             raise ApiManagerError("awx job %s error: %s" % (job_id, err))
+
         elif status == "cancelled":
             self.logger.error(job["awx job %s cancelled" % job_id])
             raise ApiManagerError("awx job %s cancelled" % job_id)
+
         else:
             self.logger.info("awx job %s successful" % job_id)
+            if job_success_func is not None:
+                stdout = job_success_func()
+                return stdout

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import logging
 from beehive.common.task_v2 import task_step
@@ -101,7 +101,7 @@ class ElkSpaceTask(AbstractResourceTask):
         container: ElkContainer
         container = task.get_container(cid)
         conn_kibana = container.conn_kibana
-        resource = container.get_simple_resource(oid)
+        resource: ElkSpace = container.get_simple_resource(oid)
 
         if resource.is_ext_id_valid() is True:
             try:

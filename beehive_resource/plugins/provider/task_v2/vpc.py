@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from logging import getLogger
 from beehive.common.task_v2 import task_step, run_sync_task
@@ -97,6 +97,7 @@ class VpcTask(AbstractProviderResourceTask):
         zabbix_proxy = network.get("zabbix_proxy")
         site_id = network.get("availability_zone")
         orchestrator_tag = network.get("orchestrator_tag")
+        # orchestrator_select_types = network.get("orchestrator_select_types")
 
         resource = task.get_resource(oid)
         compute_zone = resource.get_parent()
@@ -114,6 +115,7 @@ class VpcTask(AbstractProviderResourceTask):
             "parent": availability_zone.oid,
             "active": False,
             "orchestrator_tag": orchestrator_tag,
+            # "orchestrator_select_types": orchestrator_select_types,
             "cidr": cidr,
             "vpc_cidr": vpc_cidr,
             "dns_search": dns_search,
@@ -231,7 +233,10 @@ class VpcTask(AbstractProviderResourceTask):
         # public_network = orchestrator_config.get('public_network', None)
         task.progress(step_id, msg="Get configuration params")
 
-        helper = task.get_orchestrator(orchestrator_type, task, step_id, orchestrator, resource)
+        from beehive_resource.plugins.provider.task_v2.openstack import ProviderOpenstack
+        from beehive_resource.plugins.provider.task_v2.vsphere import ProviderVsphere
+
+        helper: ProviderVsphere = task.get_orchestrator(orchestrator_type, task, step_id, orchestrator, resource)
 
         # create network
         network_id = helper.create_network("vxlan", None, False, False, physical_network=None, public_network=None)
@@ -275,7 +280,13 @@ class VpcTask(AbstractProviderResourceTask):
         orchestrator_id = orchestrator["id"]
 
         networks = task.get_orm_linked_resources(resource.oid, link_type="relation", container_id=orchestrator_id)
-        helper = task.get_orchestrator(orchestrator_type, task, step_id, orchestrator, resource)
+
+        from beehive_resource.plugins.provider.task_v2.openstack import (
+            ProviderOpenstack,
+        )
+        from beehive_resource.plugins.provider.task_v2.vsphere import ProviderVsphere
+
+        helper: ProviderVsphere = task.get_orchestrator(orchestrator_type, task, step_id, orchestrator, resource)
 
         for network in networks:
             network_id = network[0]

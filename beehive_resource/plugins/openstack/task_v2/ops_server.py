@@ -1,18 +1,19 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from time import sleep
 from logging import getLogger
-from beecell.simple import id_gen, truncate, dict_get, str2bool
-from beehive.common.task_v2.manager import task_manager
-from beehive_resource.plugins.openstack.entity.ops_port import OpenstackPort
-from beehive_resource.model import ResourceState
-from beehive_resource.plugins.openstack.entity.ops_volume import OpenstackVolume
+import ujson as json
+from beecell.simple import id_gen, dict_get, str2bool
 from beehive.common.apimanager import ApiManagerError
-from beehive_resource.plugins.openstack.entity.ops_server import OpenstackServer
 from beehive.common.task_v2 import task_step, TaskError
+from beehive.common.task_v2.manager import task_manager
+from beehive_resource.model import ResourceState
 from beehive_resource.task_v2 import AbstractResourceTask
+from beehive_resource.plugins.openstack.entity.ops_port import OpenstackPort
+from beehive_resource.plugins.openstack.entity.ops_volume import OpenstackVolume
+from beehive_resource.plugins.openstack.entity.ops_server import OpenstackServer
 
 
 logger = getLogger(__name__)
@@ -44,7 +45,7 @@ class ServerHelper(object):
         if source_type in ["image", "snapshot", None]:
             # create volume resource
             parent = self.task.get_resource_by_extid(project_extid)
-            objid = "%s//%s" % (parent.objid, id_gen())
+            objid = f"{parent.objid}//{id_gen()}"
             volume_size = config.get("volume_size")
             volume_type_id = config.get("volume_type", None)
             volume_type = None
@@ -61,18 +62,18 @@ class ServerHelper(object):
                 parent=parent_id,
                 tags=["openstack", "volume"],
             )
-            self.task.progress(self.step_id, msg="create volume resource %s" % volume.id)
+            self.task.progress(self.step_id, msg=f"create volume resource {volume.id}")
 
             # link volume id to server
             server.add_link(
-                "%s-%s-volume-link" % (server.oid, volume.id),
+                f"{server.oid}-{volume.id}-volume-link",
                 "volume",
                 volume.id,
                 attributes={"boot": boot},
             )
             self.task.progress(
                 self.step_id,
-                msg="setup volume link from %s to server %s" % (volume.id, server.oid),
+                msg=f"setup volume link from {volume.id} to server {server.oid}",
             )
 
             image = None
@@ -98,13 +99,13 @@ class ServerHelper(object):
                 tenant_id=project_extid,
             )
             volume_id = volume_ext["id"]
-            self.task.progress(self.step_id, msg="create openstack volume %s - Starting" % volume_id)
+            self.task.progress(self.step_id, msg=f"create openstack volume {volume_id} - Starting")
 
             # attach remote volume
             self.container.update_resource(volume.id, ext_id=volume_id)
             self.task.progress(
                 self.step_id,
-                msg="Attach openstack volume %s to volume %s" % (volume_id, volume.id),
+                msg=f"Attach openstack volume {volume_id} to volume {volume.id}",
             )
 
             # loop until entity is not stopped or get error
@@ -115,21 +116,21 @@ class ServerHelper(object):
                 status = inst.get("status", "error")
                 if status == "available":
                     break
-                elif status == "error":
+                if status == "error":
                     self.task.progress(
                         self.step_id,
-                        msg="create openstack volume %s - Error" % volume_id,
+                        msg=f"create openstack volume {volume_id} - Error",
                     )
-                    raise Exception("Can not create openstack volume %s" % volume_id)
+                    raise Exception(f"Can not create openstack volume {volume_id}")
 
                 self.task.progress(self.step_id, msg="")
                 sleep(2)
 
-            self.task.progress(self.step_id, msg="create openstack volume %s - End" % volume_id)
+            self.task.progress(self.step_id, msg=f"create openstack volume {volume_id} - End")
 
             # activate volume
             self.container.update_resource(volume.id, state=ResourceState.ACTIVE, active=True)
-            self.task.progress(self.step_id, msg="Activate volume %s" % volume.id)
+            self.task.progress(self.step_id, msg=f"Activate volume {volume_id}")
 
         # get existing volume
         elif source_type in ["volume"]:
@@ -144,7 +145,7 @@ class ServerHelper(object):
                 if volume_clone is True:
                     # create volume resource
                     parent = self.task.get_resource_by_extid(project_extid)
-                    objid = "%s//%s" % (parent.objid, id_gen())
+                    objid = "{parent.objid}//{id_gen()}"
                     volume_size = volume.get_size()
                     volume_type_id = config.get("volume_type", None)
                     volume_type = self.task.get_resource(volume_type_id)
@@ -159,51 +160,42 @@ class ServerHelper(object):
                         parent=parent_id,
                         tags=["openstack", "volume"],
                     )
-                    self.task.progress(
-                        self.step_id,
-                        msg="create volume resource %s" % final_volume_resource.id,
-                    )
+                    self.task.progress(self.step_id, msg=f"create volume resource {final_volume_resource.id}")
 
                     # link volume id to server
                     server.add_link(
-                        "%s-%s-volume-link" % (server.oid, final_volume_resource.id),
+                        "{server.oid}-{final_volume_resource.id}-volume-link",
                         "volume",
                         final_volume_resource.id,
                         attributes={"boot": boot},
                     )
                     self.task.progress(
-                        self.step_id,
-                        msg="Setup volume link from %s to server %s" % (final_volume_resource.id, server.oid),
+                        self.step_id, msg=f"Setup volume link from {final_volume_resource.id} to server {server.oid}"
                     )
 
                     # if original volume is in a different container you must clone it and generate a new one in the
                     # server container
                     if volume.container_id != self.container.oid:
-                        """
-                        - faccio la snapshot del volume da clonare
+                        # take a snapshot of the volume to be cloned
+                        # create a volume from the snapshot
+                        # I retype this volume to make it go to the target backend (e.g. Vercelli)
+                        # in the target hypervisor (e.g. Vercelli) call the cinder manage of the cloned volume
 
-                        - creo uno volume dalla snapshot
-
-                        - faccio il retype di questo volume per farlo andare sul backend di vercelli
-
-                        - a vercelli faccio il cinder manage del volume clonato
-                        """
                         # get origin container
                         orig_container = self.task.get_container(volume.container_id)
 
                         # get origin volume_type
                         backend = volume_type.get_backend()
                         backend_host = backend["name"]
-                        # backend_name = dict_get(backend, 'capabilities.volume_backend_name')
                         origin_backend = orig_container.conn.volume_v3.get_backend_storage_pools(hostname=backend_host)
                         origin_backend_name = dict_get(origin_backend[0], "capabilities.volume_backend_name")
                         self.task.logger.warn(origin_backend_name)
                         origin_volume_type = orig_container.conn.volume_v3.type.list(backend_name=origin_backend_name)
                         if len(origin_volume_type) != 1:
-                            raise TaskError(
-                                "no volume type found in container %s for volume type %s"
-                                % (orig_container.oid, volume_type_id)
-                            )
+                            msg = f"""\
+no volume type found in container {orig_container.oid} for volume type {volume_type_id}"
+"""
+                            raise TaskError(msg)
                         origin_volume_type_id = origin_volume_type[0]["id"]
 
                         # clone volume
@@ -211,24 +203,26 @@ class ServerHelper(object):
                         clone_volume_id = clone_volume["id"]
                         self.task.progress(
                             self.step_id,
-                            msg="clone openstack volume %s to %s" % (volume.ext_id, clone_volume_id),
+                            msg=f"clone openstack volume {volume.ext_id} to {clone_volume_id}",
                         )
 
                         # retype volume
                         orig_container.conn.volume_v3.change_type(clone_volume_id, origin_volume_type_id)
-                        cond = True
-                        while cond is True:
+                        self.task.progress(self.step_id, msg=f"server retyping openstack volume {clone_volume_id}")
+                        polling_freq = 20
+                        while True:
                             res = orig_container.conn.volume_v3.get(clone_volume_id)
                             status = res["status"]
                             if status == "available":
-                                cond = False
-                            elif status == "error":
-                                raise TaskError("openstack volume %s change type error" % clone_volume_id)
-                            sleep(2)
+                                break
+                            if status == "error":
+                                raise TaskError(f"openstack volume {clone_volume_id} change type error")
+                            sleep(polling_freq)
                         self.task.progress(
                             self.step_id,
-                            msg="retype openstack volume %s" % clone_volume_id,
+                            msg=f"retype openstack volume {clone_volume_id}",
                         )
+                        self.task.progress(self.step_id, msg=f"server retyped openstack volume {clone_volume_id}")
 
                         # manage volume in server container
                         final_volume = self.container.conn.volume_v3.manage(
@@ -240,29 +234,31 @@ class ServerHelper(object):
                             availability_zone="nova",
                             host=backend_host,
                         )
+                        container_oid = self.container.oid
                         self.task.progress(
-                            self.step_id,
-                            msg="manage openstack volume %s on container %s" % (clone_volume_id, self.container.oid),
+                            self.step_id, msg=f"manage openstack volume {clone_volume_id} on container {container_oid}"
                         )
 
                         # unmanage volume in original container
                         orig_container.conn.volume_v3.unmanage(clone_volume_id)
+                        orig_container_oid = orig_container.oid
                         self.task.progress(
                             self.step_id,
-                            msg="manage openstack volume %s on container %s" % (clone_volume_id, orig_container.oid),
+                            msg=f"manage openstack volume {clone_volume_id} on container {orig_container_oid}",
                         )
 
                         # attach remote volume
                         self.container.update_resource(final_volume_resource.id, ext_id=final_volume["id"])
+                        final_volume_id = final_volume["id"]
+                        final_volume_resource_id = final_volume_resource.id
                         self.task.progress(
                             self.step_id,
-                            msg="attach openstack volume %s to volume %s"
-                            % (final_volume["id"], final_volume_resource.id),
+                            msg=f"attach openstack volume {final_volume_id} to volume {final_volume_resource_id}",
                         )
 
                         # activate volume
                         self.container.update_resource(volume.id, state=ResourceState.ACTIVE, active=True)
-                        self.task.progress(self.step_id, msg="Activate volume %s" % volume.id)
+                        self.task.progress(self.step_id, msg=f"Activate volume {volume.id}")
 
                         volume_id = final_volume["id"]
                     else:
@@ -273,100 +269,14 @@ class ServerHelper(object):
 
                     # link volume id to server
                     server.add_link(
-                        "%s-%s-volume-link" % (server.oid, volume.oid),
+                        f"{server.oid}-{volume.oid}-volume-link",
                         "volume",
                         volume.oid,
                         attributes={"boot": boot},
                     )
-                    self.task.progress(
-                        self.step_id,
-                        msg="Setup volume link from %s to server %s" % (volume.oid, server.oid),
-                    )
+                    self.task.progress(self.step_id, msg=f"Setup volume link from {volume.oid} to server {server.oid}")
 
         return volume_id
-
-    # def clone_volume(self, name, desc, volume_type_id, parent_id, project_extid, availability_zone, orig_container_id,
-    #                  orig_project_extid, orig_volume, server, boot=False):
-    #     # get origin container
-    #     orig_container = self.task.get_container(orig_container_id)
-    #
-    #     # clone volume in the same openstack
-    #     if orig_container_id == self.container.oid:
-    #         # clone openstack volume
-    #         volume_type_extid = self.task.get_simple_resource(volume_type_id).ext_id
-    #         clone_volume = orig_container.conn.volume_v3.clone(name, orig_volume['id'], project_extid,
-    #                                                            volume_type=volume_type_extid)
-    #         self.task.progress(msg='clone volume %s in %s' % (orig_volume['id'], clone_volume['id']))
-    #
-    #         # create volume resource
-    #         volume_config = {
-    #             'source_type': 'volume',
-    #             'volume_size': clone_volume.get('size'),
-    #             'ext_id': clone_volume['id']
-    #         }
-    #         volume_id = self.create_volume(name, desc, parent_id, project_extid, availability_zone, volume_config,
-    #                                        server, boot=boot)
-    #
-    #     # clone volume in different openstack
-    #     else:
-    #         volume_name = 'volume-clone-%s' % id_gen()
-    #         clone_volume = orig_container.conn.volume_v3.clone(volume_name, orig_volume['id'], orig_project_extid)
-    #         self.task.progress(msg='clone volume %s in %s' % (orig_volume['id'], clone_volume['id']))
-    #
-    #         # export image from volume
-    #         image_name = 'volume-image-%s' % id_gen()
-    #         disk_format = 'qcow2'
-    #         container_format = 'bare'
-    #         volume_image_id = orig_container.conn.volume_v3.upload_to_image(clone_volume['id'], image_name,
-    #                                                                         disk_format=disk_format,
-    #                                                                         container_format=container_format)
-    #         status = None
-    #         while status not in ['active', 'error']:
-    #             status = orig_container.conn.image.get(oid=volume_image_id).get('status')
-    #             sleep(5)
-    #         self.task.progress(msg='export volume %s as image %s' % (clone_volume['id'], volume_image_id))
-    #
-    #         # export image to file in temp dir
-    #         data = orig_container.conn.image.download(volume_image_id)
-    #         self.task.progress(msg='download origin image %s data' % volume_image_id)
-    #
-    #         # import image in server container
-    #         image = self.container.conn.image.create(image_name, disk_format=disk_format,
-    #                                                  container_format=container_format)
-    #         self.task.progress(msg='create destination image %s' % image['id'])
-    #         self.container.conn.image.upload(image['id'], data)
-    #         self.task.progress(msg='upload destination image %s data' % volume_image_id)
-    #
-    #         # create volume from image
-    #         volume_config = {
-    #             'source_type': 'image',
-    #             'volume_size': clone_volume.get('size'),
-    #             'volume_type': volume_type_id,
-    #             'uuid': image['id']
-    #         }
-    #         volume_id = self.create_volume(name, desc, parent_id, project_extid, availability_zone, volume_config,
-    #                                        server, boot=boot)
-    #
-    #         # set volume image metadata
-    #         metadata = {
-    #             'hw_qemu_guest_agent': 'yes',
-    #             'os_require_quiesce': 'yes',
-    #             'hw_scsi_model': 'virtio-scsi',
-    #             'img_config_drive': 'mandatory',
-    #             'hw_disk_bus': 'virtio'
-    #         }
-    #         self.container.conn.volume_v3.set_image_metadata(volume_id, metadata)
-    #
-    #         # remove temp volume and image
-    #         orig_container.conn.volume_v3.delete(clone_volume['id'])
-    #         orig_container.conn.image.delete(volume_image_id)
-    #         self.container.conn.image.delete(image['id'])
-    #
-    #         # remove image volume cache
-    #         image_volume = self.container.conn.volume_v3.get(name='image-%s' % image['id'])
-    #         self.container.conn.volume_v3.delete(image_volume['id'])
-    #
-    #     return volume_id
 
     def delete_physical_server(self, server_ext_id):
         resource = self.container.get_resource_by_extid(server_ext_id)
@@ -374,19 +284,12 @@ class ServerHelper(object):
         # check server exists
         rs = OpenstackServer.get_remote_server(resource.controller, server_ext_id, self.container, server_ext_id)
         if rs == {}:
-            self.task.progress(self.step_id, msg="Server %s does not exist anymore" % server_ext_id)
+            self.task.progress(self.step_id, msg=f"Server {server_ext_id} does not exist anymore")
             return False
-
-        # get server attached volumes
-        volumes = self.conn.server.get_volumes(server_ext_id)
-        self.task.progress(
-            self.step_id,
-            msg="Get server %s volumes: %s" % (server_ext_id, truncate(volumes, 200)),
-        )
 
         # remove server
         self.conn.server.delete(server_ext_id)
-        self.task.progress(self.step_id, msg="Delete server %s - Starting" % server_ext_id)
+        self.task.progress(self.step_id, msg=f"Delete server {server_ext_id}- Starting")
 
         # loop until entity is not deleted or get error
         while True:
@@ -400,9 +303,9 @@ class ServerHelper(object):
                 status = inst["status"]
                 if status == "DELETED":
                     break
-                elif status == "ERROR":
-                    self.task.progress(self.step_id, msg="Delete server %s - Error" % server_ext_id)
-                    raise Exception("Can not delete server %s" % server_ext_id)
+                if status == "ERROR":
+                    self.task.progress(self.step_id, msg=f"Delete server {server_ext_id} - Error")
+                    raise Exception(f"Can not delete server {server_ext_id}")
 
                 self.task.progress(self.step_id, msg="")
                 sleep(2)
@@ -411,7 +314,7 @@ class ServerHelper(object):
                 break
 
         resource.update_internal(ext_id="")
-        self.task.progress(self.step_id, msg="Delete server %s - Completed" % server_ext_id)
+        self.task.progress(self.step_id, msg=f"Delete server {server_ext_id} - Completed")
 
         return True
 
@@ -420,12 +323,12 @@ class ServerHelper(object):
         try:
             OpenstackPort.get_remote_port(self.container.controller, port_ext_id, self.container, port_ext_id)
         except:
-            self.task.progress(self.step_id, msg="Port %s does not exist anymore" % port_ext_id)
+            self.task.progress(self.step_id, msg=f"Port {port_ext_id} does not exist anymore")
             return False
 
         # delete openstack volume
         self.conn.network.port.delete(port_ext_id)
-        self.task.progress(self.step_id, msg="Delete port %s - Starting" % port_ext_id)
+        self.task.progress(self.step_id, msg=f"Delete port {port_ext_id} - Starting")
 
         # loop until entity is not deleted or get error
         while True:
@@ -435,8 +338,8 @@ class ServerHelper(object):
                 )
                 status = inst["status"]
                 if status == "ERROR":
-                    self.task.progress(self.step_id, msg="Delete port %s - Error" % port_ext_id)
-                    raise Exception("Can not delete port %s" % port_ext_id)
+                    self.task.progress(self.step_id, msg=f"Delete port {port_ext_id} - Error")
+                    raise Exception(f"Can not delete port {port_ext_id}")
 
                 self.task.progress(self.step_id, msg="")
                 sleep(1)
@@ -444,7 +347,7 @@ class ServerHelper(object):
                 # port does not exists anymore
                 break
 
-        self.task.progress(self.step_id, msg="Delete port %s - Completed" % port_ext_id)
+        self.task.progress(self.step_id, msg=f"Delete port {port_ext_id} - Completed")
 
         return True
 
@@ -453,28 +356,30 @@ class ServerHelper(object):
         try:
             OpenstackVolume.get_remote_volume(self.container.controller, volume_ext_id, self.container, volume_ext_id)
         except:
-            self.task.progress(self.step_id, msg="Volume %s does not exist anymore" % volume_ext_id)
+            self.task.progress(self.step_id, msg=f"Volume {volume_ext_id} does not exist anymore")
             return False
 
         # remote server snapshots
         snapshots = self.conn.volume_v3.snapshot.list(volume_id=volume_ext_id)
+        conn_vol_snap = self.conn.volume_v3.snapshot
         for snapshot in snapshots:
-            self.conn.volume_v3.snapshot.delete(snapshot["id"])
+            snapshot_id = snapshot["id"]
+            conn_vol_snap.delete(snapshot_id)
             while True:
                 try:
-                    self.conn.volume_v3.snapshot.get(snapshot["id"])
+                    conn_vol_snap.get(snapshot_id)
                     sleep(2)
                 except:
                     self.task.progress(
                         self.step_id,
-                        msg="Volume %s snapshot %s deleted" % (volume_ext_id, snapshot["id"]),
+                        msg=f"Volume {volume_ext_id} snapshot {snapshot_id} deleted",
                     )
                     break
 
         # delete openstack volume
         self.conn.volume_v3.reset_status(volume_ext_id, "available", "detached", "success")
         self.conn.volume_v3.delete(volume_ext_id)
-        self.task.progress(self.step_id, msg="Delete volume %s - Starting" % volume_ext_id)
+        self.task.progress(self.step_id, msg=f"Delete volume {volume_ext_id} - Starting")
 
         # loop until entity is not deleted or get error
         while True:
@@ -487,11 +392,11 @@ class ServerHelper(object):
                 )
                 status = inst["status"]
                 if status == "error_deleting":
-                    self.task.progress(self.step_id, msg="Delete volume %s - Error" % volume_ext_id)
-                    raise Exception("Can not delete volume %s" % volume_ext_id)
-                elif status == "error":
-                    self.task.progress(self.step_id, msg="delete volume %s - Error" % volume_ext_id)
-                    raise Exception("Can not delete volume %s" % volume_ext_id)
+                    self.task.progress(self.step_id, msg=f"Delete volume {volume_ext_id} - Error")
+                    raise Exception(f"Can not delete volume {volume_ext_id}")
+                if status == "error":
+                    self.task.progress(self.step_id, msg=f"delete volume {volume_ext_id} - Error")
+                    raise Exception(f"Can not delete volume {volume_ext_id}")
 
                 self.task.progress(self.step_id, msg="")
                 sleep(2)
@@ -500,7 +405,7 @@ class ServerHelper(object):
                 break
 
         # res.update_internal(ext_id=None)
-        self.task.progress(self.step_id, msg="Delete volume %s - Completed" % volume_ext_id)
+        self.task.progress(self.step_id, msg=f"Delete volume {volume_ext_id} - Completed")
 
         return True
 
@@ -540,15 +445,15 @@ class ServerTask(AbstractResourceTask):
         container = task.get_container(cid, projectid=parent_id)
         resource = container.get_resource(oid)
         conn = container.conn
-        task.progress(step_id, msg="Get container %s" % cid)
+        task.progress(step_id, msg=f"Get container {cid}")
 
         main_volume = volumes.pop(0)
 
         helper = ServerHelper(task, step_id, container)
 
         # create main volume
-        volume_name = "%s-root-volume" % name
-        volume_desc = "Root Volume %s" % name
+        volume_name = f"{name}-root-volume"
+        volume_desc = f"Root Volume {name}"
         boot_volume_id = helper.create_volume(
             volume_name,
             volume_desc,
@@ -559,13 +464,13 @@ class ServerTask(AbstractResourceTask):
             resource,
             boot=True,
         )
-        task.progress(step_id, msg="create boot volume: %s" % boot_volume_id)
+        task.progress(step_id, msg=f"create boot volume: {boot_volume_id}")
 
         # get networks
         nets = []
         for network in networks:
-            uuid = network.get("uuid", None)
-            subnet = network.get("subnet_uuid", None)
+            uuid = network.get("uuid")
+            subnet = network.get("subnet_uuid")
             ip_address = dict_get(network, "fixed_ip.ip")
 
             # generate port with network and subnet
@@ -574,7 +479,7 @@ class ServerTask(AbstractResourceTask):
                 fixed_ip = {"subnet_id": subnet}
                 if ip_address is not None:
                     fixed_ip["ip_address"] = ip_address
-                port_name = "%s-port" % name
+                port_name = f"{name}-port"
                 port = conn.network.port.create(
                     port_name,
                     uuid,
@@ -588,7 +493,7 @@ class ServerTask(AbstractResourceTask):
 
                 # create port resource
                 network_resource = task.get_simple_resource(network.get("resource_id"))
-                objid = "%s//%s" % (network_resource.objid, id_gen())
+                objid = f"{network_resource.objid}//{id_gen()}"
                 resource_port = container.add_resource(
                     objid=objid,
                     name=port_name,
@@ -600,14 +505,15 @@ class ServerTask(AbstractResourceTask):
                     parent=network_resource.oid,
                     tags=["openstack", "port"],
                 )
-                container.update_resource(resource_port.id, state=ResourceState.ACTIVE, active=True)
-                task.progress(step_id, msg="create port resource %s" % resource_port.id)
+                resource_port_id = resource_port.id
+                container.update_resource(resource_port_id, state=ResourceState.ACTIVE, active=True)
+                task.progress(step_id, msg=f"create port resource {resource_port_id}")
 
             # set only network id
             elif uuid is not None:
                 nets.append({"uuid": uuid})
 
-        task.progress(step_id, msg="Get network config: %s" % nets)
+        task.progress(step_id, msg=f"Get network config: {nets}")
 
         # start server creation
         server = conn.server.create(
@@ -628,11 +534,11 @@ class ServerTask(AbstractResourceTask):
             config_drive=config_drive,
         )
         server_id = server["id"]
-        task.progress(step_id, msg="create server %s - Starting" % server_id)
+        task.progress(step_id, msg=f"create server {server_id} - Starting")
 
         # attach remote server
         container.update_resource(oid, ext_id=server_id)
-        task.progress(step_id, msg="Attach remote server %s" % server_id)
+        task.progress(step_id, msg=f"Attach remote server {server_id}")
 
         # loop until entity is not stopped or get error
         while True:
@@ -641,22 +547,22 @@ class ServerTask(AbstractResourceTask):
             status = inst["status"]
             if status == "ACTIVE":
                 break
-            elif status == "ERROR":
+            if status == "ERROR":
                 error = inst["fault"]["message"]
-                task.progress(step_id, msg="create server %s - Error%s" % (server_id, error))
-                raise Exception("Can not create server %s: %s" % (server_id, error))
+                task.progress(step_id, msg=f"create server {server_id} - Error {error}")
+                raise Exception(f"Can not create server {server_id}: {error}")
 
             task.progress(step_id, msg="")
             sleep(2)
 
-        task.progress(step_id, msg="create server %s - Completed" % server_id)
+        task.progress(step_id, msg=f"create server {server_id} - Completed")
 
         # append other volumes to server
         index = 0
         for config in volumes:
             index += 1
-            volume_name = "%s-other-volume-%s" % (name, index)
-            volume_desc = "Volume %s %s" % (name, index)
+            volume_name = f"{name}-other-volume-{index}"
+            volume_desc = f"Volume {name} {index}"
             volume_id = helper.create_volume(
                 volume_name,
                 volume_desc,
@@ -666,7 +572,7 @@ class ServerTask(AbstractResourceTask):
                 config,
                 resource,
             )
-            task.progress(step_id, msg="create other volume: %s" % volume_id)
+            task.progress(step_id, msg=f"create other volume: {volume_id}")
 
             # attach volume to server
             conn.server.add_volume(server_id, volume_id)
@@ -677,9 +583,9 @@ class ServerTask(AbstractResourceTask):
                 status = inst["status"]
                 if status == "in-use":
                     break
-                elif status == "error":
-                    task.progress(step_id, msg="Attach openstack volume %s - Error" % volume_id)
-                    raise Exception("Can not attach openstack volume %s" % volume_id)
+                if status == "error":
+                    task.progress(step_id, msg=f"Attach openstack volume {volume_id} - Error")
+                    raise Exception(f"Can not attach openstack volume {volume_id}")
 
                 task.progress(step_id, msg="")
                 sleep(2)
@@ -691,160 +597,6 @@ class ServerTask(AbstractResourceTask):
         params["ext_id"] = server_id
 
         return oid, params
-
-    # @staticmethod
-    # @task_step()
-    # def server_clone_physical_step(task, step_id, params, *args, **kvargs):
-    #     """Clone physical resource
-    #
-    #     :param task: parent celery task
-    #     :param str step_id: step id
-    #     :param dict params: step params
-    #     :return: oid, params
-    #     """
-    #     cid = params.get('cid')
-    #     oid = params.get('id')
-    #     name = params.get('name')
-    #     desc = params.get('desc')
-    #     parent_id = params.get('parent')
-    #     availability_zone = params.get('availability_zone')
-    #     networks = params.get('networks')
-    #     admin_pass = params.get('adminPass', None)
-    #     flavor = params.get('flavor')
-    #     sgs = params.get('security_groups')
-    #     sgs_ext_id = params.get('security_groups_ext_id')
-    #     user_data = params.get('user_data')
-    #     project_extid = params.get('project_extid')
-    #     config_drive = params.get('config_drive')
-    #     clone_server = params.get('clone_server')
-    #     clone_server_volume_type = params.get('clone_server_volume_type')
-    #
-    #     container = task.get_container(cid, projectid=parent_id)
-    #     server_resource = container.get_resource(oid)
-    #     conn = container.conn
-    #     task.progress(step_id, msg='Get container %s' % cid)
-    #
-    #     # create helper
-    #     helper = ServerHelper(task, step_id, container)
-    #
-    #     # get original server to clone
-    #     orig_server = task.get_resource(clone_server)
-    #     orig_project = orig_server.get_parent()
-    #
-    #     # create main volume
-    #     volume_name = '%s-root-volume' % name
-    #     volume_desc = 'Root Volume %s' % name
-    #     orig_server_volumes = []
-    #     orig_server_main_volume = None
-    #     for item in orig_server.get_volumes():
-    #         if item.get('bootable') == 'true':
-    #             orig_server_main_volume = item
-    #         else:
-    #             orig_server_volumes.append(item)
-    #     if orig_server_main_volume is None:
-    #         raise Exception('no boot volume found in server %s' % orig_server.oid)
-    #
-    #     boot_volume_id = helper.clone_volume(volume_name, volume_desc, clone_server_volume_type, parent_id,
-    #                                          project_extid, availability_zone, orig_server.container_id,
-    #                                          orig_project.ext_id, orig_server_main_volume, server_resource, boot=True)
-    #     task.progress(step_id, msg='create boot volume: %s' % boot_volume_id)
-    #
-    #     # get networks
-    #     nets = []
-    #     for network in networks:
-    #         uuid = network.get('uuid', None)
-    #         subnet = network.get('subnet_uuid', None)
-    #
-    #         # generate port with network and subnet
-    #         if subnet is not None and uuid is not None:
-    #             # create port
-    #             fixed_ips = [{'subnet_id': subnet}]
-    #             port_name = '%s-port' % name
-    #             port = conn.network.port.create(port_name, uuid, fixed_ips, tenant_id=project_extid,
-    #                                             security_groups=sgs_ext_id)
-    #
-    #             # append port
-    #             nets.append({'port': port.get('id')})
-    #
-    #             # create port resource
-    #             network_resource = task.get_simple_resource(network.get('resource_id'))
-    #             objid = '%s//%s' % (network_resource.objid, id_gen())
-    #             resource_port = container.add_resource(objid=objid, name=port_name, resource_class=OpenstackPort,
-    #                                                    ext_id=port.get('id'), active=False, desc=port_name, attrib={},
-    #                                                    parent=network_resource.oid, tags=['openstack', 'port'])
-    #             container.update_resource(resource_port.id, state=ResourceState.ACTIVE, active=True)
-    #             task.progress(step_id, msg='create port resource %s' % resource_port.id)
-    #
-    #         # set only network id
-    #         elif uuid is not None:
-    #             nets.append({'uuid': uuid})
-    #
-    #     task.progress(step_id, msg='Get network config: %s' % nets)
-    #
-    #     # start server creation
-    #     server = conn.server.create(name, flavor, accessipv4=None, accessipv6=None, networks=nets,
-    #                                 boot_volume_id=boot_volume_id, adminpass=admin_pass, description=desc, metadata=None,
-    #                                 image=None, security_groups=sgs, personality=None, user_data=user_data,
-    #                                 availability_zone=availability_zone, config_drive=config_drive)
-    #     server_id = server['id']
-    #     task.progress(step_id, msg='create server %s - Starting' % server_id)
-    #
-    #     # attach remote server
-    #     container.update_resource(oid, ext_id=server_id)
-    #     task.progress(step_id, msg='Attach remote server %s' % server_id)
-    #
-    #     # loop until entity is not stopped or get error
-    #     while True:
-    #         inst = OpenstackServer.get_remote_server(server_resource.controller, server_id, container, server_id)
-    #         OpenstackVolume.get_remote_volume(server_resource.controller, boot_volume_id, container, boot_volume_id)
-    #         status = inst['status']
-    #         if status == 'ACTIVE':
-    #             break
-    #         elif status == 'ERROR':
-    #             error = inst['fault']['message']
-    #             task.progress(step_id, msg='create server %s - Error%s' % (server_id, error))
-    #             raise Exception('Can not create server %s: %s' % (server_id, error))
-    #
-    #         task.progress(step_id, msg='')
-    #         sleep(2)
-    #
-    #     task.progress(step_id, msg='create server %s - Completed' % server_id)
-    #
-    #     # append other volumes to server
-    #     index = 0
-    #     for orig_server_volume in orig_server_volumes:
-    #         index += 1
-    #
-    #         volume_name = '%s-other-volume-%s' % (name, index)
-    #         volume_desc = 'Volume %s %s' % (name, index)
-    #         volume_id = helper.clone_volume(volume_name, volume_desc, clone_server_volume_type, parent_id,
-    #                                         project_extid, availability_zone, orig_server.container_id,
-    #                                         orig_project.ext_id, orig_server_volume, server_resource)
-    #         task.progress(step_id, msg='create other volume: %s' % volume_id)
-    #
-    #         # attach volume to server
-    #         conn.server.add_volume(server_id, volume_id)
-    #
-    #         # loop until entity is not stopped or get error
-    #         while True:
-    #             inst = OpenstackVolume.get_remote_volume(container.controller, volume_id, container, volume_id)
-    #             status = inst['status']
-    #             if status == 'in-use':
-    #                 break
-    #             elif status == 'error':
-    #                 task.progress(step_id, msg='Attach openstack volume %s - Error' % volume_id)
-    #                 raise Exception('Can not attach openstack volume %s' % volume_id)
-    #
-    #             task.progress(step_id, msg='')
-    #             sleep(2)
-    #
-    #     # refresh server info
-    #     OpenstackServer.get_remote_server(server_resource.controller, server_id, container, server_id)
-    #
-    #     # save current data in shared area
-    #     params['ext_id'] = server_id
-    #
-    #     return oid, params
 
     @staticmethod
     @task_step()
@@ -876,7 +628,7 @@ class ServerTask(AbstractResourceTask):
         # get ports
         params["port_ids"] = []
 
-        if resource.is_ext_id_valid() is True:
+        if resource.is_ext_id_valid():
             # get volumes
             params["volume_ids"] = [v["uuid"] for v in resource.get_volumes()]
 
@@ -903,8 +655,8 @@ class ServerTask(AbstractResourceTask):
         oid = params.get("id")
         task.progress(step_id, msg="Get configuration params")
         orchestrator = task.get_container(cid)
-        resource: VsphereServer = orchestrator.get_resource(oid)
-        resource.do_patch()
+        vsphere_server = orchestrator.get_resource(oid)
+        vsphere_server.do_patch()
         return oid, params
 
     @staticmethod
@@ -936,7 +688,7 @@ class ServerTask(AbstractResourceTask):
 
                 # delete resource
                 resource.expunge_internal()
-                task.progress(step_id, msg="Delete port %s resource" % port_id)
+                task.progress(step_id, msg=f"Delete port {port_id} resource")
             except Exception as ex:
                 task.progress(step_id, msg=str(ex))
 
@@ -974,7 +726,7 @@ class ServerTask(AbstractResourceTask):
 
                 # delete resource
                 resource.expunge_internal()
-                task.progress(step_id, msg="Delete volume %s resource" % volume_id)
+                task.progress(step_id, msg=f"Delete volume {volume_id} resource")
             except ApiManagerError as ex:
                 task.progress(step_id, msg=ex)
 
@@ -1004,7 +756,7 @@ class ServerTask(AbstractResourceTask):
         :return: action response
         :raise:
         """
-        task.progress(step_id, msg="start action %s" % action.__name__)
+        task.progress(step_id, msg=f"start action {action.__name__}")
         cid = params.get("cid")
         oid = params.get("id")
         ext_id = params.get("ext_id")
@@ -1025,16 +777,16 @@ class ServerTask(AbstractResourceTask):
         while True:
             inst = OpenstackServer.get_remote_server(resource.controller, ext_id, container, ext_id)
             status = inst["status"]
-            task.progress(step_id, msg="Read server %s status: %s" % (ext_id, status))
+            task.progress(step_id, msg=f"Read server {ext_id} status: {status}")
             if status == final_status:
                 break
-            elif status == "ERROR":
+            if status == "ERROR":
                 raise Exception(error)
 
             sleep(2)
 
         task.progress(step_id, msg=success)
-        task.progress(step_id, msg="stop action %s" % action.__name__)
+        task.progress(step_id, msg=f"stop action {action.__name__}")
 
         return res
 
@@ -1263,9 +1015,9 @@ class ServerTask(AbstractResourceTask):
                 status = inst["status"]
                 if status == "in-use":
                     break
-                elif status == "error":
-                    task.progress(step_id, msg="Attach openstack volume %s - Error" % volume_extid)
-                    raise Exception("Can not attach openstack volume %s" % volume_extid)
+                if status == "error":
+                    task.progress(step_id, msg=f"Attach openstack volume {volume_extid} - Error")
+                    raise Exception(f"Can not attach openstack volume {volume_extid}")
 
                 task.progress(step_id, msg="")
                 sleep(2)
@@ -1274,7 +1026,7 @@ class ServerTask(AbstractResourceTask):
             volume_obj = params["volume"]
             server_obj = params["server"]
             server_obj.add_link(
-                "%s-%s-volume-link" % (volume_obj.oid, volume_obj.oid),
+                "{volume_obj.oid}-{server_obj.oid}-volume-link",
                 "volume",
                 volume_obj.oid,
                 attributes={"boot": False},
@@ -1323,9 +1075,9 @@ class ServerTask(AbstractResourceTask):
                 status = inst["status"]
                 if status == "available":
                     break
-                elif status == "error":
-                    task.progress(step_id, msg="Delete openstack volume %s - Error" % volume_extid)
-                    raise Exception("Can not delete openstack volume %s" % volume_extid)
+                if status == "error":
+                    task.progress(step_id, msg=f"Delete openstack volume {volume_extid} - Error")
+                    raise Exception(f"Can not delete openstack volume {volume_extid}")
 
                 sleep(2)
 
@@ -1364,26 +1116,27 @@ class ServerTask(AbstractResourceTask):
             volume = vol_v3.get(volume_ext_id)
             old_disk_gb = volume.get("size")
             if new_disk_gb < old_disk_gb:
-                raise Exception(
-                    "Cannot extend the volume %s of server %s to %s GB.\n"
-                    "It is an extends. You can only increase the volume size! "
-                    "The volume size is %s GB." % (volume_ext_id, server.ext_id, new_disk_gb, old_disk_gb)
-                )
+                msg = f"""\
+Cannot extend the volume {volume_ext_id} of server {server_ext_id} to {new_disk_gb} GB.
+It is an extends. You can only increase the volume size!
+The volume size is {old_disk_gb} GB.
+"""
+                raise Exception(msg)
             backend_host = volume.get("os-vol-host-attr:host")
             backend = next(
                 b for b in vol_v3.get_backend_storage_pools(hostname=backend_host) if b["name"] == backend_host
             )
             if backend is None:
-                raise Exception("Backend host %s does not exist" % backend_host)
+                raise Exception(f"Backend host {backend_host} does not exist")
             free_capacity_gb = backend["capabilities"]["free_capacity_gb"]
             if free_capacity_gb < (new_disk_gb - old_disk_gb):
-                raise Exception(
-                    "Cannot extend the volume %s of server %s to %s GB.\n"
-                    "No space left on backend host %s the remaing space is %s GB"
-                    % (volume_ext_id, server_ext_id, new_disk_gb, backend_host, free_capacity_gb)
-                )
+                msg = f"""\
+Cannot extend the volume {volume_ext_id} of server {server_ext_id} to {new_disk_gb} GB.
+No space left on backend host {backend_host} the remaing space is {free_capacity_gb} GB.
+"""
+                raise Exception(msg)
             vol_v3.extend(volume_ext_id, new_disk_gb)
-            task.progress(step_id, msg="Extending volume %s " % volume_ext_id)
+            task.progress(step_id, msg=f"Extending volume {volume_ext_id}")
             # loop until entity is extended or get error
             while True:
                 sleep(5)
@@ -1392,11 +1145,11 @@ class ServerTask(AbstractResourceTask):
                 except:
                     status = "error"
                 if status in ("error", "error_extending"):
-                    task.progress(step_id, msg="Extend volume %s - Error" % volume_ext_id)
-                    raise Exception("Can not extend volume %s" % volume_ext_id)
-                elif status in ("in-use", "available"):
+                    task.progress(step_id, msg=f"Extend volume {volume_ext_id} - Error")
+                    raise Exception(f"Can not extend volume {volume_ext_id}")
+                if status in ("in-use", "available"):
                     break
-            task.progress(step_id, msg="Extended volume %s - Completed" % volume_ext_id)
+            task.progress(step_id, msg=f"Extended volume {volume_ext_id} - Completed")
             return True
 
         params["volume"] = task.get_simple_resource(params.get("volume"))
@@ -1499,12 +1252,12 @@ class ServerTask(AbstractResourceTask):
                 status = inst["status"]
                 if status == "active":
                     break
-                elif status == "error":
+                if status == "error":
                     task.progress(
                         step_id,
-                        msg="Unable to make snapshot (nova image %s) - Error" % snapshot_ext_id,
+                        msg=f"Unable to make snapshot (nova image {snapshot_ext_id}) - Error",
                     )
-                    raise Exception("Unable to make snapshot (nova image %s)" % snapshot_ext_id)
+                    raise Exception(f"Unable to make snapshot (nova image {snapshot_ext_id})")
                 sleep(2)
 
             server_obj = params["server"]
@@ -1540,7 +1293,7 @@ class ServerTask(AbstractResourceTask):
                 status = "deleted"
 
         if status == "error":
-            raise ApiManagerError("snapshot %s can not be deleted" % snapshot_id)
+            raise ApiManagerError(f"snapshot {snapshot_id} can not be deleted")
 
     @staticmethod
     @task_step()
@@ -1561,13 +1314,11 @@ class ServerTask(AbstractResourceTask):
             # Nova image id
             snapshot_ext_id = params["snapshot"]
             image_res = conn.image.get(oid=snapshot_ext_id)
-            import json
-
             block_device_mapping = json.loads(image_res["block_device_mapping"])
             volume_snapshot_ids = [a["snapshot_id"] for a in block_device_mapping]
             for volume_snapshot_id in volume_snapshot_ids:
-                delete_res = conn.volume_v3.snapshot.delete(volume_snapshot_id)
-            res = conn.image.delete(oid=snapshot_ext_id)
+                conn.volume_v3.snapshot.delete(volume_snapshot_id)
+            conn.image.delete(oid=snapshot_ext_id)
             server_obj.del_snapshot_ext_id(snapshot_ext_id)
             return True
 
@@ -1604,25 +1355,26 @@ class ServerTask(AbstractResourceTask):
             ext_id = server_obj.ext_id
 
             # stop server
-            if server_obj.is_running() is True:
+            if server_obj.is_running():
                 conn.server.stop(ext_id)
 
                 # loop until action completed or return error
                 while True:
                     inst = OpenstackServer.get_remote_server(resource.controller, ext_id, container, ext_id)
                     status = inst["status"]
-                    task.progress(step_id, msg="Read server %s status: %s" % (ext_id, status))
+                    task.progress(step_id, msg=f"Read server {ext_id} status: {status}")
                     if status == "SHUTOFF":
                         break
-                    elif status == "ERROR":
-                        raise Exception("Failed to stop server %s" % ext_id)
+                    if status == "ERROR":
+                        raise Exception(f"Failed to stop server {ext_id}")
 
                     sleep(2)
 
                 task.progress(step_id, msg="Stop server")
 
             server_obj.revert_to_snapshot(conn, params["snapshot"])
-            task.progress(step_id, msg="Revert server to snapshot %s" % params["snapshot"])
+            snap_param = params["snapshot"]
+            task.progress(step_id, msg=f"Revert server to snapshot {snap_param}")
 
             # start server
             conn.server.start(ext_id)
@@ -1631,11 +1383,11 @@ class ServerTask(AbstractResourceTask):
             while True:
                 inst = OpenstackServer.get_remote_server(resource.controller, ext_id, container, ext_id)
                 status = inst["status"]
-                task.progress(step_id, msg="Read server %s status: %s" % (ext_id, status))
+                task.progress(step_id, msg=f"Read server {ext_id} status: {status}")
                 if status == "ACTIVE":
                     break
-                elif status == "ERROR":
-                    raise Exception("Failed to start server %s" % ext_id)
+                if status == "ERROR":
+                    raise Exception(f"Failed to start server {ext_id}")
 
                 sleep(2)
 
@@ -1658,67 +1410,6 @@ class ServerTask(AbstractResourceTask):
         )
         return res, params
 
-    # @staticmethod
-    # @task_step()
-    # def server_add_backup_restore_point(task, step_id, params, *args, **kvargs):
-    #     """add physical backup restore point
-    #
-    #     :param task: parent celery task
-    #     :param str step_id: step id
-    #     :param dict params: step params
-    #     :return: True, params
-    #     """
-    #     def add_backup_restore_point_action(container, resource, **params):
-    #         server_obj = params['server']
-    #         trilio_conn = container.get_trilio_connection()
-    #
-    #         # add snapshot
-    #         name = 'snapshot-%s' % server_obj.name
-    #         desc = 'snapshot %s' % server_obj.name
-    #         job = server_obj.get_backup_job()
-    #         restore_point = trilio_conn.snapshot.add(job['id'], name=name, desc=desc, full=params['full'])
-    #         task.progress(step_id, msg='create restore point %s' % restore_point['id'])
-    #
-    #         return True
-    #
-    #     server = task.get_resource(params.get('id'))
-    #     parent = server.get_parent()
-    #     params['server'] = server
-    #     projectid = parent.oid
-    #     res = ServerTask.server_action(task, step_id, add_backup_restore_point_action,
-    #                                    'Add server backup restore point', 'Error adding backup restore point to server',
-    #                                    params, projectid=projectid, final_status='ORIGINAL')
-    #     return res, params
-    #
-    # @staticmethod
-    # @task_step()
-    # def server_del_backup_restore_point(task, step_id, params, *args, **kvargs):
-    #     """delete physical backup restore point
-    #
-    #     :param task: parent celery task
-    #     :param str step_id: step id
-    #     :param dict params: step params
-    #     :return: True, params
-    #     """
-    #     def del_backup_restore_point_action(container, resource, **params):
-    #         trilio_conn = container.get_trilio_connection()
-    #
-    #         # delete snapshot
-    #         restore_point = trilio_conn.snapshot.delete(params['restore_point'])
-    #         task.progress(step_id, msg='delete restore point %s' % restore_point)
-    #
-    #         return True
-    #
-    #     server = task.get_resource(params.get('id'))
-    #     parent = server.get_parent()
-    #     params['server'] = server
-    #     projectid = parent.oid
-    #     res = ServerTask.server_action(task, step_id, del_backup_restore_point_action,
-    #                                    'Delete server backup restore point',
-    #                                    'Error deleting backup restore point to server',
-    #                                    params, projectid=projectid, final_status='ORIGINAL')
-    #     return res, params
-
     @staticmethod
     @task_step()
     def server_restore_from_backup(task, step_id, params, *args, **kvargs):
@@ -1736,8 +1427,8 @@ class ServerTask(AbstractResourceTask):
 
             from beehive_resource.plugins.openstack.controller import OpenstackContainer
 
-            openstackContainer: OpenstackContainer = container
-            trilio_conn = openstackContainer.get_trilio_connection()
+            openstack_container: OpenstackContainer = container
+            trilio_conn = openstack_container.get_trilio_connection()
 
             # delete snapshot
             restore = trilio_conn.restore.server(
@@ -1753,22 +1444,19 @@ class ServerTask(AbstractResourceTask):
             restore_id = restore["id"]
             task.progress(
                 step_id,
-                msg="restore server %s with restore: %s - START" % (server_obj.ext_id, restore_id),
+                msg=f"restore server {server_obj.ext_id} with restore: {restore_id} - START",
             )
 
             # loop until restore completed or return error
             while True:
                 restore = trilio_conn.restore.get(restore_id)
                 status = restore["status"]
-                task.progress(step_id, msg="read restore %s status: %s" % (restore_id, status))
+                task.progress(step_id, msg=f"read restore {restore_id} status: {status}")
                 if status == "available":
                     break
-                elif status == "error":
-                    task.progress(
-                        step_id,
-                        msg="restore server %s with restore: %s - ERROR" % (server_obj.ext_id, restore_id),
-                    )
-                    raise TaskError("failed to restore server %s with restore: %s" % (server_obj.ext_id, restore_id))
+                if status == "error":
+                    task.progress(step_id, msg=f"restore server {server_obj.ext_id} with restore: {restore_id} - ERROR")
+                    raise TaskError(f"failed to restore server {server_obj.ext_id} with restore: {restore_id}")
 
                 sleep(4)
 
@@ -1781,17 +1469,17 @@ class ServerTask(AbstractResourceTask):
             while True:
                 inst = OpenstackServer.get_remote_server(resource.controller, server_ext_id, container, server_ext_id)
                 status = inst["status"]
-                task.progress(step_id, msg="read server %s status: %s" % (server_ext_id, status))
+                task.progress(step_id, msg=f"read server {server_obj.ext_id} status: {status}")
                 if status == "ACTIVE":
                     break
-                elif status == "ERROR":
-                    task.progress(step_id, msg="failed to start server %s" % server_ext_id)
-                    raise TaskError("failed to start server %s" % server_ext_id)
+                if status == "ERROR":
+                    task.progress(step_id, msg=f"failed to start server {server_ext_id}")
+                    raise TaskError(f"failed to start server {server_ext_id}")
 
                 sleep(2)
 
             # create server resource
-            objid = "%s//%s" % (project.objid, id_gen())
+            objid = f"{project.objid}//{id_gen()}"
             model = container.add_resource(
                 objid=objid,
                 name=server_name,
@@ -1813,7 +1501,7 @@ class ServerTask(AbstractResourceTask):
                 model=model,
             )
             server.update_state(ResourceState.ACTIVE)
-            task.progress(step_id, msg="DATA: server %s" % server)
+            task.progress(step_id, msg=f"DATA: server {server}")
 
             # link volumes to server
             for volume in inst.get("os-extended-volumes:volumes_attached", []):
@@ -1823,7 +1511,7 @@ class ServerTask(AbstractResourceTask):
                 )
                 volume_name = volume_ext_obj["name"]
                 volume_boot = str2bool(volume_ext_obj["bootable"])
-                objid = "%s//%s" % (project.objid, id_gen())
+                objid = f"{project.objid}//{id_gen()}"
                 model = container.add_resource(
                     objid=objid,
                     name=volume_name,
@@ -1845,19 +1533,16 @@ class ServerTask(AbstractResourceTask):
                 )
                 volume.update_state(ResourceState.ACTIVE)
                 server.add_link(
-                    "%s-%s-volume-link" % (server.oid, model.id),
+                    f"{server.oid}-{model.id}-volume-link",
                     "volume",
                     model.id,
                     attributes={"boot": volume_boot},
                 )
-                task.progress(
-                    step_id,
-                    msg="Setup volume link from %s to server %s" % (model.id, server.oid),
-                )
+                task.progress(step_id, msg=f"Setup volume link from {model.id} to server {server.oid}")
 
             task.progress(
                 step_id,
-                msg="restore server %s with restore: %s - STOP" % (server_obj.ext_id, restore_id),
+                msg=f"restore server {server_obj.ext_id} with restore: {restore_id} - STOP",
             )
 
             return server.oid

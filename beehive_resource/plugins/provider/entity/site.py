@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beecell.db import QueryError
 from beecell.types.type_dict import dict_get, dict_set
@@ -265,7 +265,7 @@ class Site(LocalProviderResource):
         """
         # select containers where create server and twins
         # self.logger.debug('+++++ tag %s' % (tag))
-        self.logger.debug("+++++ select_types %s" % (select_types))
+        self.logger.debug("select_types %s" % (select_types))
         orchestrator_idx = {}
         for v in self.__get_orchestrators(select_types=select_types):
             # self.logger.debug('+++++ v[tag] %s' % (v['tag']))
@@ -273,7 +273,9 @@ class Site(LocalProviderResource):
                 orchestrator_idx[str(v[index_field])] = v
 
         if len(orchestrator_idx.values()) == 0:
-            raise ApiManagerError("No orchestrators found for tag %s" % tag, code=400)
+            raise OrchestratorError(
+                "No orchestrators %s found for tag %s, site %s" % (select_types, tag, self.name), code=400
+            )
         self.logger.debug("found orchestrators: %s" % orchestrator_idx)
         return orchestrator_idx
 
@@ -552,6 +554,20 @@ class SiteChildResource(LocalProviderResource):
         """
         return self.get_site().get_orchestrators_by_tag(tag, index_field=index_field, select_types=select_types)
 
+    def get_hypervisors_by_tag(self, tag, index_field="id"):
+        """Get physical hypervisors by tag
+
+        :param tag: orchestrator tag
+        :return: extended params
+        :raise ApiManagerError:
+        """
+        select_types = ["vsphere", "openstack"]
+        orchestrator_select_types = self.get_configs().get("orchestrator_select_types", None)
+        if orchestrator_select_types is not None:
+            select_types = orchestrator_select_types
+
+        return self.get_site().get_orchestrators_by_tag(tag, index_field=index_field, select_types=select_types)
+
     @staticmethod
     def group_create_step(g_steps):
         """Create group of step used to create resource
@@ -635,3 +651,7 @@ class SiteChildResource(LocalProviderResource):
         kvargs["steps"] = self.group_remove_step(orchestrator_idx)
         kvargs["sync"] = True
         return kvargs
+
+
+class OrchestratorError(ApiManagerError):
+    pass

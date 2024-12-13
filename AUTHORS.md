@@ -1,6 +1,6 @@
 beehive-resource is written and maintained by:
 
-* Alessandro Morè
+* Ahmad Nazha
 * Alessandro More'
 * Antonio Brasile
 * Daniela Ferraini
@@ -9,6 +9,7 @@ beehive-resource is written and maintained by:
 * Franco Frattini
 * Gianni Doria
 * Marco Paschetta
+* Matteo Guglielmetto
 * Michele Bello
 * Pasquale Lepera
 * Pietro Pillolli

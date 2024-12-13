@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import logging
 from beecell.simple import id_gen
@@ -38,6 +38,8 @@ class AwxProject(AwxResource):
         :return: list of tuple (resource class, ext_id, parent_id, resource class objdef, name, parent_class)
         :raises ApiManagerError:
         """
+        logger.debug("+++++ discover_new - res_ext_ids: %s" % res_ext_ids)
+
         # get from awx
         if ext_id is not None:
             remote_entities = container.conn.project.get(ext_id)
@@ -47,11 +49,16 @@ class AwxProject(AwxResource):
         # add new item to final list
         res = []
         for item in remote_entities:
-            if item["id"] not in res_ext_ids:
+            logger.debug('+++++ discover_new - item["id"]: %s - type: %s' % (item["id"], type(item["id"])))
+            ext_id = str(item["id"])
+            if ext_id not in res_ext_ids:
                 level = None
                 name = item["name"]
                 parent_id = None
-                res.append((AwxProject, item["id"], parent_id, AwxProject.objdef, name, level))
+                logger.debug("+++++ discover_new - append: %s" % ext_id)
+                res.append((AwxProject, ext_id, parent_id, AwxProject.objdef, name, level))
+            else:
+                logger.debug("+++++ discover_new - NOT append: %s" % ext_id)
 
         return res
 
@@ -67,7 +74,8 @@ class AwxProject(AwxResource):
         items = []
         remote_entities = container.conn.project.list()
         for item in remote_entities:
-            items.append({"id": item["id"], "name": item["name"]})
+            ext_id = str(item["id"])
+            items.append({"id": ext_id, "name": item["name"]})
 
         return items
 
@@ -185,6 +193,8 @@ class AwxProject(AwxResource):
 
         org_name = kvargs.pop("organization")
         scm_creds = kvargs.pop("scm_creds_name")
+        scm_branch = kvargs.pop("scm_branch", "master")
+        execution_environments = kvargs.pop("scm_execution_environment", None)
 
         try:
             org_ext_id = get_organization_id(org_name)
@@ -195,6 +205,7 @@ class AwxProject(AwxResource):
 
         kvargs["scm_creds"] = scm_creds_ext_id
         kvargs["org_ext_id"] = org_ext_id
+        kvargs["scm_branch"] = scm_branch
 
         steps = [
             AwxProject.task_base_path + "create_resource_pre_step",

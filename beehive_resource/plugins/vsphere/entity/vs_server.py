@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beecell.simple import truncate, id_gen, dict_get
 from beecell.types.type_id import token_gen
@@ -169,6 +169,9 @@ class VsphereServer(VsphereResource):
         parent_class = entity[5]
 
         parent = container.get_resource_by_extid(parent_id)
+        if parent is None:
+            raise ApiManagerError(f"Resource with ext_id {parent_id} not found!")
+
         parent_id = parent.oid
 
         # get parent folder
@@ -920,8 +923,7 @@ class VsphereServer(VsphereResource):
         res = None
         try:
             if self.ext_obj is not None:
-                info = self.container.conn.server.info(self.ext_obj)
-                res = info.get("state", "")
+                res = self.container.conn.server.get_status(self.ext_obj)
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex, code=400)
@@ -936,6 +938,19 @@ class VsphereServer(VsphereResource):
             data = self.container.conn.server.detail(self.ext_obj)
             ram = dict_get(data, "flavor.memory")
             cpu = dict_get(data, "flavor.cpu")
+
+            config_data = None
+            try:
+                config_data = self.container.conn.server.hardware.get_config_data(self.ext_obj)
+            except:
+                self.logger.warning(
+                    "server %s: error determining cpus from hardware config. Will use legacy function" % self.uuid
+                )
+                pass
+
+            if config_data is not None:
+                cpu = dict_get(config_data, "cpu.num")
+
             json_attribute_contain = [
                 {"field": "ram", "value": ram},
                 {"field": "vcpus", "value": cpu},
@@ -1197,7 +1212,6 @@ class VsphereServer(VsphereResource):
             token_data["staticuri"] = endpoint
             json_token_data = dumps(token_data)
             token = token_gen()
-            # self.controller.redis_manager.setex(self.console_prefix + token, self.console_expire_time, json_token_data)
             self.controller.redis_identity_manager.setex(
                 self.console_prefix + token, self.console_expire_time, json_token_data
             )

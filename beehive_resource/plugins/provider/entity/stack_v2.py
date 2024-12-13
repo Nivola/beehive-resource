@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 from datetime import datetime
 from logging import getLogger
 from re import match
@@ -103,6 +103,7 @@ class ComputeStackV2(ComputeProviderResource):
             "attributes.monitoring_enabled",
             self.is_monitoring_enabled(),
         )
+        dict_set(info, "attributes.hypervisor", self.get_hypervisor())
 
         return info
 
@@ -124,17 +125,29 @@ class ComputeStackV2(ComputeProviderResource):
             "attributes.monitoring_enabled",
             str2bool(self.is_monitoring_enabled()),
         )
+        dict_set(info, "attributes.hypervisor", self.get_hypervisor())
+
         return info
 
-    def is_monitoring_enabled(self, cache=False, ttl=300):
-        self.logger.debug("+++++ AAA is_monitoring_enabled")
+    def is_monitoring_enabled(self, cache=False, ttl=300):  # aaa
+        # self.logger.debug("+++++ AAA is_monitoring_enabled")
         for resource in self.get_child_resources():
             if isinstance(resource, ComputeInstance):
-                self.logger.debug("+++++ AAA is_monitoring_enabled - resource %s" % resource)
+                # self.logger.debug("+++++ AAA is_monitoring_enabled - resource %s" % resource)
                 computeInstance: ComputeInstance = resource
                 return computeInstance.is_monitoring_enabled()
 
         return 0
+
+    def get_hypervisor(self):
+        # self.logger.debug("+++++ AAA get_hypervisor")
+        for resource in self.get_child_resources():
+            if isinstance(resource, ComputeInstance):
+                # self.logger.debug("+++++ AAA get_hypervisor - resource %s" % resource)
+                computeInstance: ComputeInstance = resource
+                return computeInstance.get_hypervisor()
+
+        return None
 
     @staticmethod
     def customize_list(controller, entities, *args, **kvargs):
@@ -744,6 +757,8 @@ class ComputeStackV2(ComputeProviderResource):
         if self.get_stack_type() == "sql_stack":
             if self.get_stack_engine().get("engine") == "mysql":
                 prefix = "db_mysql_"
+            elif self.get_stack_engine().get("engine") == "mariadb":
+                prefix = "db_mariadb_"
             elif self.get_stack_engine().get("engine") == "postgresql":
                 prefix = "db_pgsql_"
             elif self.get_stack_engine().get("engine") == "oracle":
@@ -755,6 +770,7 @@ class ComputeStackV2(ComputeProviderResource):
                 prefix = "app_php_"
 
         metrics = {
+            "%spower_on" % prefix: 0,
             "%svcpu" % prefix: 0,
             "%sgbram" % prefix: 0,
             "%sboot_gbdisk_low" % prefix: 0,
@@ -766,6 +782,7 @@ class ComputeStackV2(ComputeProviderResource):
         }
 
         metric_units = {
+            "%spower_on" % prefix: "#",
             "%svcpu" % prefix: "#",
             "%sgbram" % prefix: "GB",
             "%sboot_gbdisk_low" % prefix: "GB",
@@ -793,6 +810,8 @@ class ComputeStackV2(ComputeProviderResource):
                     memory = 0
                     cpu = 0
                     if data.get("state") == "poweredOn":
+                        metrics["%spower_on" % prefix] += 1
+
                         memory = data.get("memory")
                         if memory is None:
                             memory = data.get("ram")

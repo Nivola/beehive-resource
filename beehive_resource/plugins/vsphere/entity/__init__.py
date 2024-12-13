@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive_resource.container import Resource, AsyncResource
 
@@ -19,12 +19,12 @@ class VsphereResource(AsyncResource):
         self.ext_obj = None
 
     '''def get_state(self):
-        """Get resoruce state. 
-        
+        """Get resoruce state.
+
         **Return:**
-        
+
             State can be:
-        
+
             * PENDING = 0
             * BUILDING =1
             * ACTIVE = 2
@@ -111,12 +111,12 @@ class NsxResource(AsyncResource):
         Resource.__init__(self, *args, **kvargs)
 
     '''def get_state(self):
-        """Get resoruce state. 
-        
+        """Get resoruce state.
+
         **Return:**
-        
+
             State can be:
-        
+
             * PENDING = 0
             * BUILDING =1
             * ACTIVE = 2

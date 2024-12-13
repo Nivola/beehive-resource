@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from re import match
 from six import ensure_str
@@ -617,7 +617,37 @@ class StackV2SqlTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def sql_haproxy_registration_step(
+    def haproxy_save_port(task, step_id, params, *args, **kvargs):
+        """Get certificate from stdout of previous step and add to extra_vars
+
+        :param task: parent celery task
+        :param str step_id: step id
+        :param dict params: step params
+        :return: True, params
+        """
+        stackV2SqlTask: StackV2SqlTask = task
+        stackV2SqlTask.logger.debug("+++++ haproxy_save_port - params: {}".format(params))
+        stackV2SqlTask.logger.debug("+++++ haproxy_save_port - args: {}".format(args))
+        stackV2SqlTask.logger.debug("+++++ haproxy_save_port - kvargs: {}".format(kvargs))
+
+        shared_data = stackV2SqlTask.get_shared_data()
+        stackV2SqlTask.logger.debug("+++++ haproxy_save_port - shared_data: {}".format(shared_data))
+        stdout_data = stackV2SqlTask.get_stdout_data()
+        stackV2SqlTask.logger.debug("+++++ haproxy_save_port - stdout_data: {}".format(stdout_data))
+
+        haproxy_port = "???"
+
+        # update resource attribute
+        oid = params.get("id")
+        resource = task.get_simple_resource(oid)
+        resource.set_configs(key="haproxy_port", value=haproxy_port)
+        task.progress(step_id, msg="Save resource %s haproxy port in attribute" % oid)
+
+        return oid, params
+
+    @staticmethod
+    @task_step()
+    def sql_haproxy_registration_step(  # aaa useless?
         task,
         step_id,
         params,
@@ -646,7 +676,7 @@ class StackV2SqlTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def sql_haproxy_deregistration_step(
+    def sql_haproxy_deregistration_step(  # aaa useless?
         task,
         step_id,
         params,

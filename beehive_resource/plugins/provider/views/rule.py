@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 from copy import deepcopy
 
 from beehive_resource.plugins.provider.entity.rule import ComputeRule
@@ -133,20 +133,20 @@ class ListRules(ProviderRule):
             if len(service_attribs) == 0:
                 attribute = deepcopy(attrib)
                 attribute = "%" + "%".join(attribute) + "%"
-                attribute = attribute.replace("/", "%")
+                attribute = attribute.replace("/", "\\\\/")
                 data["attribute"].append(attribute)
             else:
                 for service_attrib in service_attribs:
                     attribute = deepcopy(attrib)
                     attribute.append(service_attrib)
                     attribute = "%" + "%".join(attribute) + "%"
-                    attribute = attribute.replace("/", "%")
+                    attribute = attribute.replace("/", "\\\\/")
                     data["attribute"].append(attribute)
         else:
             for service_attrib in service_attribs:
                 attribute = [service_attrib]
                 attribute = "%" + "%".join(attribute) + "%"
-                attribute = attribute.replace("/", "%")
+                attribute = attribute.replace("/", "\\\\/")
                 data["attribute"].append(attribute)
 
         return self.get_resources(controller, **data)
@@ -245,7 +245,15 @@ class CreateRuleParamRequestSchema(CreateProviderResourceRequestSchema):
     reserved = fields.Boolean(
         required=False,
         missing=False,
-        description="Flag to use when rule must be reserved " "to admin management",
+        description="Flag to use when rule must be reserved to admin management",
+    )
+    rule_orchestrator_types = fields.List(
+        fields.String(
+            example="vsphere",
+        ),
+        required=False,
+        allow_none=True,
+        description="networking and security platform(s) where sg rules will be defined",
     )
 
 

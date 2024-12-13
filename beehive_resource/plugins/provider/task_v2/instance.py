@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from copy import deepcopy
 import ujson as json
@@ -480,6 +480,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
         """
         cid = params.get("cid")
         oid = params.get("id")
+        admin_username = params.get("admin_username")
 
         provider = task.get_container(cid)
         availability_zone = task.get_simple_resource(availability_zone_id)
@@ -557,6 +558,12 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
                     }
                 )
 
+        if admin_username is None:
+            # Discriminate admin user by image across compute instance;
+            # It can be root or non root sudoer
+            current_compute_instance = task.get_resource(oid)
+            admin_username = current_compute_instance.get_real_admin_user()
+
         # create zone instance params
         instance_params = {
             "type": params.get("type"),
@@ -566,16 +573,19 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
             "parent": availability_zone_id,
             "compute_instance": oid,
             "orchestrator_tag": params.get("orchestrator_tag"),
+            # "orchestrator_select_types": params.get("orchestrator_select_types"),
             "host_group": params.get("host_group"),
             "image": image_id,
             "flavor": flavor_id,
             "security_groups": security_groups,
             "networks": networks,
             "admin_pass": params.get("admin_pass"),
+            "admin_username": admin_username,
             "user_data": params.get("user_data"),
             "metadata": params.get("metadata"),
             "personality": params.get("personality"),
             "main": main,
+            "clone_source_uuid": params.get("clone_source_uuid"),
             "attribute": {"main": main, "type": params.get("type"), "configs": {}},
         }
         prepared_task, code = provider.resource_factory(Instance, **instance_params)
@@ -703,10 +713,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
         compute_instance.post_get()
 
         if manage is True:
-            user = "root"
-            if compute_instance.is_windows() is True:
-                user = "administrator"
-
+            user = compute_instance.get_real_admin_user()
             uuid = compute_instance.manage(user=user, key=params.get("key_name"), password=params.get("admin_pass"))
             task.progress(step_id, msg="Manage instance %s with ssh node %s" % (oid, uuid))
 
@@ -847,6 +854,46 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
+    def pass_certificate_step(task, step_id, params, *args, **kvargs):
+        """Get certificate from stdout of previous step and add to extra_vars
+
+        :param task: parent celery task
+        :param str step_id: step id
+        :param dict params: step params
+        :return: True, params
+        """
+        computeInstanceTask: ComputeInstanceTask = task
+        computeInstanceTask.logger.debug("+++++ pass_certificate_step - params: {}".format(params))
+        computeInstanceTask.logger.debug("+++++ pass_certificate_step - args: {}".format(args))
+        computeInstanceTask.logger.debug("+++++ pass_certificate_step - kvargs: {}".format(kvargs))
+
+        shared_data = computeInstanceTask.get_shared_data()
+        computeInstanceTask.logger.debug("+++++ pass_certificate_step - shared_data: {}".format(shared_data))
+        stdout_data = computeInstanceTask.get_stdout_data()
+        computeInstanceTask.logger.debug("+++++ pass_certificate_step - stdout_data: {}".format(stdout_data))
+
+        # get certificate from output
+        end_cert = "-----END CERTIFICATE-----"
+        i_start = stdout_data.find("-----BEGIN CERTIFICATE-----")
+        i_stop = stdout_data.find(end_cert)
+        if i_start > -1 and i_stop > -1:
+            i_stop += len(end_cert)
+            cert: str = stdout_data[i_start:i_stop]
+            cert = cert.replace("\\n", "\n")
+            cert = cert.replace("\\", "")
+            computeInstanceTask.logger.info("+++++ pass_certificate_step - cert: %s" % cert)
+
+            # add cert
+            extra_vars = params.get("extra_vars", {})
+            extra_vars["cert"] = cert
+        else:
+            computeInstanceTask.logger.info("+++++ pass_certificate_step - NO cert found")
+
+        oid = params.get("id")
+        return oid, params
+
+    @staticmethod
+    @task_step()
     def apply_customization_action_step(task, step_id, params, *args, **kvargs):
         """Apply customization to instance
 
@@ -855,7 +902,15 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
         :param dict params: step params
         :return: True, params
         """
-        logger.debug("+++++ apply_customization_action_step - params: {}".format(params))
+        computeInstanceTask: ComputeInstanceTask = task
+        computeInstanceTask.logger.debug("+++++ apply_customization_action_step - params: {}".format(params))
+        computeInstanceTask.logger.debug("+++++ apply_customization_action_step - args: {}".format(args))
+        computeInstanceTask.logger.debug("+++++ apply_customization_action_step - kvargs: {}".format(kvargs))
+
+        shared_data = computeInstanceTask.get_shared_data()
+        computeInstanceTask.logger.debug("+++++ apply_customization_action_step - shared_data: {}".format(shared_data))
+        stdout_data = computeInstanceTask.get_stdout_data()
+        computeInstanceTask.logger.debug("+++++ apply_customization_action_step - stdout_data: {}".format(stdout_data))
 
         oid = params.get("id")
         cid = params.get("cid")
@@ -865,6 +920,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
         extra_vars = params.get("extra_vars", {})
         provider = task.get_container(cid)
         resource = task.get_simple_resource(oid)
+        orchestrator_tag = params.get("orchestrator_tag", "default")
 
         if params is None:
             params = {}
@@ -877,6 +933,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
             "instances": [{"id": oid, "extra_vars": {}}],
             "playbook": playbook,
             "extra_vars": extra_vars,
+            "orchestrator_tag": orchestrator_tag,
             "sync": True,
         }
 
@@ -884,7 +941,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
         resource.update_internal(state=ResourceState.ACTIVE)
 
         # create applied customization
-        logger.debug("+++++ apply_customization_action_step - data: {}".format(data))
+        computeInstanceTask.logger.debug("+++++ apply_customization_action_step - data: {}".format(data))
         prepared_task, code = provider.resource_factory(AppliedComputeCustomization, **data)
         appcust_id = prepared_task["uuid"]
         run_sync_task(prepared_task, task, step_id)
@@ -1076,7 +1133,13 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
                 subnet_cidr = network.get("subnet").get("cidr")
                 fixed_ip = network.get("fixed_ip", None)
                 orchestrator_type = orchestrator["type"]
-                helper = task.get_orchestrator(orchestrator_type, task, step_id, orchestrator, resource)
+
+                from beehive_resource.plugins.provider.task_v2.openstack import ProviderOpenstack
+                from beehive_resource.plugins.provider.task_v2.vsphere import ProviderVsphere
+
+                helper: ProviderVsphere = task.get_orchestrator(
+                    orchestrator_type, task, step_id, orchestrator, resource
+                )
 
                 if orchestrator_type == "vsphere":
                     helper.create_ipset(fixed_ip, rule_groups)

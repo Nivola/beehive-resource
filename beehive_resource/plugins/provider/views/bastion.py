@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from marshmallow.validate import OneOf
 from beehive_resource.plugins.provider.entity.bastion import ComputeBastion
@@ -283,6 +283,13 @@ class CreateBastionParamRequestSchema(CreateProviderResourceRequestSchema):
         allow_none=True,
         description="list of network acl",
     )
+    # orchestrator_select_types = fields.List(
+    #     fields.String(example="vsphere"),
+    #     required=False,
+    #     allow_none=True,
+    #     context="query",
+    #     description="orchestrator select types",
+    # )
 
 
 class CreateBastionRequestSchema(Schema):

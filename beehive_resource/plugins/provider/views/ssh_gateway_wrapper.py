@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2023 Regione Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from uuid import UUID
 from beehive_resource.plugins.provider.views import (
@@ -51,7 +52,7 @@ class ActivateSshGatewayRequestSchema(Schema):
     ActivateSshGatewayRequestSchema
     """
 
-    user = fields.String(required=True, example="user@csi.it", description="user id")
+    user = fields.String(required=True, example="abcd@def.gh", description="user id")
     destination = fields.String(required=True, description="destination uuid")
     port = fields.Int(required=True, example="5432", description="destination port")
 

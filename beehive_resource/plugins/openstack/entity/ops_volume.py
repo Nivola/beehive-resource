@@ -1,16 +1,15 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
-from ast import Try
-from beecell.simple import truncate, get_value, id_gen, str2bool, dict_get
-from beehive.common.apimanager import ApiManagerError
-from beehive_resource.plugins.openstack.entity import OpenstackResource
-from beehive_resource.plugins.openstack.entity.ops_image import OpenstackImage
+from beecell.simple import get_value, id_gen, str2bool
 from beehive.common.data import trace, operation
+from beehive.common.apimanager import ApiManagerError
+from beehive_resource.plugins.openstack.entity.ops_image import OpenstackImage
 from beehive_resource.plugins.openstack.entity.ops_volume_type import (
     OpenstackVolumeType,
 )
+from beehive_resource.plugins.openstack.entity import OpenstackResource
 
 
 class OpenstackVolume(OpenstackResource):
@@ -35,7 +34,8 @@ class OpenstackVolume(OpenstackResource):
     #
     @staticmethod
     def discover_new(container, ext_id, res_ext_ids):
-        """Discover method used when synchronize beehive container with remote platform.
+        """
+        Discover method used when synchronize beehive container with remote platform.
 
         :param kvargs.container.conn: client used to comunicate with remote platform
         :param kvargs.ext_id: remote platform entity id
@@ -50,12 +50,12 @@ class OpenstackVolume(OpenstackResource):
             items = container.conn.volume_v3.list_all(detail=True, limit=250)
             # items = container.conn.volume_v3.list(all_tenants=True, detail=True)
 
+        level = None
+        openstack_objdef = OpenstackVolume.objdef
         # add new item to final list
         res = []
         for item in items:
             if item["id"] not in res_ext_ids:
-                level = None
-                parent_id = None
                 name = item["name"]
                 if name is None or name == "":
                     name = item["id"]
@@ -66,7 +66,7 @@ class OpenstackVolume(OpenstackResource):
                         OpenstackVolume,
                         item["id"],
                         parent_id,
-                        OpenstackVolume.objdef,
+                        openstack_objdef,
                         name,
                         level,
                     )
@@ -76,18 +76,19 @@ class OpenstackVolume(OpenstackResource):
 
     @staticmethod
     def discover_died(container):
-        """Discover method used when check if resource already exists in remote platform or was been modified.
+        """
+        Discover method used when check if resource already exists in remote platform or was been modified.
 
         :param kvargs.container.conn: client used to comunicate with remote platform
         :return: list of remote entities
         :raise ApiManagerError:
         """
-        items = container.conn.volume_v3.list_all(detail=True, limit=1000)
-        return items
+        return container.conn.volume_v3.list_all(detail=True, limit=1000)
 
     @staticmethod
     def synchronize(container, entity):
-        """Discover method used when synchronize beehive container with remote platform.
+        """
+        Discover method used when synchronize beehive container with remote platform.
 
         :param container: instance of resource container
         :param entity: entity discovered [resclass, ext_id, parent_id, obj_type, name, parent_class]
@@ -99,20 +100,16 @@ class OpenstackVolume(OpenstackResource):
         ext_id = entity[1]
         parent_id = entity[2]
         name = entity[4]
-        level = entity[5]
+        # level = entity[5]
 
+        objid = f"{container.objid}//none//none//{id_gen()}"
+        parent_id = None
         # get parent project
         if parent_id is not None:
             parent = container.get_resource_by_extid(parent_id)
             if parent is not None:
-                objid = "%s//%s" % (parent.objid, id_gen())
+                objid = f"{parent.objid}//{id_gen()}"
                 parent_id = parent.oid
-            else:
-                objid = "%s//none//none//%s" % (container.objid, id_gen())
-                parent_id = None
-        else:
-            objid = "%s//none//none//%s" % (container.objid, id_gen())
-            parent_id = None
 
         res = {
             "resource_class": resclass,
@@ -132,7 +129,8 @@ class OpenstackVolume(OpenstackResource):
     #
     @staticmethod
     def customize_list(controller, entities, container, *args, **kvargs):
-        """Post list function. Extend this function to execute some operation
+        """
+        Post list function. Extend this function to execute some operation
         after entity was created. Used only for synchronous creation.
 
         :param kvargs.controller: controller instance
@@ -143,11 +141,9 @@ class OpenstackVolume(OpenstackResource):
         :return: entities
         :raise ApiManagerError:
         """
-        # remote_entities = OpenstackVolume.list_volume(controller, container.oid, container)
         remote_volume_types = OpenstackVolume.list_remote_volume_type(controller, container.oid, container)
 
         # create index of remote objs
-        # remote_entities_index = {i['id']: i for i in remote_entities}
         remote_volume_types_index = {i["name"]: i for i in remote_volume_types}
 
         # get volume types
@@ -155,7 +151,6 @@ class OpenstackVolume(OpenstackResource):
 
         for entity in entities:
             ext_obj = OpenstackVolume.get_remote_volume(controller, entity.ext_id, container, entity.ext_id)
-            # ext_obj = remote_entities_index.get(entity.ext_id, None)
             entity.set_physical_entity(ext_obj)
             try:
                 volume_type_ext_id = remote_volume_types_index.get(ext_obj.get("volume_type"))["id"]
@@ -165,7 +160,8 @@ class OpenstackVolume(OpenstackResource):
         return entities
 
     def post_get(self):
-        """Post get function. This function is used in get_entity method.
+        """
+        Post get function. This function is used in get_entity method.
         Extend this function to extend description info returned after query.
 
         :return:
@@ -187,7 +183,8 @@ class OpenstackVolume(OpenstackResource):
 
     @staticmethod
     def pre_create(controller, container, *args, **kvargs):
-        """Check input params before resource creation. This function is used in container resource_factory method.
+        """
+        Check input params before resource creation. This function is used in container resource_factory method.
 
         :param controller: resource controller instance
         :param container: container instance
@@ -218,7 +215,8 @@ class OpenstackVolume(OpenstackResource):
             cinder-volume.ubuntu.lvmdriver. When a volume is created, the scheduler chooses an appropriate back end
             to handle the request based on the volume type. Default is None. For information about how to use
             volume typesto create multiple-storage back ends, see Configure multiple-storage back ends. [optional]
-        :param kvargs.metadata: One or more metadata key and value pairs that are associated with the volume_v3. [optional]
+        :param kvargs.metadata: One or more metadata key and value pairs that are associated with
+                                the volume_v3. [optional]
         :param kvargs.source_replica: The UUID of the primary volume to clone. [optional] [todo]
         :param kvargs.consistencygroup_id: The UUID of the consistency group. [optional] [todo]
         :param kvargs.scheduler_hints: The dictionary of data to send to the scheduler. [optional] [todo]
@@ -243,17 +241,12 @@ class OpenstackVolume(OpenstackResource):
             obj = controller.get_resource(kvargs.get("source_volid"), entity_class=OpenstackVolume)
             kvargs["source_volid"] = obj.oid
 
-        # # get snapshot_id
-        # if kvargs.get('snapshot_id') is not None:
-        #     obj = container.get_resource(kvargs.get('snapshot_id'), entity_class=OpenstackVolume)
-        #     kvargs['snapshot'] = obj.ext_id
-
         # get availability_zone
         availability_zone = get_value(kvargs, "availability_zone", None)
         zones = {z["zoneName"] for z in container.system.get_compute_zones()}
         if availability_zone not in zones:
             raise ApiManagerError(
-                "Openstack availability_zone %s does not exist" % availability_zone,
+                f"Openstack availability_zone {availability_zone} does not exist",
                 code=404,
             )
         kvargs["availability_zone"] = availability_zone
@@ -267,7 +260,8 @@ class OpenstackVolume(OpenstackResource):
         return kvargs
 
     def pre_update(self, *args, **kvargs):
-        """Pre update function. This function is used in update method.
+        """
+        Pre update function. This function is used in update method.
 
         :param list args: custom params
         :param dict kvargs: custom params
@@ -281,14 +275,14 @@ class OpenstackVolume(OpenstackResource):
         """
         steps = [
             OpenstackVolume.task_path + "update_resource_pre_step",
-            OpenstackVolume.task_path + "volume_update_physical_step",
             OpenstackVolume.task_path + "update_resource_post_step",
         ]
         kvargs["steps"] = steps
         return kvargs
 
     def pre_delete(self, *args, **kvargs):
-        """Pre delete function. This function is used in delete method.
+        """
+        Pre delete function. This function is used in delete method.
 
         :param list args: custom params
         :param dict kvargs: custom params
@@ -313,7 +307,8 @@ class OpenstackVolume(OpenstackResource):
     # info
     #
     def check(self):
-        """Check resource
+        """
+        Check resource.
 
         :return: dict with check result. {'check': True, 'msg': None}
         :raises ApiManagerError: raise :class:`.ApiManagerError`
@@ -325,11 +320,12 @@ class OpenstackVolume(OpenstackResource):
             res = {"check": True, "msg": None}
         else:
             res = {"check": False, "msg": "no remote volume found"}
-        self.logger.debug2("Check resource %s: %s" % (self.uuid, res))
+        self.logger.debug2(f"Check resource {self.uuid}: {res}")
         return res
 
     def info(self):
-        """Get infos.
+        """
+        Get infos.
 
         :return: like :class:`Resource`
         :raise ApiManagerError:
@@ -345,13 +341,13 @@ class OpenstackVolume(OpenstackResource):
             data["encrypted"] = self.ext_obj.get("encrypted")
             data["size"] = self.ext_obj.get("size")
             data["status"] = self.ext_obj.get("status")
-
             info["details"] = data
 
         return info
 
     def detail(self):
-        """Get details.
+        """
+        Get details.
 
         :return: like :class:`Resource`
         :raise ApiManagerError:
@@ -367,12 +363,13 @@ class OpenstackVolume(OpenstackResource):
             data["encrypted"] = self.ext_obj.get("encrypted")
             data["size"] = self.ext_obj.get("size")
             data["status"] = self.ext_obj.get("status")
-
             info["details"].update(data)
+
         return info
 
     def get_size(self):
-        """Get size
+        """
+        Get size.
 
         :return: volume size
         """
@@ -380,62 +377,65 @@ class OpenstackVolume(OpenstackResource):
             ret = self.ext_obj.get("size")
             if isinstance(ret, int):
                 return ret
-            elif isinstance(ret, float):
+            if isinstance(ret, float):
                 return ret
-            elif isinstance(ret, str):
+            if isinstance(ret, str):
                 s: str = ret
                 try:
                     ret = int(s)
                     return ret
-                except ValueError as ex:
+                except ValueError:
                     try:
                         ret = float(s)
                         return ret
                     except ValueError as ex:
+                        self.logger.error(ex, exc_info=True)
                         return 0
             else:
                 return 0
-            # return self.ext_obj.get('size')
         else:
             return 0
 
     def get_volume_type(self):
-        """Get volume type
+        """
+        Get volume type.
 
         :return: volume type
         """
         return self.volume_type
 
     def is_bootable(self):
-        """Get bootable attribute
+        """
+        Get bootable attribute.
 
         :return: volume bootable
         """
         if self.ext_obj is not None:
             return str2bool(self.ext_obj.get("bootable"))
-        else:
-            return False
+        return False
 
     def get_disk_index(self):
-        """Get disk index
+        """
+        Get disk index.
 
         :return: disk index
         """
         return self.name.split("-")[-1]
 
     def is_encrypted(self):
-        """Get encrypted attribute
+        """
+        Get encrypted attribute.
 
         :return: volume encrypted
         """
         if self.ext_obj is not None:
             return str2bool(self.ext_obj.get("encrypted"))
-        else:
-            return False
+        return False
 
     @trace(op="use")
     def get_metadata(self):
-        """Lists the metadata for a specified volume instance.
+        """
+        Lists the metadata for a specified volume instance.
 
         :return: metadata list
         :raise ApiManagerError:
@@ -447,14 +447,15 @@ class OpenstackVolume(OpenstackResource):
             res = self.container.conn.volume_v3.get_metadata(self.ext_id)
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            raise ApiManagerError(ex, code=400)
+            raise ApiManagerError(ex, code=400) from ex
 
-        self.logger.debug("Get openstack volume %s metadata: %s" % (self.uuid, res))
+        self.logger.debug(f"Get openstack volume {self.uuid} metadata: {res}")
         return res
 
     @trace(op="use")
     def get_image_metadata(self):
-        """Lists the image metadata for a specified volume instance.
+        """
+        Lists the image metadata for a specified volume instance.
 
         :return: metadata list
         :raise ApiManagerError:
@@ -466,9 +467,9 @@ class OpenstackVolume(OpenstackResource):
             res = self.container.conn.volume_v3.show_image_metadata(self.ext_id)
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            raise ApiManagerError(ex, code=400)
+            raise ApiManagerError(ex, code=400) from ex
 
-        self.logger.debug("Get openstack volume %s image metadata: %s" % (self.uuid, res))
+        self.logger.debug(f"Get openstack volume {self.uuid} image metadata: {res}")
         return res
 
     #
@@ -476,7 +477,8 @@ class OpenstackVolume(OpenstackResource):
     #
     @trace(op="use")
     def exist_snapshot(self, snapshot_id):
-        """Check volume snapshot exists
+        """
+        Check volume snapshot exists.
 
         :param snapshot_id: The uuid of the snapshot.
         :return: True
@@ -485,18 +487,15 @@ class OpenstackVolume(OpenstackResource):
         try:
             self.container.conn.volume_v3.snapshot.get(snapshot_id)
         except Exception as ex:
-            err = "Openstack volume %s snapshot does not exist: %s" % (
-                self.uuid,
-                snapshot_id,
-            )
+            err = f"Openstack volume {self.uuid} snapshot does not exist: {snapshot_id}"
             self.logger.error(err)
-            raise ApiManagerError(err)
-
+            raise ApiManagerError(err) from ex
         return True
 
     @trace(op="use")
     def list_snapshots(self):
-        """List volume snapshots
+        """
+        List volume snapshots.
 
         :return: snapshot
         :raise ApiManagerError:
@@ -515,14 +514,15 @@ class OpenstackVolume(OpenstackResource):
                     res.append(item)
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            raise ApiManagerError(ex, code=400)
+            raise ApiManagerError(ex, code=400) from ex
 
-        self.logger.debug("Get openstack volume %s snapshots: %s" % (self.uuid, truncate(res)))
+        self.logger.debug(f"Get openstack volume {self.uuid} snapshots: {res}")
         return res
 
     @trace(op="use")
     def get_snapshot(self, snapshot_id):
-        """Get volume snapshot
+        """
+        Get volume snapshot.
 
         :param snapshot_id: snapshot id
         :return: snapshot
@@ -536,14 +536,15 @@ class OpenstackVolume(OpenstackResource):
             res["volume_id"] = self.uuid
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            raise ApiManagerError(ex, code=400)
+            raise ApiManagerError(ex, code=400) from ex
 
-        self.logger.debug("Get openstack volume %s snapshot: %s" % (self.uuid, res))
+        self.logger.debug(f"Get openstack volume {self.uuid} snapshot: {res}")
         return res
 
     @trace(op="use")
     def add_snapshot(self, name):
-        """Add volume snapshot
+        """
+        Add volume snapshot.
 
         :param name: snapshot name
         :return: snapshot
@@ -557,14 +558,15 @@ class OpenstackVolume(OpenstackResource):
             res["volume_id"] = self.uuid
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            raise ApiManagerError(ex, code=400)
+            raise ApiManagerError(ex, code=400) from ex
 
-        self.logger.debug("Add openstack volume %s snapshot: %s" % (self.uuid, res))
+        self.logger.debug(f"Add openstack volume {self.uuid} snapshot: {res}")
         return res
 
     @trace(op="use")
     def delete_snapshot(self, snapshot_id):
-        """Delete volume snapshot
+        """
+        Delete volume snapshot.
 
         :param snapshot_id: The uuid of the snapshot.
         :return: snapshot
@@ -579,14 +581,15 @@ class OpenstackVolume(OpenstackResource):
             res = self.container.conn.volume_v3.snapshot.delete(snapshot_id)
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            raise ApiManagerError(ex, code=400)
+            raise ApiManagerError(ex, code=400) from ex
 
-        self.logger.debug("Delete openstack volume %s snapshot: %s" % (self.uuid, snapshot_id))
+        self.logger.debug(f"Delete openstack volume {self.uuid} snapshot: {snapshot_id}")
         return res
 
     @trace(op="use")
     def revert_snapshot(self, snapshot_id):
-        """Revert volume to snapshot
+        """
+        Revert volume to snapshot.
 
         :param snapshot_id: The uuid of the snapshot.
         :return: snapshot
@@ -601,9 +604,9 @@ class OpenstackVolume(OpenstackResource):
             res = self.container.conn.volume_v3.snapshot.revert_to(self.ext_id, snapshot_id)
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            raise ApiManagerError(ex, code=400)
+            raise ApiManagerError(ex, code=400) from ex
 
-        self.logger.debug("Revert openstack volume %s to snapshot: %s" % (self.uuid, snapshot_id))
+        self.logger.debug(f"Revert openstack volume {self.uuid} to snapshot: {snapshot_id}")
         return res
 
     #
@@ -611,7 +614,8 @@ class OpenstackVolume(OpenstackResource):
     #
     @trace(op="update")
     def clone(self, name, project):
-        """Clone volume
+        """
+        Clone volume.
 
         :param name: cloned volume name
         :param project: cloned volume project id
@@ -638,7 +642,8 @@ class OpenstackVolume(OpenstackResource):
     #
     @trace(op="update")
     def set_flavor(self, *args, **kvargs):
-        """Set volume type to volume.
+        """
+        Set volume type to volume.
 
         :param flavor: flavor uuid or name
         :return: {'taskid':..}, 202
@@ -649,9 +654,9 @@ class OpenstackVolume(OpenstackResource):
             flavor = self.container.get_simple_resource(kvargs["flavor"], entity_class=OpenstackVolumeType)
             kvargs["flavor"] = flavor.ext_id
             if self.volume_type is None:
-                raise ApiManagerError("flavor %s is not assigned to volume %s" % self.oid)
+                raise ApiManagerError(f"flavor {flavor.oid} is not assigned to volume {self.oid}")
             if self.volume_type.oid == flavor.oid:
-                raise ApiManagerError("flavor %s already assigned to volume %s" % (flavor.oid, self.oid))
+                raise ApiManagerError(f"flavor {flavor.oid} already assigned to volume {self.oid}")
 
             return kvargs
 

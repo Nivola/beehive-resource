@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2021-2022 Regione Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive.common.model import BaseEntity
 from beehive_resource.container import Resource
@@ -49,7 +50,7 @@ class ComputeMonitoringFolder(ComputeProviderResource):
             ComputeMonitoringAlert,
         ]
 
-        self.actions = ["add_dashboard", "add_permission"]
+        self.actions = ["add_dashboard", "delete_dashboard", "add_permission"]
 
     def get_physical_folder(self):
         """Get physical folder"""
@@ -284,6 +285,24 @@ class ComputeMonitoringFolder(ComputeProviderResource):
             "account": account,
         }
 
+    def delete_dashboard(
+        self,
+        dashboard_to_search,
+        *args,
+        **kvargs,
+    ):
+        """Delete dashboard check function
+
+        :param dashboard: dashboard name
+        :return: kvargs
+        """
+        self.logger.debug(
+            "delete_dashboard - ComputeMonitoringFolder - dashboard_to_search: %s" % (dashboard_to_search)
+        )
+        return {
+            "dashboard_to_search": dashboard_to_search,
+        }
+
     def add_permission(self, team_viewer, team_editor, *args, **kvargs):
         """Add dashboard check function
 
@@ -511,6 +530,22 @@ class MonitoringFolder(AvailabilityZoneChildResource):
             "organization": organization,
             "division": division,
             "account": account,
+        }
+
+    def delete_dashboard(
+        self,
+        dashboard_to_search,
+        *args,
+        **kvargs,
+    ):
+        """Add dashboard check function
+
+        :param dashboard_to_search: dashboard name to search
+        :return: kvargs
+        """
+        self.logger.debug("delete_dashboard - MonitoringFolder - dashboard_to_search: %s" % (dashboard_to_search))
+        return {
+            "dashboard_to_search": dashboard_to_search,
         }
 
     def add_permission(self, team_viewer, team_editor: None, *args, **kvargs):

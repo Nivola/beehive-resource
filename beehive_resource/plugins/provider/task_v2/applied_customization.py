@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beecell.simple import id_gen
 from beehive.common.task_v2 import task_step, run_sync_task
@@ -48,7 +48,10 @@ class AppliedComputeCustomizationTask(AbstractProviderResourceTask):
         from beehive_resource.task_v2.core import AbstractResourceTask
 
         abstractResourceTask: AbstractResourceTask = task
-        provider = abstractResourceTask.get_container(cid)
+
+        from beehive_resource.plugins.provider.controller import LocalProvider
+
+        provider: LocalProvider = abstractResourceTask.get_container(cid)
         availability_zone = abstractResourceTask.get_simple_resource(availability_zone_id)
         site = availability_zone.get_parent()
         site_id = site.oid
@@ -73,6 +76,8 @@ class AppliedComputeCustomizationTask(AbstractProviderResourceTask):
             if obj_availability_zone_id == availability_zone_id:
                 inst_extra_vars = instance.get("extra_vars")
 
+                ssh_creds = compute_instance.get_real_admin_credential()
+
                 if compute_instance.is_windows() is True:
                     inst_extra_vars.update(
                         {
@@ -86,10 +91,19 @@ class AppliedComputeCustomizationTask(AbstractProviderResourceTask):
                         }
                     )
 
+                    from beehive_resource.plugins.provider.entity.bastion import ComputeBastion
+                    from beehive_resource.plugins.provider.entity.zone import ComputeZone
+
+                    computeZone: ComputeZone = compute_instance.get_parent()
+                    bastion_host: ComputeBastion = computeZone.get_bastion_host()
+                    if bastion_host is not None:
+                        raise Exception("Ansible connection with winrm is not supported through bastion")
+
                 else:
                     inst_extra_vars.update(
                         {
-                            "ansible_user": compute_instance.get_real_admin_user(),
+                            # "ansible_user": compute_instance.get_real_admin_user(),
+                            "ansible_user": ssh_creds["username"],
                             # 'ansible_password': credential.get('password'),
                             "ansible_port": compute_instance.get_real_ssh_port(),
                             # 'ansible_host': obj.get_ip_address(),
@@ -98,9 +112,8 @@ class AppliedComputeCustomizationTask(AbstractProviderResourceTask):
                             "ansible_ssh_common_args": "-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no",
                         }
                     )
-
-                # add data per account private
-                inst_extra_vars = compute_instance.set_ansible_ssh_common_args(inst_extra_vars)
+                    # add data per account private
+                    inst_extra_vars = compute_instance.set_ansible_ssh_common_args(inst_extra_vars)
 
                 # get instance ip address
                 ip_address = compute_instance.get_real_ip_address()
@@ -135,7 +148,8 @@ class AppliedComputeCustomizationTask(AbstractProviderResourceTask):
             "project": project,
             "playbook": playbook,
             "verbosity": verbosity,
-            "ssh_creds": compute_instance.get_real_admin_credential(),
+            # "ssh_creds": compute_instance.get_real_admin_credential(),
+            "ssh_creds": ssh_creds,
             "extra_vars": extra_vars,
         }
 
@@ -219,6 +233,7 @@ class AppliedCustomizationTask(AbstractProviderResourceTask):
         }
 
         # create awx_job_template
+        logger.debug("+++++ create_awx_job_template_step - awx_container: %s" % awx_container)
         logger.debug("+++++ create_awx_job_template_step - awx_job_template_params: %s" % awx_job_template_params)
         prepared_task, code = awx_container.resource_factory(AwxJobTemplate, **awx_job_template_params)
         job_template_id = prepared_task["uuid"]

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 from datetime import datetime
 
 from time import sleep
@@ -471,7 +471,7 @@ class OpenstackServer(OpenstackResource):
         :param kvargs.clone_server: [optional] if param exist contains master server used to clone volumes. When you
             set this param block_device_mapping_v2 is not used
         :param kvargs.clone_server_volume_type: [optional] The device volume_type. This is used to specify the type
-            of volume which the compute service will create and attach to the cloned server volumes.        
+            of volume which the compute service will create and attach to the cloned server volumes.
         """
 
         # get project

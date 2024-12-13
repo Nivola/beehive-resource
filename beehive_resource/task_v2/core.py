@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import ujson as json
 from celery.utils.log import get_task_logger
@@ -50,6 +50,17 @@ class AbstractResourceTask(BaseTask):
         if ext_id is not None and ext_id != "":
             return True
         return False
+
+    def renew_container_token(self, *args, **kwargs):
+        """Renew container token"""
+        container_oid = kwargs.get("container_oid", None)
+        projectid = kwargs.get("projectid", None)
+        if container_oid:
+            self.logger.debug("Renewing Token for container %s and project %s " % (container_oid, projectid))
+            container_new = self.get_container(container_oid, projectid)
+            if container_new is not None and container_new.conn.get_token() is not None:
+                return container_new.conn.get_token().get("token")
+        return None
 
     def get_container(self, container_oid, projectid=None):
         """Get resource container instance.
@@ -107,6 +118,20 @@ class AbstractResourceTask(BaseTask):
         :raises ApiManagerError: if query empty return error.
         """
         return self.__get_resource(oid, run_customize=False)
+
+    def get_simple_resource_by_name_and_entity_class(self, name, entity_class):
+        """Get resource by name and entity class
+
+        :param name: resource name
+        :param entity_class: entity class
+        :return: resource instance
+        :raises ApiManagerError:
+        """
+        from beehive_resource.controller import ResourceController
+
+        controller: ResourceController
+        controller = self.controller
+        return controller.get_entity_v2(ModelResource, name, entity_class=entity_class, customize=None)
 
     def get_resource(self, oid):
         """Get resource instance with detail.
@@ -227,7 +252,7 @@ class AbstractResourceTask(BaseTask):
         uuid = params.get("uuid")
         tags = params.get("tags")
 
-        resource = task.get_simple_resource(oid)
+        resource: Resource = task.get_simple_resource(oid)
         resource.update_state(ResourceState.BUILDING)
         task.progress(
             step_id,

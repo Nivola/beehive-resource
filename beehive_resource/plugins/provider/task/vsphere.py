@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import ujson as json
 from celery.utils.log import get_task_logger
@@ -1061,7 +1061,7 @@ class ProviderVsphere(object):
                 "port_state": "ACTIVE",
                 "mac_addr": "fa:16:3e:8c:0b:20",
                 "port_id": "6b5fb291-d025-497c-87d2-17c9af277fac",
-                "net_id": "eeab4682-1844-4b90-b4ef-3de497115f02"                
+                "net_id": "eeab4682-1844-4b90-b4ef-3de497115f02"
                 """
 
                 # get only the first network

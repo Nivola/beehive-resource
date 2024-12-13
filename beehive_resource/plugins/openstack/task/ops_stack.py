@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import ujson as json
 from celery.utils.log import get_task_logger
@@ -303,15 +303,15 @@ def task_register_child_entity(self, options):
     self.update("PROGRESS", msg="Get child resources: %s" % truncate(resources))
 
     """
-    [{'resource_name': 'my_instance', 
-      'links': [{}], 
+    [{'resource_name': 'my_instance',
+      'links': [{}],
       'logical_resource_id': 'my_instance',
-      'creation_time': '2017-12-19T12:17:09Z', 
+      'creation_time': '2017-12-19T12:17:09Z',
       'resource_status': 'CREATE_COMPLETE',
-      'updated_time': '2017-12-19T12:17:09Z', 
-      'required_by': [], 
+      'updated_time': '2017-12-19T12:17:09Z',
+      'required_by': [],
       'resource_status_reason': 'state changed',
-      'physical_resource_id': '9d06ea46-6ab0-4e93-88b9-72f32de0cc31', 
+      'physical_resource_id': '9d06ea46-6ab0-4e93-88b9-72f32de0cc31',
       'resource_type': 'OS::Nova::Server'}]
     """
 

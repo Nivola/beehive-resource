@@ -1,13 +1,14 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from re import match
 from ipaddress import IPv4Address
 from six import ensure_text
 from beecell.network import InternetProtocol
 from beecell.simple import get_value
+from beecell.types.type_dict import dict_get
 from beehive.common.apimanager import ApiManagerError
 from beehive_resource.container import Resource
 from beehive_resource.plugins.provider.entity.aggregate import ComputeProviderResource
@@ -111,6 +112,7 @@ class ComputeRule(ComputeProviderResource):
         source = kvargs.get("source")
         destination = kvargs.get("destination")
         service = kvargs.get("service", {"port": "*", "protocol": "*"})
+        rule_orchestrator_types = kvargs.get("rule_orchestrator_types")
 
         # get zone
         compute_zone = container.get_resource(zone_id)
@@ -129,7 +131,7 @@ class ComputeRule(ComputeProviderResource):
         def check(source):
             rval = get_value(source, "value", None, exception=True)
             rtype = get_value(source, "type", None, exception=True)
-            if rtype not in ["SecurityGroup", "Instance", "Cidr"]:
+            if rtype not in ["IPSet", "SecurityGroup", "Instance", "Cidr"]:
                 raise ApiManagerError("Rule type %s is not supported" % rtype, code=400)
 
             # check value exist or is correct
@@ -417,13 +419,16 @@ class Rule(AvailabilityZoneChildResource):
             {'port':80, 'protocol':17} -> udp:80
             {'protocol':1, 'subprotocol':8} -> icmp:echo request
         """
-        orchestrator_tag = kvargs.get("orchestrator_tag", "default")
-
         # get zone
-        zone = controller.get_resource(kvargs.get("parent"))
+        from beehive_resource.plugins.provider.entity.zone import AvailabilityZone
+
+        availability_zone: AvailabilityZone = controller.get_resource(kvargs.get("parent"))
 
         # select remote orchestrators
-        orchestrator_idx = zone.get_orchestrators_by_tag(orchestrator_tag)
+        orchestrator_tag = kvargs.get("orchestrator_tag", "default")
+        # orchestrator_select_types = kvargs.get("orchestrator_select_types")
+        # orchestrator_idx = availability_zone.get_orchestrators_by_tag(orchestrator_tag, select_types=orchestrator_select_types)
+        orchestrator_idx = availability_zone.get_hypervisors_by_tag(orchestrator_tag)
 
         params = {"orchestrators": orchestrator_idx}
         kvargs.update(params)

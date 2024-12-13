@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from logging import getLogger
 from beehive.common.task_v2 import task_step, run_sync_task
@@ -67,6 +67,7 @@ class SecurityGroupTask(AbstractProviderResourceTask):
             "desc": "Zone security group %s" % params.get("desc"),
             "parent": availability_zone.oid,
             "orchestrator_tag": params.get("orchestrator_tag"),
+            # "orchestrator_select_types": params.get("orchestrator_select_types"),
             # 'rules': rules,
             "attribute": {"configs": {}},
         }
@@ -111,6 +112,9 @@ class SecurityGroupTask(AbstractProviderResourceTask):
         availability_zone = task.get_resource(availability_zone_id)
         task.progress(step_id, msg="Get rule group %s" % oid)
 
-        helper = task.get_orchestrator(orchestrator.get("type"), task, step_id, orchestrator, resource)
+        from beehive_resource.plugins.provider.task_v2.openstack import ProviderOpenstack
+        from beehive_resource.plugins.provider.task_v2.vsphere import ProviderVsphere
+
+        helper: ProviderVsphere = task.get_orchestrator(orchestrator.get("type"), task, step_id, orchestrator, resource)
         sg_id = helper.create_security_group(availability_zone)
         return sg_id, params

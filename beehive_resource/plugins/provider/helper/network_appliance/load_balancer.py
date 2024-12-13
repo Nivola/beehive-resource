@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from ipaddress import ip_address, ip_network
 from beecell.simple import dict_get
@@ -10,7 +10,7 @@ from beehive.common.apimanager import ApiManagerError
 from beehive_resource.plugins.provider.entity.gateway import ComputeGateway
 from beehive_resource.plugins.provider.helper.network_appliance import AbstractProviderNetworkApplianceHelper
 from beehive_resource.plugins.vsphere.entity.nsx_edge import NsxEdge
-from beehive_resource.plugins.provider.entity.vpc_v2 import Vpc, SiteNetwork
+from beehive_resource.plugins.provider.entity.vpc_v2 import SiteNetwork
 
 
 class VsphereNsxEdgeFirewallRuleTemplate(object):
@@ -156,7 +156,7 @@ class ProviderVsphereHelper(AbstractProviderNetworkApplianceHelper):
         self.edge.set_container(self.controller.get_container(self.edge.container_id))
         self.edge.post_get()
 
-    def __get_ippool(self, site_id, site_network_name=None, gateway_id=None):
+    def __get_ippool(self, site_id, site_network_id=None, gateway_id=None):
         """Get ip pool ext id
 
         :param gateway_id: internet gateway id
@@ -177,9 +177,9 @@ class ProviderVsphereHelper(AbstractProviderNetworkApplianceHelper):
             # get site network
             site_network = vpc_internet.get_network_by_site(site_id)
 
-        elif site_network_name is not None:
+        elif site_network_id is not None:
             # get site network
-            site_network = self.controller.get_simple_resource(site_network_name)
+            site_network = self.controller.get_simple_resource(site_network_id)
 
         if site_network is None:
             raise Exception("Ip pool not found")
@@ -197,17 +197,17 @@ class ProviderVsphereHelper(AbstractProviderNetworkApplianceHelper):
         ippool_id = subnet.get("vsphere_id")
         return ippool_id
 
-    def reserve_ip_address(self, site_id, site_network_name, gateway_id, static_ip):
+    def reserve_ip_address(self, site_id, site_network_id, gateway_id, static_ip):
         """Allocate an IP address for the load balancer
 
         :param site_id: site id
-        :param site_network_name: site network name
+        :param site_network_id: site network id
         :param gateway_id: internet gateway id
         :param static_ip: ip address specified by the user
         :return: dict with reserved ip address and other info
         """
         # get ip pool
-        ippool_id = self.__get_ippool(site_id, site_network_name=site_network_name, gateway_id=gateway_id)
+        ippool_id = self.__get_ippool(site_id, site_network_id=site_network_id, gateway_id=gateway_id)
 
         # allocate ip address
         conn = self.container.conn
@@ -512,6 +512,10 @@ class ProviderVsphereHelper(AbstractProviderNetworkApplianceHelper):
         # select vnic
         if len(vnics) == 0:
             raise ApiManagerError("Uplink vnic not found")
+        if len(vnics) == 1:
+            return vnics[0]
+        # in case of multiple uplink vnics, the check below fails on private cloud because site_network_name param is None
+        # TODO: find a solution for private as well
         for vnic in vnics:
             portgroup_name = vnic.get("portgroupName", "")
             is_connected = vnic.get("isConnected")
@@ -907,7 +911,7 @@ class ProviderVsphereHelper(AbstractProviderNetworkApplianceHelper):
         :return:
         """
         lb_config = dict_get(params, "configs")
-        site_network_name = lb_config.pop("site_network")
+        site_network_id = lb_config.pop("site_network")
         site_id = lb_config.pop("site")
         network_appliance = lb_config.pop("network_appliance")
         uplink_vnic = dict_get(lb_config, "vnic.uplink")
@@ -921,7 +925,7 @@ class ProviderVsphereHelper(AbstractProviderNetworkApplianceHelper):
         interpod_fw_rule = fw_rules.get("interpod")
 
         # get ip pool
-        ippool_id = self.__get_ippool(site_id, site_network_name=site_network_name, gateway_id=None)
+        ippool_id = self.__get_ippool(site_id, site_network_id=site_network_id, gateway_id=None)
 
         res = {
             "network_appliance": {"uuid": network_appliance.get("uuid"), "ext_id": network_appliance.get("ext_id")},

@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from logging import getLogger
 from beehive.common.apimanager import ApiManagerError
 from beehive.common.task_v2 import task_step, TaskError
 from beehive_resource.plugins.vsphere.entity.vs_server import VsphereServer
-from beehive_resource.plugins.vsphere.task_v2.util import VsphereServerHelper
+from beehive_resource.plugins.vsphere.task_v2.util import VsphereServerHelper, VsphereServerBaseHelper
 from beehive_resource.task_v2 import AbstractResourceTask, run_sync_task
 
 logger = getLogger(__name__)
@@ -28,8 +28,12 @@ class ServerTask(AbstractResourceTask):
         :param dict params: step params
         :return: oid, params
         """
+        clone_source_server_oid = params.get("clone_source_oid")
+        is_clone = clone_source_server_oid is not None
         cid = params.get("cid")
         oid = params.get("id")
+        admin_username = params.get("admin_username")
+        admin_password = params.get("adminPass")
         name = params.get("name")
         folder_id = params.get("parent")
         cluster_id = params.get("availability_zone")
@@ -41,7 +45,9 @@ class ServerTask(AbstractResourceTask):
         resource = orchestrator.get_resource(oid)
         task.progress(step_id, msg="Get orchestrator %s" % cid)
 
-        helper = VsphereServerHelper(task, step_id, orchestrator, params)
+        helper = VsphereServerBaseHelper(
+            task, step_id, orchestrator, params, username=admin_username, password=admin_password
+        )
 
         # get folder
         folder = task.get_resource(folder_id)
@@ -58,17 +64,23 @@ class ServerTask(AbstractResourceTask):
         main_volume = volumes.pop(0)
         volume_name = "%s-root-volume" % name
         volume_desc = "Root Volume %s" % name
+
         source_type = main_volume.get("source_type")
+        logger.debug("source_type: %s" % source_type)
         if source_type == "image":
             volume_type = main_volume.get("volume_type")
             image_id = main_volume.get("uuid")
         elif source_type == "volume":
-            volume_obj = task.get_resource(main_volume.get("uuid"))
+            main_volume_uuid = main_volume.get("uuid")
+            logger.debug("main_volume_uuid: %s" % main_volume_uuid)
+            volume_obj = task.get_resource(main_volume_uuid)
             volume_type = volume_obj.get_volume_type().oid
             image_id = volume_obj.get_attribs("source_image")
             main_volume["volume_size"] = volume_obj.get_attribs("size")
 
         main_volume["image_id"] = image_id
+        logger.debug("main_volume: %s" % main_volume)
+
         boot_volume_id = helper.create_volume(
             volume_name,
             volume_desc,
@@ -102,14 +114,20 @@ class ServerTask(AbstractResourceTask):
 
         # get networks
         task.get_session(reopen=True)
-        net_id = params.get("networks")[0]["uuid"]
+
+        # first network
+        first_network = next(iter(params.get("networks")), {})
+        net_id = first_network.get("uuid")
+
         network = task.get_resource(net_id)
 
         # reserve ip address
         helper.reserve_network_ip_address()
 
+        net_attrib = {}
+        inst = None
         # clone server from template
-        if source_type in ["image", "volume"]:
+        if not is_clone and source_type in ["image", "volume"]:
             # create server
             inst = helper.clone_from_template(
                 oid,
@@ -122,51 +140,51 @@ class ServerTask(AbstractResourceTask):
                 cluster=cluster,
                 customization_spec_name=customization_spec_name,
             )
-
-            # set server disks reference to volumes
-            helper.set_volumes_ext_id(inst, volume_idx)
-
-        # # clone server from snapshot - linked clone
-        # elif source_type == 'snapshot':
-        #     inst = helper.linked_clone_from_server(oid, name, folder, volumes, network, resource_pool=None,
-        #     cluster=cluster)
-        #
-        # # create new server
-        # elif source_type == 'volume':
-        #     inst = helper.create_new(oid, name, folder, volumes, network, resource_pool=None, cluster=cluster)
-
+        # clone server from server
+        elif is_clone and source_type == "volume":
+            # The admin user is set with the template password
+            inst = helper.clone_from_server(
+                oid,
+                clone_source_server_oid,
+                name,
+                folder,
+                volume_type,
+                volumes,
+                network,
+                dest_cluster=cluster,
+                source_vm_username=admin_username,
+                source_vm_password=admin_password,
+            )
         else:
             raise TaskError("Source type %s is not supported" % source_type)
+        """
+        # clone server from snapshot - linked clone
+        elif source_type == 'snapshot':
+            inst = helper.linked_clone_from_server(oid, name, folder, volumes, network, resource_pool=None, cluster=cluster)
+        """
+
+        # set server disks reference to volumes
+        helper.set_volumes_ext_id(inst, volume_idx)
+        net_config = first_network.get("fixed_ip", {})
+        net_attrib = {"subnet_pool": first_network.get("subnet_pool"), "ip": net_config.get("ip")}
 
         # set server security groups
         helper.set_security_group(inst)
 
-        # set network interface ip
-        net_info = helper.setup_network(inst)
-        # [{'uuid': networks[0].get('uuid'), 'ip': config.get('ip')}]
-        attrib = {"subnet_pool": net_info[0]["subnet_pool"], "ip": net_info[0]["ip"]}
+        # add resource link for network
         orchestrator.add_link(
             name="%s-%s-network-link" % (oid, network.oid),
             type="network",
             start_resource=oid,
             end_resource=network.oid,
-            attributes=attrib,
+            attributes=net_attrib,
         )
 
         # setup ssh key
         helper.setup_ssh_key(inst)
 
-        # disable proxy
-        helper.setup_proxy(inst)
-
-        # install software
-        # helper.guest_setup_install_software(inst)
-
         # setup ssh password
         helper.setup_ssh_pwd(inst)
-
-        # disable firewall
-        # helper.disable_firewall(inst)
 
         # save current data in shared area
         params["ext_id"] = inst._moId
@@ -252,6 +270,9 @@ class ServerTask(AbstractResourceTask):
         task.progress(step_id, msg="Get orchestrator %s" % cid)
 
         helper = VsphereServerHelper(task, step_id, orchestrator, params)
+
+        # Release ip address
+        helper.release_network_ip_address(resource)
 
         # get vsphere server
         from beedrones.vsphere.client import VsphereManager
@@ -650,7 +671,7 @@ class ServerTask(AbstractResourceTask):
             server = conn.server.get_by_morid(ext_id)
 
             # add new disk for the volume
-            task = conn.server.hardware.delete_hard_disk(server, volume_extid)
+            task = conn.server.hardware.delete_hard_disk(server, volume_extid, delete_backing_file=False)
 
             # change volume ext_id
             volume_obj.update_internal(ext_id="")
@@ -691,7 +712,7 @@ class ServerTask(AbstractResourceTask):
             # get server
             server = conn.server.get_by_morid(ext_id)
             # extend disk
-            ext_task = conn.server.hardware.extend_hard_disk(volume_extid, volume_size)
+            ext_task = conn.server.hardware.extend_hard_disk(conn.server, volume_extid, volume_size)
             return ext_task
 
         params["volume"] = task.get_simple_resource(params.get("volume"))

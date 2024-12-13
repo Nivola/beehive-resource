@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from marshmallow.validate import OneOf
 
@@ -12,6 +12,7 @@ from beehive_resource.plugins.provider.entity.security_group import SecurityGrou
 from beehive_resource.plugins.provider.entity.vpc import Vpc
 from beehive_resource.plugins.provider.entity.zone import ComputeZone
 from beehive_resource.view import ListResourcesRequestSchema, ResourceResponseSchema
+from beehive.common import DNS_TTL
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
@@ -276,6 +277,9 @@ class CreateInstanceParamRequestSchema(CreateProviderResourceRequestSchema):
         description="type of the instance: vsphere or openstack",
     )
     flavor = fields.String(required=True, example="12", description="id or uuid of the flavor")
+    admin_username = fields.String(
+        required=False, example="ubuntu", default="root", description="admin username", allow_none=True
+    )
     admin_pass = fields.String(required=True, example="xxxx", description="admin password to set")
     networks = fields.Nested(
         CreateInstanceNetworkRequestSchema,
@@ -339,6 +343,13 @@ class CreateInstanceParamRequestSchema(CreateProviderResourceRequestSchema):
         missing=True,
         required=False,
         description="whether to explicitly check that the requested main volume size is at least as big as the minimum",
+    )
+    clone_source_uuid = fields.String(
+        required=False,
+        example="55cb2435-391f-40a5-ba3b-879137525d31",
+        default="",
+        description="resource instance id for compute source instance, use only for clone",
+        allow_none=True,
     )
 
 
@@ -1053,7 +1064,7 @@ class SetInstanceDns(ProviderInstance):
         if obj.get_base_state() != "ACTIVE":
             raise ApiManagerError("Instance %s is not in ACTIVE state" % obj.uuid)
 
-        res = obj.set_dns_recorda(force=True, ttl=30)
+        res = obj.set_dns_recorda(force=True, ttl=DNS_TTL)
         resp = {"uuid": res}
         return resp
 

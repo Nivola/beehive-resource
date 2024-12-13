@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from logging import getLogger
 from beehive.common.task_v2 import task_step, run_sync_task
 from beehive_resource.plugins.provider.entity.flavor import ComputeFlavor, Flavor
 from beehive_resource.plugins.provider.task_v2 import AbstractProviderResourceTask
+from beecell.simple import id_gen
 
 logger = getLogger(__name__)
 
@@ -151,6 +152,8 @@ class FlavorTask(AbstractProviderResourceTask):
         :param sharedarea.flavor_id:
         :return: True, params
         """
+        # from beecell.debug import dbgprint
+        # dbgprint(task=task, step_id=step_id, params=params, site_id=site_id, flavors=flavors)
         cid = params.get("cid")
         oid = params.get("id")
         availability_zone_id = flavors[0].get("availability_zone_id")
@@ -175,9 +178,17 @@ class FlavorTask(AbstractProviderResourceTask):
             prepared_task, code = zone_flavor.update(**flavor_params)
             run_sync_task(prepared_task, task, step_id)
         else:
+            # hack name should be passed
+            name = params.get("name")
+            if name is None:
+                try:
+                    name = flavors[0].get("name")
+                except:
+                    name = id_gen()
+
             # create flavor
             flavor_params = {
-                "name": "%s-avz%s" % (params.get("name"), site_id),
+                "name": "%s-avz%s" % (name, site_id),
                 "desc": "Zone flavor %s" % params.get("desc"),
                 "parent": availability_zone_id,
                 "orchestrator_tag": params.get("orchestrator_tag"),

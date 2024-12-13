@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive_resource.view import (
     CreateResourceBaseRequestSchema,
@@ -80,6 +80,11 @@ class ProviderAPI(ApiView):
 
 
 class CreateProviderResourceRequestSchema(CreateResourceBaseRequestSchema):
+    """
+    :desc: resource description
+    :orchestrator_tag: orchestrator tag
+    """
+
     desc = fields.String(required=True, example="test", description="The resource description")
     orchestrator_tag = fields.String(
         required=False,

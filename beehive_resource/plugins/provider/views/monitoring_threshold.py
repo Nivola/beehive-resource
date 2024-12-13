@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2021-2022 Regione Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive.common.apimanager import (
     ApiManagerError,
@@ -96,6 +97,9 @@ class CreateMonitoringThresholdZabbixThresholdRequestSchema(Schema):
         description="Threshold description",
     )
     triplet = fields.String(required=True, example="Test threshold", default="", description="Triplet account")
+    triplet_desc = fields.String(
+        required=True, example="Test threshold", default="", description="Triplet desc account"
+    )
     str_users = fields.String(required=True, example="test@email.com,aaa@bbb.it", default="", description="Users email")
 
 

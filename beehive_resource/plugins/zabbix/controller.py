@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2018-2022 Regione Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
-from urllib.parse import urlparse
+from urllib.parse import ParseResult, urlparse
 
 from beehive_resource.container import Orchestrator
 from beehive_resource.plugins.zabbix.entity.zbx_host import ZabbixHost
@@ -216,11 +217,15 @@ class ZabbixContainer(Orchestrator):
         """
         return kvargs
 
-    def get_ip_address(self):
-        """Get zabbix server ip address"""
-        conn_params = self.conn_params["api"]
-        uri = conn_params["uri"]
+    @staticmethod
+    def get_ip_address(uri: str) -> str:
+        """Get zabbix server ip address
+
+        :param uri: zabbix server api uri
+        :return: zabbix server ip address
+        """
         parsed_uri = urlparse(uri)
-        ip_address, port = parsed_uri.netloc.split(":")
+        comp = parsed_uri.netloc.split(":")
+        # ip_address, port = parsed_uri.netloc.split(":")
         # http://cmpvc1-zabbix01.site03.nivolapiemonte.it:80/zabbix/api_jsonrpc.php
-        return ip_address
+        return comp[0]

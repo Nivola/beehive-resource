@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2021-2022 Regione Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from copy import deepcopy
 from beecell.simple import id_gen
@@ -267,6 +268,24 @@ class MonitoringFolderTask(AbstractProviderResourceTask):
 
             # se sync
             # ({'task': beehive_resource.task_v2.core.resource_action_task(), 'uuid': 'f5f7a13e-1338-4686-a65b-72768fad9e0b', 'params': {'dashboard_folder_from': 'default', 'dashboard_to_search': 'Mysql', 'folder_uid_to': 'e3HFClkSk', 'dash_tag': None, 'organization': 'CsiTest', 'division': 'DivCsi', 'account': 'account_csi', 'alias': 'GrafanaFolder.add_dashboard', 'cid': 19, 'id': 34183, 'objid': '1dcc06da3b//3b82ee774c', 'name': 'CsiTest.DivCsi.account_csi-folder', 'ext_id': 'e3HFClkSk', 'parent': None, 'action_name': 'add_dashboard', 'steps': ['beehive_resource.task_v2.core.AbstractResourceTask.action_resource_pre_step', 'beehive_resource.plugins.grafana.task_v2.grafana_folder.GrafanaFolderTask.add_dashboard_step', 'beehive_resource.task_v2.core.AbstractResourceTask.action_resource_post_step'], 'user': 'client-beehive@local', 'server': '10.42.0.135', 'identity': '7c6a83b3-d9c8-4396-8784-4f675b4da5e3', 'api_id': '5624ebd5-b0ca-400c-952f-e7a6a5c6a056', 'sync': True}}, 200)
+            child_task = res[0]
+            run_sync_task(child_task, task, step_id)
+
+        elif action == "delete_dashboard":
+            dashboard_to_search = params.get("dashboard_to_search")
+
+            # fv - attenzione folder id/uid
+            folder_uid_to = grafana_folder.ext_id
+
+            res, str = grafana_folder.delete_dashboard(
+                dashboard_to_search,
+                folder_uid_to,
+                params,
+            )
+            logger.debug("monitoring_folder_action_step - action: %s - res: %s - str: %s" % (action, res, str))
+
+            # se sync
+            # ({'task': beehive_resource.task_v2.core.resource_action_task(), 'uuid': 'f5f7a13e-1338-4686-a65b-72768fad9e0b', 'params': {'dashboard_folder_from': 'default', 'dashboard_to_search': 'Mysql', 'folder_uid_to': 'e3HFClkSk', 'dash_tag': None, 'organization': 'CsiTest', 'division': 'DivCsi', 'account': 'account_csi', 'alias': 'GrafanaFolder.add_dashboard', 'cid': 19, 'id': 34183, 'objid': '1dcc06da3b//3b82ee774c', 'name': 'CsiTest.DivCsi.account_csi-folder', 'ext_id': 'e3HFClkSk', 'parent': None, 'action_name': 'add_dashboard', 'steps': ['beehive_resource.task_v2.core.AbstractResourceTask.action_resource_pre_step', 'beehive_resource.plugins.grafana.task_v2.grafana_folder.GrafanaFolderTask.delete_dashboard_step', 'beehive_resource.task_v2.core.AbstractResourceTask.action_resource_post_step'], 'user': 'client-beehive@local', 'server': '10.42.0.135', 'identity': '7c6a83b3-d9c8-4396-8784-4f675b4da5e3', 'api_id': '5624ebd5-b0ca-400c-952f-e7a6a5c6a056', 'sync': True}}, 200)
             child_task = res[0]
             run_sync_task(child_task, task, step_id)
 

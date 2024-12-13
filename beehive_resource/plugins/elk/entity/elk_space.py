@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import logging
 from beecell.simple import id_gen
@@ -45,7 +45,7 @@ class ElkSpace(ElkResource):
         """
         # get from elk
         if ext_id is not None:
-            remote_entities = container.conn_kibana.space.get(ext_id)
+            remote_entities = [container.conn_kibana.space.get(ext_id)]
         else:
             remote_entities = container.conn_kibana.space.list()
 

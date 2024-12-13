@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beecell.simple import id_gen
 from beehive.common.task_v2 import task_step, run_sync_task
@@ -45,12 +45,24 @@ class ComputeCustomizationTask(AbstractProviderResourceTask):
             "desc": "Zone customization %s" % params.get("desc"),
             "parent": availability_zone_id,
             "awx_project": params.get("awx_project"),
+            "orchestrator_tag": params.get("orchestrator_tag"),
             "attribute": {
                 "type": params.get("type"),
                 "orchestrator_tag": params.get("orchestrator_tag"),
             },
         }
-        prepared_task, code = provider.resource_factory(Customization, **customization_params)
+
+        # from beehive_resource.container import ResourceContainer
+        # provider: ResourceContainer
+
+        try:
+            prepared_task, code = provider.resource_factory(Customization, **customization_params)
+        except Exception as e:
+            task.progress(
+                step_id, "Will not create customization in availability zone %s: %s" % (availability_zone_id, str(e))
+            )
+            return True, params
+
         customization_id = prepared_task["uuid"]
 
         # link customization to compute customization
@@ -107,6 +119,7 @@ class CustomizationTask(AbstractProviderResourceTask):
             "name": name,
             "desc": "Awx Project %s" % name,
             "scm_url": awx_project.get("scm_url"),
+            "scm_branch": awx_project.get("scm_branch", "master"),
             "organization": orchestrator["config"].get("organization"),
             "scm_creds_name": orchestrator["config"].get("scm_creds"),
             "attribute": {},

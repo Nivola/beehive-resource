@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive.common.task_v2 import run_async
 from beehive_resource.plugins.dummy_v2.entity import DummyAbstractResourceV2

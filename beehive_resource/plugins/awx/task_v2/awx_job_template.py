@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beecell.simple import dict_get
+from beedrones.awx.client import AwxManager
 from beehive.common.task_v2 import task_step
 from beehive.common.task_v2.manager import task_manager
 from beehive_resource.plugins.awx.entity.awx_job_template import AwxJobTemplate
@@ -76,34 +77,91 @@ class AwxJobTemplateTask(AbstractResourceTask):
         :param dict params: step params
         :return: True, params
         """
-        container = task.get_data("container")
+        awxJobTemplateTask: AwxJobTemplateTask = task
+
+        container: AwxContainer = awxJobTemplateTask.get_data("container")
         job_template = params.get("ext_id")
+        creds = []
+        ssh_creds = params.get("launch").get("ssh_creds_id")
+        vault_creds = params.get("launch").get("vault_creds_id")
+        if ssh_creds:
+            creds.append(ssh_creds)
+        if vault_creds:
+            creds.append(vault_creds)
         jt_params = {
-            "credentials": [params.get("launch").get("ssh_creds_id")],
+            "credentials": creds,
             "extra_vars": params.get("launch").get("extra_vars"),
         }
         task.progress(step_id, msg="Get configuration params")
 
-        conn = container.conn
+        conn: AwxManager = container.conn
         res = conn.job_template.launch(job_template, **jt_params)
         job_id = res["id"]
         task.progress(step_id, msg="Run awx job %s" % job_id)
 
         # check job status
         def job_event_msg():
+            awxJobTemplateTask.logger.info("+++++ job_event_msg - job_id: %s" % job_id)
             job_events = conn.job.events(job_id, query={"failed": True})
-            job_event_msg = dict_get(job_events[1], "event_data.res.msg")
+            awxJobTemplateTask.logger.info("+++++ job_event_msg - job_events: %s" % job_events)
+
+            job_event_msg = ""
+            # check job has failed events (log lines)
+            if len(job_events) > 1:
+                # job_event_msg = dict_get(job_events[1], "event_data.res.msg")
+                for job_event in job_events:
+                    msg = dict_get(job_event, "event_data.res.msg")
+                    if msg is not None:
+                        job_event_msg += msg + "\n"
+
+            else:
+                # all stdout events
+                job_events = conn.job.events(job_id, query={})
+                awxJobTemplateTask.logger.info("+++++ job_event_msg - job_events: %s" % job_events)
+                for job_event in job_events:
+                    stdout = dict_get(job_event, "stdout")
+                    if stdout is not None:
+                        job_event_msg += stdout + "\n"
+
             return job_event_msg
+
+        # get job stdout
+        def job_success_stdout():
+            awxJobTemplateTask.logger.info("+++++ job_success_stdout - job_id: %s" % job_id)
+            res = conn.job.stdout(job_id)
+            content = res.get("content").split("\n")
+            job_output = ""
+            for i in content:
+                i = (
+                    i.replace("\x1b[0;32m", "")
+                    .replace("\x1b[0;33m", "")
+                    .replace("\x1b[1;31m", "")
+                    .replace("\x1b[1;35m", "")
+                    .replace("\x1b[0;31m", "")
+                    .replace("\x1b[0;36m", "")
+                )
+                if i == "\x1b[":
+                    continue
+                job_output += i.replace("\x1b[", "").replace("0m", "")
+
+            awxJobTemplateTask.logger.info(
+                "+++++ job_success_stdout - job_id: %s - job_output: %s" % (job_id, job_output)
+            )
+            return job_output
 
         from beehive_resource.plugins.awx.controller import AwxContainer
 
         awxContainer: AwxContainer = container
-        awxContainer.wait_for_awx_job(conn.job.get, job_id, delta=2, job_error_func=job_event_msg)
+        stdout: str = awxContainer.wait_for_awx_job(
+            conn.job.get, job_id, delta=2, job_error_func=job_event_msg, job_success_func=job_success_stdout
+        )
+        awxJobTemplateTask.set_stdout_data(stdout)
 
         params["job_id"] = job_id
 
         return True, params
 
+    # useless - commented everywhere!
     @staticmethod
     @task_step()
     def awx_job_report_step(task, step_id, params, *args, **kvargs):

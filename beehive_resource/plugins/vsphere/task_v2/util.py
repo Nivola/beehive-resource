@@ -1,16 +1,17 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import ujson as json
 import base64
 from celery.utils.log import get_task_logger
-from beehive.common.task.job import job_task, task_local, job, JobError, Job
 from gevent import sleep
 
+from beecell.simple import id_gen, prefixlength_to_netmask
+from beedrones.vsphere.server import VsphereGuestUtils
+from beehive.common.task.job import job_task, task_local, job, JobError, Job
 from beehive.common.task_v2 import run_sync_task
 from beehive_resource.plugins.vsphere.entity.vs_server import VsphereServer
-from beecell.simple import id_gen, prefixlength_to_netmask
 from beehive_resource.model import ResourceState
 from beehive_resource.plugins.vsphere.entity.vs_volume import VsphereVolume
 from beehive_resource.plugins.vsphere.entity.vs_volumetype import VsphereVolumeType
@@ -18,10 +19,10 @@ from beehive_resource.plugins.vsphere.entity.vs_volumetype import VsphereVolumeT
 logger = get_task_logger(__name__)
 
 
-class VsphereServerHelper(object):
-    """Some vsphere server helper methods"""
+class VsphereServerBaseHelper(object):
+    """Some vsphere server base helper methods"""
 
-    def __init__(self, task, step_id, orchestrator, params):
+    def __init__(self, task, step_id, orchestrator, params, username="root", password=None):
         from beehive_resource.plugins.vsphere import VsphereContainer
         from beedrones.vsphere.client import VsphereManager
 
@@ -31,18 +32,11 @@ class VsphereServerHelper(object):
         self.orchestrator: VsphereContainer = vsphereContainer
         self.conn: VsphereManager = vsphereContainer.conn
         self.params = params
-        self.user = "root"
+        self.user = username
         self.step_id = step_id
-
-        self.template_pwd = None
-        self.__get_template_credentials()
-
-    def __get_template_credentials(self):
-        # get admin password
-        self.template_pwd = self.params.get("metadata", {}).get("template_pwd", None)
+        self.template_pwd = password
         if self.template_pwd is None:
             logger.warn("Root password is not defined. Guest customization is not applicable")
-            return None
 
     def progress(self, msg):
         self.task.progress(self.step_id, msg=msg)
@@ -55,17 +49,17 @@ class VsphereServerHelper(object):
         self.conn.server.wait_guest_hostname_is_set(server=server, hostname=guest_host_name, delta=20, maxtime=900)
 
     def is_windows(self, server):
-        return self.conn.server.guest_is_windows(server)
+        return VsphereGuestUtils.guest_is_windows(server)
 
     def reboot_windows_server(self, server):
-        if self.conn.server.guest_is_windows(server) is True:
+        if self.is_windows(server):
             self.conn.server.reboot(server)
             sleep(5)
             self.wait_guest_tools_is_running(server)
             self.progress("Reboot server %s" % server)
 
     def set_admin_user_name(self, server):
-        if self.conn.server.guest_is_windows(server) is True:
+        if self.is_windows(server):
             self.user = "Administrator"
 
     def set_ext_id(self, server_id, mor_id):
@@ -172,6 +166,18 @@ class VsphereServerHelper(object):
         self.orchestrator.query_remote_task(self.task, self.step_id, vsphere_task)
         self.progress("Connect network %s" % network.ext_id)
 
+    def __resource_to_vsphere(
+        self,
+        resource,
+    ):
+        """
+        Take a vsphere object and return ext_obj the vsphere object to be passed to beedrones
+
+        """
+        if resource is not None:
+            return resource.ext_obj
+        return None
+
     def clone_from_template(
         self,
         server_id,
@@ -184,18 +190,13 @@ class VsphereServerHelper(object):
         cluster=None,
         customization_spec_name="WS201x PRVCLOUD custom OS sysprep",
     ):
-        # get params
-        # disk_size_gb = volumes[0].get('volume_size')
         flavor = self.params.get("flavorRef")
-        # guest_id = flavor.get('guest_id')
         memory_mb = flavor.get("ram")
         cpu = flavor.get("vcpus")
         if cpu < 2:
             core_per_socket = 1
         else:
             core_per_socket = int(cpu / 2)
-        # core_x_socket = flavor.get('core_x_socket')
-        # version = flavor.get('version')
 
         # get volumes
         disks = []
@@ -210,7 +211,17 @@ class VsphereServerHelper(object):
         datastore = volume_type.get_best_datastore(total_size, tag=volume_tag)
 
         # get template reference
-        template = self.task.get_resource(main_volume.get("image_id"))
+        image_id = main_volume.get("image_id")
+        template: VsphereServer = self.task.get_resource(image_id)
+
+        if template is None:
+            logger.error("template is None - resource image_id: %s not found" % (image_id))
+            raise JobError("Vsphere template not found %s" % image_id)
+
+        if template.ext_obj is None:
+            logger.error("template: %s" % template)
+            logger.error("template.ext_obj is None - image_id: %s" % (image_id))
+            raise JobError("Vsphere template server not found - template name: %s" % template.name)
 
         for volume in volumes:
             disk_type = "secondary"
@@ -231,6 +242,37 @@ class VsphereServerHelper(object):
         elif cluster is not None:
             cluster = cluster.ext_obj
 
+        # get network config
+        fixed_ip = self.params.get("networks")[0].get("fixed_ip", {})
+
+        guest_host_name = fixed_ip.get("hostname", name)
+        network_config = {
+            "ip_address": fixed_ip.get("ip"),
+            "ip_netmask": prefixlength_to_netmask(fixed_ip.get("prefix")),
+            "ip_gateway": fixed_ip.get("gw"),
+            "dns_server_list": fixed_ip.get("dns").split(","),
+            "dns_domain": fixed_ip.get("dns_search", "local"),
+        }
+
+        metadata = self.params.get("metadata", {})
+        # get proxy configuration
+        http_proxy = None
+        if not metadata.get("no_proxy"):
+            http_proxy = metadata.get("http_proxy")
+        https_proxy = http_proxy
+
+        cust_spec = self.conn.server.customization.build_custom_spec(
+            template.ext_obj,
+            customization_spec_name,
+            network_config,
+            guest_host_name,
+            self.template_pwd,
+            admin_username=self.user,
+            http_proxy=http_proxy,
+            https_proxy=https_proxy,
+        )
+
+        self.progress(f"Clone {name} from template {template.name}")
         # clone template
         vsphere_task = self.conn.server.create_from_template(
             template.ext_obj,
@@ -240,25 +282,20 @@ class VsphereServerHelper(object):
             resource_pool=resource_pool,
             cluster=cluster,
             power_on=False,
+            customization=cust_spec,
         )
-        self.progress("Clone template")
 
         # get physical server
         inst = self.orchestrator.query_remote_task(self.task, self.step_id, vsphere_task)
-        self.progress("Get physical server: %s" % inst._moId)
+        inst_mo_id = inst._moId
+        self.progress(f"Get physical server: {inst_mo_id}")
 
         # set physical server
-        self.set_ext_id(server_id, inst._moId)
-        self.progress("Set physical server: %s" % inst._moId)
-
-        # # loop until vsphere task has finished
-        # inst = self.orchestrator.query_remote_task(self.task, task)
-        self.progress("Template %s cloned" % template.name)
-
-        # shutdown server
-        # self.stop(inst)
+        self.set_ext_id(server_id, inst_mo_id)
+        self.progress(f"Set physical server: {inst_mo_id}")
 
         # reconfigure vm
+        self.progress(f"Reconfigure server {name}")
         vsphere_task = self.conn.server.reconfigure(
             inst,
             network.ext_obj,
@@ -268,47 +305,120 @@ class VsphereServerHelper(object):
             numCoresPerSocket=core_per_socket,
         )
         self.orchestrator.query_remote_task(self.task, self.step_id, vsphere_task)
-        self.progress("Reconfigure server %s" % name)
-
-        # customize windows server
-        if self.is_windows(template.ext_obj) is True:
-            # get network config
-            fixed_ip = self.params.get("networks")[0].get("fixed_ip", {})
-            guest_host_name = fixed_ip.get("hostname", name)
-
-            # get admin pwd
-            admin_pwd = self.params.get("adminPass", None)
-            if admin_pwd is None:
-                raise JobError("Admin password is not defined.")
-
-            network_config = {
-                "ip_address": fixed_ip.get("ip"),
-                "ip_netmask": prefixlength_to_netmask(fixed_ip.get("prefix")),
-                "ip_gateway": fixed_ip.get("gw"),
-                "dns_server_list": fixed_ip.get("dns").split(","),
-                "dns_domain": fixed_ip.get("dns_search", "local"),
-            }
-
-            vsphere_task = self.conn.server.customize(
-                inst,
-                customization_spec_name,
-                guest_host_name,
-                admin_pwd,
-                network_config,
-            )
-            self.orchestrator.query_remote_task(self.task, self.step_id, vsphere_task)
-            self.progress("Customize server %s with spec %s" % (name, customization_spec_name))
+        self.progress(f"Reconfigured server {name}")
 
         # start server
         self.start(inst)
 
+        # loop until vsphere customization has finished
+        self.wait_for_customization(server_id)
+        self.progress(f"Customized server {name}")
+
+        # wait for guest tools is running
+        self.wait_guest_tools_is_running(inst, maxtime=600)
+
         # check server is up and configured
-        if self.is_windows(template.ext_obj) is True:
+        if self.is_windows(template.ext_obj):
             self.check_server_up_and_configured(inst)
 
-        self.progress("Clone server %s from template" % name)
-
+        self.progress(f"Cloned {name} from template {template.name}")
         return inst
+
+    def clone_from_server(
+        self,
+        dest_server_oid,
+        source_server_oid,
+        clone_name,
+        dest_folder,
+        volume_type_id,
+        volumes,
+        dest_network,
+        dest_cluster=None,
+        source_vm_username="root",
+        source_vm_password=None,
+    ):
+        res_source_server = self.task.get_resource(source_server_oid)
+        source_conn = res_source_server.container.conn
+        metadata = self.params.get("metadata", {})
+        client_dest = self.conn
+
+        # network configuration
+        net = self.params.get("networks", [])
+        fallback_hostname = "vmwarevirtualplatform01"
+        fallback_domain = "local"
+
+        net_param = next(iter(net), {})
+        fixed_ip = net_param.get("fixed_ip")
+        ip_addr = fixed_ip.get("ip")
+        subnet = prefixlength_to_netmask(fixed_ip.get("prefix"))
+        hostname = fixed_ip.get("hostname", fallback_hostname)
+        default_gw = fixed_ip.get("gw")
+        domain_name = fixed_ip.get("dns_search", fallback_domain)
+        dns_servers = fixed_ip.get("dns", "").split(",")
+
+        # get proxy configuration
+        http_proxy = None
+        if not metadata.get("no_proxy"):
+            http_proxy = metadata.get("http_proxy")
+        https_proxy = http_proxy
+
+        # get total volume size required
+        main_volume = volumes[0]
+        total_size = sum([volume.get("volume_size") for volume in volumes])
+
+        # get datastore for all the disks.
+        volume_type = self.task.get_simple_resource(volume_type_id)
+        # use the volume_type of the main volume for all the volume
+        dest_datastore = volume_type.get_best_datastore(total_size, tag=main_volume.get("tag"))
+
+        vsphere_task = source_conn.server.create_clone(
+            self.__resource_to_vsphere(res_source_server),
+            clone_name,
+            hostname,
+            domain_name,
+            client_dest,
+            self.__resource_to_vsphere(dest_folder),
+            self.__resource_to_vsphere(dest_datastore),
+            self.__resource_to_vsphere(dest_cluster),
+            self.__resource_to_vsphere(dest_network),
+            source_vm_password,
+            ip_addr,
+            subnet,
+            default_gw,
+            dns_servers,
+            http_proxy,
+            https_proxy,
+            source_vm_username=source_vm_username,
+            source_vm_password=source_vm_password,
+        )
+
+        # call the vsphere clone task
+        inst = self.orchestrator.query_remote_task(self.task, self.step_id, vsphere_task)
+        self.progress(
+            "Cloning server %s (%s) into %s (%s)"
+            % (res_source_server.name, source_server_oid, clone_name, source_server_oid)
+        )
+
+        # set physical server
+        mo_id = inst._moId
+        self.set_ext_id(dest_server_oid, mo_id)
+        self.progress("Set physical vm %s to server %s (%s)" % (mo_id, source_server_oid, dest_server_oid))
+
+        # wait for customization
+        self.wait_for_customization(dest_server_oid)
+
+        # when cloning cross pod new server instance needed
+        res_dest_server = self.task.get_resource(dest_server_oid)
+        res_inst = self.__resource_to_vsphere(res_dest_server)
+        # wait for guest tools is running
+        self.wait_guest_tools_is_running(res_inst, maxtime=600)
+
+        self.progress(
+            "Cloned server %s (%s) from server %s (%s) "
+            % (clone_name, dest_server_oid, res_source_server.name, source_server_oid)
+        )
+
+        return res_inst
 
     def linked_clone_from_server(
         self,
@@ -365,8 +475,6 @@ class VsphereServerHelper(object):
         self.set_ext_id(server_id, inst._moId)
         self.progress("Set physical server: %s" % inst._moId)
 
-        # # loop until vsphere task has finished
-        # inst = self.orchestrator.query_remote_task(self.task, self.step_id, vsphere_task)
         self.progress("Server %s cloned" % server.name)
 
         # todo: add other volumes
@@ -485,17 +593,9 @@ class VsphereServerHelper(object):
             # self.orchestrator.query_remote_task(self.task, self.step_id, vsphere_task)
             self.progress("Power off server %s" % oid)
 
-    def delete(self, resource, inst):
+    def release_network_ip_address(self, resource):
         # get ip and ippool
         ip_config = resource.get_ip_address_config()
-
-        # delete vsphere server
-        oid = inst._moId
-        vsphere_task = self.conn.server.remove(inst)
-        # loop until vsphere task has finished
-        self.orchestrator.query_remote_task(self.task, self.step_id, vsphere_task)
-        self.progress("Remove server %s" % oid)
-
         # release ip
         if ip_config is not None:
             subnet_pool = ip_config.get("subnet_pool", None)
@@ -504,7 +604,26 @@ class VsphereServerHelper(object):
                 self.conn.network.nsx.ippool.release(subnet_pool, ip)
                 self.progress("Release ip %s from subnet pool %s" % (ip, subnet_pool))
 
-    def wait_guest_tools_is_running(self, inst, maxtime=180, delta=4):
+    def delete(self, resource, inst):
+        # delete vsphere server
+        oid = inst._moId
+        vsphere_task = self.conn.server.remove(inst)
+        # loop until vsphere task has finished
+        self.orchestrator.query_remote_task(self.task, self.step_id, vsphere_task)
+        self.progress("Remove server %s" % oid)
+
+    def wait_for_customization(self, server_oid):
+        resource_server = self.task.get_resource(server_oid)
+        conn = resource_server.container.conn
+        platform_server = resource_server.ext_obj
+        self.progress(msg="Waiting for customization for server %s" % server_oid)
+        is_customization_ok, error_msg = conn.server.wait_for_customization(platform_server)
+        if not is_customization_ok:
+            raise Exception("Customization failed for server %s: %s " % (server_oid, error_msg))
+        else:
+            self.progress(msg="Customization done successfully for server %s" % server_oid)
+
+    def wait_guest_tools_is_running(self, inst, maxtime=240, delta=3):
         # wait until guest tools are running
         elapsed = 0
         status = self.conn.server.guest_tools_is_running(inst)
@@ -515,8 +634,11 @@ class VsphereServerHelper(object):
             sleep(delta)
             elapsed += delta
             if elapsed > maxtime:
-                raise Exception("Guest tools are not still running after %s s. Task will be blocked" % maxtime)
-        self.progress(msg="Guest tools are running")
+                raise Exception(
+                    "Guest tools are not still running on server %s after %s s. Task will be blocked"
+                    % (inst._moId, maxtime)
+                )
+        self.progress(msg="Guest tools are running for server %s" % inst._moId)
 
     def reserve_network_ip_address(self):
         # setup only the first network
@@ -529,18 +651,6 @@ class VsphereServerHelper(object):
             new_ip = self.conn.network.nsx.ippool.allocate(subnet_pool, static_ip=fixed_ip.get("ip", None))
             if dns_search is None:
                 dns_search = new_ip.get("dnsSuffix")
-            """
-            {
-                "dnsServer2": "10.102.184.3", 
-                "id": "18", 
-                "gateway": "10.102.184.1", 
-                "dnsSuffix": "None", 
-                "subnetId": "subnet-3", 
-                "prefixLength": "24", 
-                "ipAddress": "10.102.185.53", 
-                "dnsServer1": "10.102.184.2"
-            }
-            """
             fixed_ip.update(
                 {
                     "ip": new_ip.get("ipAddress"),
@@ -638,36 +748,58 @@ class VsphereServerHelper(object):
             self.progress("configure http proxy")
         return None
 
-    # def disable_proxy(self, inst):
-    #     # disable proxy
-    #     no_proxy = self.params.get('metadata', {}).get('no_proxy', None)
-    #     if no_proxy is True:
-    #         self.conn.server.disable_proxy(inst, self.user, self.template_pwd)
-    #         self.progress('disable proxy')
-    #         return None
-
     def setup_ssh_key(self, inst):
+        """
+        Setup ssh key for admin username. It can be root or a non root sudoers.
+        No windows implementation.
+        """
+        if self.is_windows(inst):
+            logger.warn("No setup ssh key for windows.")
+            return
+        self.wait_guest_tools_is_running(inst)
         # get ssh key
         ssh_key = self.params.get("metadata", {}).get("pubkey", None)
+        username = self.params.get("admin_username", None)
         if ssh_key is None:
             logger.warn("Ssh key is not defined.")
             return None
 
-        self.conn.server.guest_setup_ssh_key(inst, self.user, self.template_pwd, ssh_key)
-        self.progress("Setup ssh key")
+        self.conn.server.guest_setup_ssh_key(
+            inst,
+            self.user,
+            self.template_pwd,
+            ssh_key,
+            admin_username=username,
+        )
+        self.progress("Setup ssh key.")
 
     def setup_ssh_pwd(self, inst):
+        """
+        Setup ssh password. It can be root or a non root sudoers.
+        No windows implementation.
+        """
+        if self.is_windows(inst):
+            logger.warn("No setup ssh password for windows.")
+            return
         # get ssh pwd
-        ssh_pwd = self.params.get("adminPass", None)
-        if ssh_pwd is None:
+        password = self.params.get("adminPass", None)
+        username = self.params.get("admin_username", None)
+        if password is None:
             logger.warn("ssh password is not defined.")
             return None
 
-        self.conn.server.guest_setup_admin_password(inst, self.user, self.template_pwd, ssh_pwd)
-        self.progress("Setup ssh password")
+        self.conn.server.guest_setup_admin_password(
+            inst,
+            self.user,
+            self.template_pwd,
+            password,
+            admin_username=username,
+        )
+        self.progress("Setup ssh password.")
 
     def create_server(
         self,
+        server_oid,
         name,
         folder_id,
         datastore_id,
@@ -707,6 +839,7 @@ class VsphereServerHelper(object):
         # clone server from template
         if source_type == "image":
             inst = self.clone_from_template(
+                server_oid,
                 name,
                 folder,
                 datastore,
@@ -717,15 +850,14 @@ class VsphereServerHelper(object):
 
         # clone server from snapshot - linked clone
         elif source_type == "snapshot":
-            inst = self.linked_clone_from_server(name, folder, datastore, resource_pool, network)
+            inst = self.linked_clone_from_server(server_oid, name, folder, datastore, resource_pool, network)
 
         # create new server
         elif source_type == "volume":
             volumes = None
             inst = self.create_new(name, folder, volumes, resource_pool, datastore, network)
-
         else:
-            raise JobError("Source type %s is not supperted" % source_type)
+            raise JobError("Source type %s is not supported" % source_type)
 
         # set server security groups
         self.set_security_group(inst)
@@ -748,3 +880,12 @@ class VsphereServerHelper(object):
         logger.info("Create new server %s - %s - STOP" % (name, model.oid))
 
         return model.oid
+
+
+class VsphereServerHelper(VsphereServerBaseHelper):
+    """vsphere server helper methods"""
+
+    def __init__(self, task, step_id, orchestrator, params):
+        super().__init__(
+            task, step_id, orchestrator, params, password=params.get("metadata", {}).get("template_pwd", None)
+        )

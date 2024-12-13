@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive_resource.plugins.provider.views.logging_role import ComputeLoggingRoleAPI
 from beehive_resource.plugins.provider.views.logging_role_mapping import (
@@ -32,6 +32,7 @@ from .views.instance import InstanceProviderAPI
 from .views.stack import StackProviderAPI
 from .views.stacks.sql import SqlStackProviderAPI
 from .views.share import ShareProviderAPI
+from .views.share_v2 import ShareV2ProviderAPI
 from .views.volume import VolumeProviderAPI
 from .views.stacks.app_engine import AppStackProviderAPI
 from .views.volumeflavor import VolumeFlavorAPI
@@ -75,6 +76,7 @@ class LocalProviderPlugin(object):
             SqlStackV2ProviderAPI,
             AppStackProviderAPI,
             ShareProviderAPI,
+            ShareV2ProviderAPI,
             ComputeCustomizationAPI,
             ComputeLoggingSpaceAPI,
             ComputeLoggingRoleAPI,

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 import json
 import string
 from beehive_resource.plugins.vsphere.entity.vs_server import VsphereServer
@@ -800,7 +800,6 @@ class GetServerHtml5Console(VsphereServerApiView):
 
     def get(self, controller, data, *args, **kwargs):
         token = data.get("token")
-        # json_token_data = controller.redis_manager.get(VsphereServer.console_prefix + token)
         json_token_data = controller.redis_identity_manager.get(VsphereServer.console_prefix + token)
         token_data = json.loads(json_token_data)
         wss_uri = token_data.get("uri")

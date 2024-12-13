@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 import json
 from time import sleep
@@ -139,7 +139,7 @@ class VeeamContainer(Orchestrator):
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex, code=400)
 
-    def __new_connection(self):
+    def __new_connection(self, cache_key):
         """Get veeam connection with new token"""
         try:
             conn_params = self.conn_params
@@ -161,10 +161,12 @@ class VeeamContainer(Orchestrator):
             token = self.conn_veeam.get_token()
             expires = token.get("expires")
 
-            # build key
-            key = self.prefix + str(self.oid) + "-" + veeam_user
             # cache token
-            self.cache.set(key, token, ttl=expires)
+            self.logger.debug(
+                "+++++ Create veeam connection - cache set cache_key %s, token %s, expires %s"
+                % (cache_key, token, expires)
+            )
+            self.cache.set(cache_key, token, ttl=expires)
             self.logger.debug("Create veeam connection %s with token %s" % (self.conn, token["token"]))
             self.logger.debug("Create veeam connection %s " % (self.conn_veeam))
 
@@ -178,33 +180,31 @@ class VeeamContainer(Orchestrator):
         # get user
         user = self.conn_params.get("user")
         # build key
-        key = self.prefix + str(self.oid) + "-" + user
+        cache_key = self.prefix + str(self.oid) + "-" + user
+        self.logger.debug("+++++ get_connection - cache_key: %s" % cache_key)
         # get from cache
-        res = self.cache.get_by_pattern(key)
+        res = self.cache.get(cache_key)
+        self.logger.debug("+++++ get_connection - res: %s" % res)
 
-        if res is None or len(res) == 0:
-            self.__new_connection()
+        if res is None:
+            self.__new_connection(cache_key)
         else:
             try:
                 # extract token from response
-                res = res[0]
-                value = res.get("value")
-                value = json.loads(value)
-                data = value.get("data")
-                token = data.get("token")
+                token = res.get("token")
                 # check token expire
                 # expires_at = data.get('expires', '')
                 # a = datetime.strptime(expires_at, '%Y-%m-%dT%H:%M:%S.%fZ')
                 # b = datetime.utcnow()
                 # is_valid = (a >= b)
                 # if is_valid is True:
-                self.logger.debug("____Token %s is valid" % token)
+                self.logger.debug("+++++ Token %s is valid" % token)
                 self.__get_connection(token)
                 # else:
                 #     self.logger.debug('____Token %s is expired' % token)
                 #     self.__new_connection()
             except:
-                self.__new_connection()
+                self.__new_connection(cache_key)
 
         Orchestrator.get_connection(self)
 

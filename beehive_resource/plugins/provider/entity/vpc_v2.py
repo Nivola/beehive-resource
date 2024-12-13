@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from ipaddress import ip_network
 from beecell.types.type_string import truncate
@@ -79,6 +79,7 @@ class Vpc(ComputeProviderResource):
                         }
                     )
                 info["attributes"]["configs"]["subnets"] = [subnet]
+
             elif isinstance(net, SiteNetwork):
                 subnets = []
                 for net_subnet in info["attributes"]["configs"]["subnets"]:
@@ -124,13 +125,14 @@ class Vpc(ComputeProviderResource):
                 authorize=False,
                 run_customize=False,
             )
-            vpc_net = vpc_nets[0]
+            vpc_net: SiteNetwork = vpc_nets[0]
 
             # get proxy and zabbix proxy
             proxy, set_proxy = vpc_net.get_proxy()
             zbx_proxy_ip, zbx_proxy_name = vpc_net.get_zabbix_proxy()
             res["http"] = (proxy, set_proxy)
             res["zabbix"] = (zbx_proxy_ip, zbx_proxy_name)
+
         elif self.is_private() is True:
             bastion_host = self.get_parent().get_bastion_host()
             if bastion_host is not None:
@@ -221,6 +223,7 @@ class Vpc(ComputeProviderResource):
 
         # kvargs.update(params)
         kvargs["orchestrator_tag"] = kvargs.get("orchestrator_tag", "default")
+        # kvargs["orchestrator_select_types"] = kvargs.get("orchestrator_select_types", None)
 
         # # create task workflow
         # g_steps = []
@@ -369,6 +372,7 @@ class Vpc(ComputeProviderResource):
         private = kvargs.pop("private", None)
         if site is not None and private is not None:
             raise ApiManagerError("site and private are exclusive parameters. Only one can be used")
+
         steps = []
         if site is not None:
             for item in site:
@@ -381,6 +385,7 @@ class Vpc(ComputeProviderResource):
                             "args": [network_id],
                         }
                     )
+
         elif private is not None:
             for network in private:
                 cidr = network.get("cidr")
@@ -424,6 +429,7 @@ class Vpc(ComputeProviderResource):
         private = kvargs.get("private", None)
         if site is not None and private is not None:
             raise ApiManagerError("site and private are exclusive parameters. Only one can be used")
+
         steps = []
         if site is not None:
             for item in site:
@@ -708,10 +714,12 @@ class SiteNetwork(SiteChildResource):
         """
         zbx_proxy = self.get_attribs(key="configs.zabbix_proxy")
         if zbx_proxy is None:
-            raise ApiManagerError(
-                "No zabbix proxy available in attributes of network %s" % self.uuid,
-                code=404,
-            )
+            # raise ApiManagerError(
+            #     "No zabbix proxy available in attributes of network %s" % self.uuid,
+            #     code=404,
+            # )
+            self.logger.info("No zabbix proxy available in attributes of network %s" % self.uuid)
+            return "", ""
         l = zbx_proxy.split(",", maxsplit=1)
         zbx_proxy_ip = l[0].strip()
         zbx_proxy_name = None
@@ -916,17 +924,22 @@ class PrivateNetwork(AvailabilityZoneChildResource):
         :raise ApiManagerError:
         """
         orchestrator_tag = kvargs.pop("orchestrator_tag")
+        # orchestrator_select_types = kvargs.pop("orchestrator_select_types")
         network_type = "vxlan"
         base_cidr = kvargs.get("cidr", "")
         vpc_cidr = kvargs.get("vpc_cidr", "")
         controller.logger.warn(kvargs)
 
         # get availability_zone
-        availability_zone = container.get_simple_resource(kvargs.get("parent"))
+        from beehive_resource.plugins.provider.entity.site import Site
+        from beehive_resource.plugins.provider.entity.zone import AvailabilityZone
+
+        availability_zone: AvailabilityZone = container.get_simple_resource(kvargs.get("parent"))
         site = availability_zone.get_parent()
 
         # select remote orchestrators
-        orchestrator_idx = availability_zone.get_orchestrators_by_tag(orchestrator_tag)
+        # orchestrator_idx = availability_zone.get_orchestrators_by_tag(orchestrator_tag, select_types=orchestrator_select_types)
+        orchestrator_idx = availability_zone.get_hypervisors_by_tag(orchestrator_tag)
 
         # set params
         params = {

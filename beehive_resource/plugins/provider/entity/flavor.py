@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2023 CSI-Piemonte
+# (C) Copyright 2018-2024 CSI-Piemonte
 
 from beehive_resource.container import Resource
 from beehive_resource.plugins.openstack.entity.ops_flavor import OpenstackFlavor
@@ -200,6 +200,8 @@ class ComputeFlavor(ComputeProviderResource):
         # check flavor
         flavors = {}
         for flavor in kvargs.get("flavors", []):
+            # pass ComputeFlavor name in order have prefix while generating Avalability.Flavor name
+            flavor["name"] = self.name
             orchestrator = self.controller.get_container(flavor.pop("orchestrator"))
             flavor["orchestrator_id"] = orchestrator.oid
             site_id = self.controller.get_simple_resource(flavor.pop("availability_zone"), entity_class=Site).oid
@@ -232,7 +234,7 @@ class ComputeFlavor(ComputeProviderResource):
                 "args": [site_id, flavors],
             }
             steps.append(substep)
-        kvargs["steps"] = ComputeProviderResource.group_update_step(steps)
+        kvargs["steps"] = self.group_update_step(steps)
 
         return kvargs
 
