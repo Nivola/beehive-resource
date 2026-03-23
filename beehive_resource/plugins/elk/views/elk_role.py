@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
@@ -10,17 +10,21 @@ from beehive.common.apimanager import (
     CrudApiObjectJobResponseSchema,
     ApiView,
 )
+
 from beehive_resource.plugins.elk.entity.elk_role import ElkRole
+
 from beehive_resource.plugins.provider.views import (
     ResourceApiView,
     CreateProviderResourceRequestSchema,
     UpdateProviderResourceRequestSchema,
 )
+
 from beehive_resource.view import (
     ListResourcesRequestSchema,
     ResourceResponseSchema,
     ResourceSmallResponseSchema,
 )
+
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
 from beehive_resource.plugins.elk.views import ElkAPI, ElkApiView
@@ -41,7 +45,12 @@ class ListElkRolesParamsResponseSchema(ResourceResponseSchema):
 
 
 class ListElkRolesResponseSchema(PaginatedResponseSchema):
-    roles = fields.Nested(ListElkRolesParamsResponseSchema, many=True, required=True, allow_none=True)
+    roles = fields.Nested(
+        ListElkRolesParamsResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListElkRoles(ElkRoleView):
@@ -60,19 +69,30 @@ class ListElkRoles(ElkRoleView):
 
 
 class GetElkRoleParamsResponseSchema(ResourceResponseSchema):
-    roles = fields.Nested(ResourceSmallResponseSchema, required=True, many=True, allow_none=True)
+    roles = fields.Nested(
+        ResourceSmallResponseSchema,
+        required=True,
+        many=True,
+        allow_none=True,
+    )
 
 
 class GetElkRoleResponseSchema(Schema):
-    role = fields.Nested(GetElkRoleParamsResponseSchema, required=True, allow_none=True)
+    role = fields.Nested(
+        GetElkRoleParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetElkRole(ElkRoleView):
     summary = "Get role"
     description = "Get role"
+
     definitions = {
         "GetElkRoleResponseSchema": GetElkRoleResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetElkRoleResponseSchema}})
 
@@ -82,27 +102,61 @@ class GetElkRole(ElkRoleView):
 
 
 class CreateElkRoleParamRequestSchema(CreateProviderResourceRequestSchema):
-    container = fields.String(required=True, example="12", description="Container id, uuid or name")
-    name = fields.String(required=True, example="Test role", default="", description="Role name")
-    indice = fields.String(required=True, example="test-indice-*", default="", description="Index pattern")
-    space_id = fields.String(required=True, example="test-space", default="", description="Space id")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'Container id, uuid or name',
+        },
+    )
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'Test role',
+            "description": 'Role name',
+        },
+    )
+
+    indice = fields.String(
+        required=True,
+        metadata={
+            "example": 'test-indice-*',
+            "description": 'Index pattern',
+        },
+    )
+
+    space_id = fields.String(
+        required=True,
+        metadata={
+            "example": 'test-space',
+            "description": 'Space id',
+        },
+    )
 
 
 class CreateElkRoleRequestSchema(Schema):
-    role = fields.Nested(CreateElkRoleParamRequestSchema)
+    role = fields.Nested(
+        CreateElkRoleParamRequestSchema,
+    )
 
 
 class CreateElkRoleBodyRequestSchema(Schema):
-    body = fields.Nested(CreateElkRoleRequestSchema, context="body")
+    body = fields.Nested(
+        CreateElkRoleRequestSchema,
+        context="body",
+    )
 
 
 class CreateElkRole(ElkRoleView):
     summary = "Create role"
     description = "Create role"
+
     definitions = {
         "CreateElkRoleRequestSchema": CreateElkRoleRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateElkRoleBodyRequestSchema)
     parameters_schema = CreateElkRoleRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
@@ -113,16 +167,22 @@ class CreateElkRole(ElkRoleView):
 
 
 class UpdateElkRoleTemplateRequestSchema(Schema):
-    name = (fields.String(required=True, example="Test role", default="", description="Role name"),)
+    name = (fields.String(required=True, example="Test role", description="Role name"),)
     indice = (
         fields.String(
             required=True,
             example="test-indice-*",
-            default="",
             description="Index pattern",
         ),
     )
-    space_id = fields.String(required=True, example="test-space", default="", description="Space id")
+
+    space_id = fields.String(
+        required=True,
+        metadata={
+            "example": 'test-space',
+            "description": 'Space id',
+        },
+    )
 
 
 class UpdateElkRoleParamRequestSchema(UpdateProviderResourceRequestSchema):
@@ -130,26 +190,35 @@ class UpdateElkRoleParamRequestSchema(UpdateProviderResourceRequestSchema):
         UpdateElkRoleTemplateRequestSchema,
         required=False,
         many=True,
-        description="list of orchestrator roles to link",
         allow_none=True,
+        metadata={
+            "description": 'list of orchestrator roles to link',
+        },
     )
 
 
 class UpdateElkRoleRequestSchema(Schema):
-    role = fields.Nested(UpdateElkRoleParamRequestSchema)
+    role = fields.Nested(
+        UpdateElkRoleParamRequestSchema,
+    )
 
 
 class UpdateElkRoleBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateElkRoleRequestSchema, context="body")
+    body = fields.Nested(
+        UpdateElkRoleRequestSchema,
+        context="body",
+    )
 
 
 class UpdateElkRole(ElkRoleView):
     summary = "Update role"
     description = "Update role"
+
     definitions = {
         "UpdateElkRoleRequestSchema": UpdateElkRoleRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateElkRoleBodyRequestSchema)
     parameters_schema = UpdateElkRoleRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
@@ -164,7 +233,10 @@ class DeleteElkRole(ElkRoleView):
     description = "Delete role"
     definitions = {"CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
+
+    responses = SwaggerApiView.setResponses({
+        202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}
+    })
 
     def delete(self, controller, data, oid, *args, **kwargs):
         """Delete Elk role"""

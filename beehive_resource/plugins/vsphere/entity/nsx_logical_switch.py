@@ -1,10 +1,9 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beecell.simple import id_gen
 from beehive_resource.plugins.vsphere.entity import NsxResource
-from beehive_resource.plugins.vsphere.entity import get_task
 
 
 class NsxLogicalSwitch(NsxResource):
@@ -101,11 +100,11 @@ class NsxLogicalSwitch(NsxResource):
         ext_id = entity[1]
         parent_id = entity[2]
         name = entity[4]
-        parent_class = entity[5]
+        # parent_class = entity[5]
 
         parent = container.get_resource_by_extid(parent_id)
         parent_id = parent.oid
-        objid = "%s//%s" % (parent.objid, id_gen())
+        objid = f"{parent.objid}//{id_gen()}"
 
         res = {
             "resource_class": resclass,
@@ -184,7 +183,7 @@ class NsxLogicalSwitch(NsxResource):
         """
         # get parent manager
         manager = container.get_nsx_manager()
-        objid = "%s//%s" % (manager.objid, id_gen())
+        objid = f"{manager.objid}//{id_gen()}"
 
         kvargs.update({"objid": objid, "parent": manager.oid})
 
@@ -266,6 +265,9 @@ class NsxLogicalSwitch(NsxResource):
         return info
 
     def get_vlan(self):
+        """
+        Get vlan
+        """
         vlan = None
         if self.ext_obj is not None:
             vlan = self.ext_obj.get("vdnId", None)
@@ -286,7 +288,7 @@ class NsxLogicalSwitch(NsxResource):
                 gateway = ippool.get("gateway").split(".")
                 gateway[-1] = 0
                 gateway = ".".join(map(str, gateway))
-                cidr = "%s/%s" % (gateway, prefix_ength)
+                cidr = f"{gateway}/{prefix_ength}"
         return cidr
 
     def get_gateway(self):
@@ -314,9 +316,23 @@ class NsxLogicalSwitch(NsxResource):
             ippool_id = self.get_attribs(key="subnet")
             if ippool_id is not None:
                 ippool = self.container.conn.network.nsx.ippool.get(ippool_id)
-                range = ippool.get("ipRanges", {}).get("ipRangeDto", {})
-                pool = [{"start": range.get("startAddress"), "end": range.get("endAddress")}]
+                pool_range = ippool.get("ipRanges", {}).get("ipRangeDto", {})
+                pool = [{"start": pool_range.get("startAddress"), "end": pool_range.get("endAddress")}]
         return pool
+
+    def get_available_pool_counter(self):
+        """Get available ip in pool.
+
+        :return:
+        :raise ApiManagerError:
+        """
+        ip_count = None
+        if self.container is not None:
+            ippool_id = self.get_attribs(key="subnet")
+            if ippool_id is not None:
+                ippool = self.container.conn.network.nsx.ippool.get(ippool_id)
+                ip_count = int(ippool["freeAddressCount"])
+        return ip_count
 
     def get_parent_dvss(self):
         """Get parent distributed virtual switches"""
@@ -327,7 +343,7 @@ class NsxLogicalSwitch(NsxResource):
                 context = backing.get("switch")
                 dvss.append(context.get("objectId"))
 
-        self.logger.debug("get logical switch %s parent dvs: %s" % (self.oid, dvss))
+        self.logger.debug("get logical switch %s parent dvs: %s", self.oid, dvss)
         return dvss
 
     def get_associated_dvpg(self, dvs):
@@ -346,5 +362,5 @@ class NsxLogicalSwitch(NsxResource):
                     dvpg = backing.get("backingValue")
                     dvpg = self.controller.get_resource_by_extid(dvpg)
 
-        self.logger.debug("get logical switch %s parent dvpg: %s" % (self.oid, dvpg))
+        self.logger.debug("get logical switch %s parent dvpg: %s", self.oid, dvpg)
         return dvpg

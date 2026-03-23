@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2018-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beecell.simple import id_gen
 from beedrones.dns.client import DnsManager
@@ -11,7 +11,7 @@ from beehive_resource.model import ResourceState
 
 
 def get_task(task_name):
-    return "%s.task.%s" % (__name__.rstrip(".controller"), task_name)
+    return f"{__name__.removesuffix('.controller')}.task.{task_name}"
 
 
 class DnsContainer(Orchestrator):
@@ -582,7 +582,7 @@ class DnsRecordA(DnsResource):
         self.remote_record.extend(parent.query_remote_record(self.name, recordcname=False, group="update"))
 
     @staticmethod
-    def pre_create(controller, container, *args, **kvargs):
+    def pre_create(controller, container: DnsContainer, *args, **kvargs):
         """Check input params before resource creation. This function is used
         in container resource_factory method.
 
@@ -619,7 +619,7 @@ class DnsRecordA(DnsResource):
         zone_obj = container.get_zone(zone)
 
         try:
-            obj, tot = container.get_resources(authorize=False, parent=zone_obj.oid, name=name)
+            obj, tot = container.get_resources(authorize=False, parent=zone_obj.oid, name=name, type="Dns.DnsZone.DnsRecordA")
         except Exception as ex:
             tot = 0
 
@@ -825,8 +825,8 @@ class DnsRecordCname(DnsResource):
         zone_obj = container.get_zone(zone)
 
         try:
-            container.get_resources(authorize=False, parent=zone_obj.oid, name=name)
-            raise ApiManagerError("Record a %s already exists in zone %s" % zone)
+            container.get_resources(authorize=False, parent=zone_obj.oid, name=name, type="Dns.DnsZone.DnsRecordCname")
+            raise ApiManagerError("Record a %s already exists in zone %s" % (name, zone))
         except Exception as ex:
             pass
 

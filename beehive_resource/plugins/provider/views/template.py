@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
@@ -10,19 +10,23 @@ from beehive.common.apimanager import (
     CrudApiObjectJobResponseSchema,
     CrudApiObjectResponseSchema,
 )
+
 from beehive_resource.plugins.provider.entity.template import ComputeTemplate
 from beehive_resource.plugins.provider.entity.zone import ComputeZone
+
 from beehive_resource.plugins.provider.views import (
     ProviderAPI,
     LocalProviderApiView,
     UpdateProviderResourceRequestSchema,
     CreateProviderResourceRequestSchema,
 )
+
 from beehive_resource.view import (
     ListResourcesRequestSchema,
     ResourceResponseSchema,
     ResourceSmallResponseSchema,
 )
+
 from flasgger import fields, Schema
 from marshmallow.validate import OneOf
 from beecell.swagger import SwaggerHelper
@@ -43,20 +47,22 @@ class ListTemplatesParamsResponseSchema(ResourceResponseSchema):
 
 
 class ListTemplatesResponseSchema(PaginatedResponseSchema):
-    templates = fields.Nested(ListTemplatesParamsResponseSchema, many=True, required=True, allow_none=True)
+    templates = fields.Nested(
+        ListTemplatesParamsResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListTemplates(ProviderTemplate):
-    definitions = {
-        "ListTemplatesResponseSchema": ListTemplatesResponseSchema,
-    }
+    definitions = {"ListTemplatesResponseSchema": ListTemplatesResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListTemplatesRequestSchema)
     parameters_schema = ListTemplatesRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListTemplatesResponseSchema}})
 
     def get(self, controller, data, *args, **kwargs):
         """
-        List templates
         List templates
 
         # - filter by: tags
@@ -81,19 +87,20 @@ class GetTemplateParamsResponseSchema(ResourceResponseSchema):
 
 
 class GetTemplateResponseSchema(Schema):
-    templates = fields.Nested(GetTemplateParamsResponseSchema, required=True, allow_none=True)
+    templates = fields.Nested(
+        GetTemplateParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetTemplate(ProviderTemplate):
-    definitions = {
-        "GetTemplateResponseSchema": GetTemplateResponseSchema,
-    }
+    definitions = {"GetTemplateResponseSchema": GetTemplateResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetTemplateResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
-        Get job_template awx
         Get job_template awx
 
         "attributes": {
@@ -107,12 +114,21 @@ class GetTemplate(ProviderTemplate):
 
 
 class UpdateTemplateTemplateRequestSchema(UpdateProviderResourceRequestSchema):
-    template_id = fields.String(required=False, example="3328", description="id, uuid of the job_template awx")
+    template_id = fields.String(
+        required=False,
+        metadata={
+            "example": '3328',
+            "description": 'id, uuid of the job_template awx',
+        },
+    )
+
     parameters = fields.Dict(
         required=False,
-        missing={},
-        example={"param1": "xxxx"},
-        description="job_template awx input parameters",
+        load_default={},
+        metadata={
+            "example": "{'param1': 'xxxx'}",
+            "description": 'job_template awx input parameters',
+        },
     )
 
 
@@ -129,13 +145,13 @@ class UpdateTemplate(ProviderTemplate):
         "UpdateTemplateRequestSchema": UpdateTemplateRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateTemplateBodyRequestSchema)
     parameters_schema = UpdateTemplateRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def put(self, controller, data, oid, *args, **kwargs):
         """
-        Update job_template
         Update job_template
         """
         return self.update_resource(controller, oid, data)
@@ -149,20 +165,34 @@ class DeleteTemplate(ProviderTemplate):
     def delete(self, controller, data, oid, *args, **kwargs):
         """
         Delete job_template
-        Delete job_template
         """
 
         return self.expunge_resource(controller, oid)
 
 
 class CreateTemplateParamRequestSchema(CreateProviderResourceRequestSchema):
-    compute_zone = fields.String(required=True, example="1", description="parent compute zone id or uuid")
-    template_id = fields.String(required=True, example="3328", description="id, uuid of the job_template awx")
+    compute_zone = fields.String(
+        required=True,
+        metadata={
+            "example": '1',
+            "description": 'parent compute zone id or uuid',
+        },
+    )
+
+    template_id = fields.String(
+        required=True,
+        metadata={
+            "example": '3328',
+            "description": 'id, uuid of the job_template awx',
+        },
+    )
+
     parameters = fields.Dict(
         required=True,
-        missing={},
-        example={"image_id": "centos7-guestagent"},
-        description="job_template awx input parameters",
+        metadata={
+            "example": "{'image_id': 'centos7-guestagent'}",
+            "description": 'job_template awx input parameters',
+        },
     )
 
 
@@ -183,13 +213,13 @@ class CreateTemplate(ProviderTemplate):
         "CreateTemplateRequestSchema": CreateTemplateRequestSchema,
         "CreateTemplateResponseSchema": CreateTemplateResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateTemplateBodyRequestSchema)
     parameters_schema = CreateTemplateRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def post(self, controller, data, *args, **kwargs):
         """
-        Create awx template
         Create awx template
         """
 

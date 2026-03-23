@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
@@ -10,17 +10,21 @@ from beehive.common.apimanager import (
     CrudApiObjectJobResponseSchema,
     ApiView,
 )
+
 from beehive_resource.plugins.elk.entity.elk_role_mapping import ElkRoleMapping
+
 from beehive_resource.plugins.provider.views import (
     ResourceApiView,
     CreateProviderResourceRequestSchema,
     UpdateProviderResourceRequestSchema,
 )
+
 from beehive_resource.view import (
     ListResourcesRequestSchema,
     ResourceResponseSchema,
     ResourceSmallResponseSchema,
 )
+
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
 from beehive_resource.plugins.elk.views import ElkAPI, ElkApiView
@@ -52,11 +56,14 @@ class ListElkRoleMappingsResponseSchema(PaginatedResponseSchema):
 class ListElkRoleMappings(ElkRoleMappingView):
     summary = "List role mappings"
     description = "List role mappings"
+
     definitions = {
         "ListElkRoleMappingsResponseSchema": ListElkRoleMappingsResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(ListElkRoleMappingsRequestSchema)
     parameters_schema = ListElkRoleMappingsRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": ListElkRoleMappingsResponseSchema}}
     )
@@ -67,20 +74,32 @@ class ListElkRoleMappings(ElkRoleMappingView):
 
 
 class GetElkRoleMappingParamsResponseSchema(ResourceResponseSchema):
-    role_mappings = fields.Nested(ResourceSmallResponseSchema, required=True, many=True, allow_none=True)
+    role_mappings = fields.Nested(
+        ResourceSmallResponseSchema,
+        required=True,
+        many=True,
+        allow_none=True,
+    )
 
 
 class GetElkRoleMappingResponseSchema(Schema):
-    role_mapping = fields.Nested(GetElkRoleMappingParamsResponseSchema, required=True, allow_none=True)
+    role_mapping = fields.Nested(
+        GetElkRoleMappingParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetElkRoleMapping(ElkRoleMappingView):
     summary = "Get role mapping"
     description = "Get role mapping"
+
     definitions = {
         "GetElkRoleMappingResponseSchema": GetElkRoleMappingResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": GetElkRoleMappingResponseSchema}}
     )
@@ -91,39 +110,75 @@ class GetElkRoleMapping(ElkRoleMappingView):
 
 
 class CreateElkRoleMappingParamRequestSchema(CreateProviderResourceRequestSchema):
-    container = fields.String(required=True, example="12", description="Container id, uuid or name")
-    # role_mapping_id = fields.String(required=True, example='test-role_mapping', default='', description='RoleMapping id')
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'Container id, uuid or name',
+        },
+    )
+
+    # role_mapping_id = fields.String(required=True, example='test-role_mapping', description='RoleMapping id')
     name = fields.String(
         required=True,
-        example="Test role_mapping",
-        default="",
-        description="RoleMapping name",
+        metadata={
+            "example": 'Test role_mapping',
+            "description": 'RoleMapping name',
+        },
     )
+
     desc = fields.String(
-        example="This is the test role_mapping",
-        default="",
-        description="RoleMapping description",
+        metadata={
+            "example": 'This is the test role_mapping',
+            "description": 'RoleMapping description',
+        },
     )
-    role_name = fields.String(required=True, example="test-role", default="", description="Role name")
-    users_email = fields.String(required=True, example="test-users email", default="", description="Users email")
-    realm_name = fields.String(required=True, example="test-realm name", default="", description="Realm name")
+
+    role_name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test-role',
+            "description": 'Role name',
+        },
+    )
+    users_email = fields.String(
+        required=True,
+        metadata={
+            "example": 'test-users email',
+            "description": 'Users email',
+        },
+    )
+    realm_name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test-realm name',
+            "description": 'Realm name',
+        },
+    )
 
 
 class CreateElkRoleMappingRequestSchema(Schema):
-    role_mapping = fields.Nested(CreateElkRoleMappingParamRequestSchema)
+    role_mapping = fields.Nested(
+        CreateElkRoleMappingParamRequestSchema,
+    )
 
 
 class CreateElkRoleMappingBodyRequestSchema(Schema):
-    body = fields.Nested(CreateElkRoleMappingRequestSchema, context="body")
+    body = fields.Nested(
+        CreateElkRoleMappingRequestSchema,
+        context="body",
+    )
 
 
 class CreateElkRoleMapping(ElkRoleMappingView):
     summary = "Create role mapping"
     description = "Create role mapping"
+
     definitions = {
         "CreateElkRoleMappingRequestSchema": CreateElkRoleMappingRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateElkRoleMappingBodyRequestSchema)
     parameters_schema = CreateElkRoleMappingRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
@@ -136,14 +191,17 @@ class CreateElkRoleMapping(ElkRoleMappingView):
 class UpdateElkRoleMappingTemplateRequestSchema(Schema):
     name = fields.String(
         required=True,
-        example="Test role_mapping",
-        default="",
-        description="RoleMapping name",
+        metadata={
+            "example": 'Test role_mapping',
+            "description": 'RoleMapping name',
+        },
     )
+
     desc = fields.String(
-        example="This is the test role_mapping",
-        default="",
-        description="RoleMapping description",
+        metadata={
+            "example": 'This is the test role_mapping',
+            "description": 'RoleMapping description',
+        },
     )
 
 
@@ -152,17 +210,24 @@ class UpdateElkRoleMappingParamRequestSchema(UpdateProviderResourceRequestSchema
         UpdateElkRoleMappingTemplateRequestSchema,
         required=False,
         many=True,
-        description="list of orchestrator role_mappings to link",
         allow_none=True,
+        metadata={
+            "description": 'list of orchestrator role_mappings to link',
+        },
     )
 
 
 class UpdateElkRoleMappingRequestSchema(Schema):
-    role_mapping = fields.Nested(UpdateElkRoleMappingParamRequestSchema)
+    role_mapping = fields.Nested(
+        UpdateElkRoleMappingParamRequestSchema,
+    )
 
 
 class UpdateElkRoleMappingBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateElkRoleMappingRequestSchema, context="body")
+    body = fields.Nested(
+        UpdateElkRoleMappingRequestSchema,
+        context="body",
+    )
 
 
 class UpdateElkRoleMapping(ElkRoleMappingView):

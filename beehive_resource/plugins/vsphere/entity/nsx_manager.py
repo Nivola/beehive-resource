@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beecell.simple import truncate, id_gen
-from beedrones.vsphere.network import VsphereNetwork
+from beedrones.vsphere.ip_pool import VsphereNetworkIpPool
 from beehive.common.apimanager import ApiManagerError
 from beehive_resource.plugins.vsphere.entity import NsxResource
 from beecell.db import QueryError
@@ -580,8 +580,8 @@ class NsxManager(NsxResource):
         :param pool_id: id of a pool [optional]
         :param pool_range: tupla with start_ip and end_ip [optional]
         """
-        vsphereNetwork: VsphereNetwork = self.container.conn.network
-        res = vsphereNetwork.nsx.ippool.list(pool_id=pool_id, pool_range=pool_range)
+        ippool: VsphereNetworkIpPool = self.container.conn.network.nsx.ippool
+        res = ippool.list(pool_id=pool_id, pool_range=pool_range)
         self.logger.debug("Get ippools: %s" % truncate(res))
 
         return res

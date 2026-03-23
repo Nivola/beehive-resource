@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import logging
 from beehive.common.data import cache
 from beehive_resource.container import Resource, AsyncResource
-
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ..controller import AwxContainer
 logger = logging.getLogger(__name__)
 
 
@@ -16,6 +18,7 @@ class AwxResource(AsyncResource):
     def __init__(self, *args, **kvargs):
         """ """
         Resource.__init__(self, *args, **kvargs)
+        self.container: 'AwxContainer'
 
     def info(self):
         """Get infos.

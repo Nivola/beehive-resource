@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from ipaddress import IPv4Network, ip_network
 from logging import getLogger
@@ -628,6 +628,7 @@ class GatewayTask(AbstractProviderResourceTask):
                 vnics = router.get_vnics(portgroup=network)
                 if len(vnics) == 1:
                     index = vnics[0]["index"]
+                    logger.debug("del_gateway_internal_vpc - router.ext_id: %s - index: %s" % (router.ext_id, index))
                     router.del_vnic(index)
                     task.progress(
                         step_id,
@@ -670,7 +671,7 @@ class GatewayTask(AbstractProviderResourceTask):
                     ops_params = {
                         "subnet_id": network[1],
                     }
-                    prepared_task, code = router.delete_port(ops_params, sync=True)  # aaa
+                    prepared_task, code = router.delete_port(ops_params, sync=True)
                     run_sync_task(prepared_task, task, step_id)
                     task.progress(
                         step_id,

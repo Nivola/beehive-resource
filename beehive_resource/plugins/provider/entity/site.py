@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
+from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
 from beecell.db import QueryError
 from beecell.types.type_dict import dict_get, dict_set
 from beecell.simple import get_value
@@ -17,7 +18,8 @@ from beehive_resource.plugins.vsphere.entity.vs_cluster import VsphereCluster
 from beehive_resource.plugins.vsphere.entity.vs_datacenter import VsphereDatacenter
 from beehive_resource.plugins.vsphere.entity.vs_dvs import VsphereDvs
 from beehive_resource.model import Resource as ModelResource, ResourceState
-
+if TYPE_CHECKING:
+    from beehive_resource.container import ResourceContainer
 
 class Site(LocalProviderResource):
     """Provider site"""
@@ -133,7 +135,7 @@ class Site(LocalProviderResource):
         """
         orchestrators = self.get_orchestrators(index=False)
         if len(orchestrators) > 0:
-            raise ApiManagerError("site %s contains orchestrators. It can not be deleted" % self.oid)
+            raise ApiManagerError(f"site {self.oid} contains orchestrators. It can not be deleted")
 
         steps = [
             Site.task_path + "expunge_resource_pre_step",
@@ -167,6 +169,9 @@ class Site(LocalProviderResource):
         return info
 
     def ping(self):
+        """
+        Ping site.
+        """
         orchestrators = []
         for orchestrator in self.__get_orchestrators(select_types=self.available_orchestrator_types):
             container = self.controller.get_container(orchestrator["id"], connect=False, cache=False)
@@ -175,7 +180,7 @@ class Site(LocalProviderResource):
             orchestrator["ping"] = ping
             orchestrator["name"] = container.name
             orchestrators.append(orchestrator)
-        self.logger.debug("ping site %s orchestrators: %s" % (self.oid, orchestrators))
+        self.logger.debug("ping site %s orchestrators: %s", self.oid, orchestrators)
 
         return orchestrators
 
@@ -184,6 +189,22 @@ class Site(LocalProviderResource):
         if self.site_ping is False:
             state = ResourceState.state[10]
         return state
+
+    def get_console_baseuri(self, default: str = None, raise_exc=False) -> Optional[str]:
+        """get console base uri
+
+        :param default: defaults to None
+        :type default: str, optional
+        :param raise_exc: if True and uri is None, raises Exception. defaults to False
+        :type raise_exc: bool, optional
+        :raises Exception: on baseuri not valid or not present
+        :return: console base uri
+        :rtype: str | None
+        """
+        console_uri = self.get_attribs(key="config.console_base_uri", default=default)
+        if (not console_uri) and raise_exc:
+            raise Exception(f"Console base uri is not configured for Site {self.name}")
+        return console_uri
 
     def get_rpm_repo(self):
         """Get git repo
@@ -230,7 +251,7 @@ class Site(LocalProviderResource):
                 dict_set(os, "config.physical_network", clusters)
             if os_type in select_types:
                 resp.append(os)
-        self.logger.debug("available orchestrators: %s" % resp)
+        self.logger.debug("available orchestrators: %s", resp)
         return resp
 
     def get_orchestrators(self, index=True, select_types=None):
@@ -242,8 +263,7 @@ class Site(LocalProviderResource):
         os = self.__get_orchestrators(select_types=select_types)
         if index is True:
             return {str(c["id"]): c for c in os}
-        else:
-            return os
+        return os
 
     def get_orchestrator_by_id(self, oid, select_types=None):
         """Get physical orchestrators
@@ -252,20 +272,21 @@ class Site(LocalProviderResource):
         :return: orchestrator info or None if it does not exist
         """
         os = {str(c["id"]): c for c in self.__get_orchestrators(select_types=select_types)}
-        self.logger.debug("Active orchestrator of site %s: %s" % (self.oid, os))
+        self.logger.debug("Active orchestrator of site %s: %s", self.oid, os)
         return os.get(str(oid), None)
 
-    def get_orchestrators_by_tag(self, tag, index_field="id", select_types=None):
+    def get_orchestrators_by_tag(self, tag: str, index_field="id", select_types=None):
         """Get physical orchestrators by tag
 
         :param tag: orchestrator tag
         :param index_field: index field. Use this field to index orchestrator
+        :param select_types: list of types to use as filter
         :return: extended params
         :raise ApiManagerError:
         """
         # select containers where create server and twins
         # self.logger.debug('+++++ tag %s' % (tag))
-        self.logger.debug("select_types %s" % (select_types))
+        self.logger.debug("select_types %s", select_types)
         orchestrator_idx = {}
         for v in self.__get_orchestrators(select_types=select_types):
             # self.logger.debug('+++++ v[tag] %s' % (v['tag']))
@@ -274,10 +295,38 @@ class Site(LocalProviderResource):
 
         if len(orchestrator_idx.values()) == 0:
             raise OrchestratorError(
-                "No orchestrators %s found for tag %s, site %s" % (select_types, tag, self.name), code=400
+                f"No orchestrators {select_types} found for tag {tag}, site {self.name}", code=400
             )
-        self.logger.debug("found orchestrators: %s" % orchestrator_idx)
+        self.logger.debug("found orchestrators: %s", orchestrator_idx)
         return orchestrator_idx
+
+    def get_orchestrator_and_container(self, orch_type: str, tag: Optional[str], name: Optional[str]=None) -> Tuple[Dict,'ResourceContainer']:
+        """
+        Get physical orchestrator by type, tag and name
+
+        :param orch_type: orchestrator type
+        :param tag: orchestrator tag
+        :param name: orchestrator name
+        :return: tuple of (orchestrator,container) - Tuple[Dict,ResourceContainer]
+        :raise OrchestratorError: if either None or more than 1 are found
+        """
+        self.logger.debug(f"Select orchestrator - type: {orch_type} - tag: {tag} - name: {name}")
+        orchestrators_containers: List[Tuple[Dict,'ResourceContainer']] = []
+        orchestrators = self.__get_orchestrators(select_types=[orch_type])
+        for orchestrator in orchestrators:
+            if tag is None or orchestrator.get("tag") == tag:
+                container = self.controller.get_container(orchestrator.get("id"))
+                if name is None or container.name == name:
+                    orchestrators_containers.append((orchestrator, container))
+
+        if len(orchestrators_containers) != 1:
+            raise OrchestratorError(
+                f"Error while selecting orchestrator. "
+                f"Params: type: {orch_type} - tag: {tag} - name: {name}. "
+                f"Expected 1 orchestrator but found {len(orchestrators_containers)}"
+            )
+
+        return orchestrators_containers[0]
 
     def __check_config_item(self, orchestrator, config, key, entity_class):
         """Check config item
@@ -325,7 +374,7 @@ class Site(LocalProviderResource):
         avzone = get_value(config, "availability_zone", None, exception=True)
         avzones = {z["zoneName"] for z in orchestrator.system.get_compute_zones()}
         if avzone not in avzones:
-            raise ApiManagerError("Openstack availability_zone %s does not exist" % avzone, code=404)
+            raise ApiManagerError(f"Openstack availability_zone {avzone} does not exist", code=404)
 
         get_value(config, "physical_network", None, exception=True)
         get_value(config, "public_network", None, exception=True)
@@ -363,7 +412,7 @@ class Site(LocalProviderResource):
         :return: validated config
         :raise ApiManagerError:
         """
-        self.logger.debug("+++++ validate_elk_orchestrator %s" % (orchestrator))
+        self.logger.debug("+++++ validate_elk_orchestrator %s", orchestrator)
         # get_value(config, 'organization', 'Default', exception=False)
         # get_value(config, 'scm_creds', None, exception=True)
         return config
@@ -375,7 +424,7 @@ class Site(LocalProviderResource):
         :return: validated config
         :raise ApiManagerError:
         """
-        self.logger.debug("+++++ validate_ontap_orchestrator %s" % (orchestrator))
+        self.logger.debug("+++++ validate_ontap_orchestrator %s", orchestrator)
         return config
 
     @trace(op="update")
@@ -408,17 +457,17 @@ class Site(LocalProviderResource):
 
         # check orchestrator exists
         c = self.controller.get_container(cid)
-        self.logger.debug("+++++ cid %s" % cid)
+        self.logger.debug("+++++ cid %s", cid)
 
         # check orchestrator already joined to site
         if self.get_orchestrator_by_id(c.oid, select_types=self.available_orchestrator_types) is not None:
-            raise ApiManagerError("Orchestrator %s already joined to site %s" % (cid, self.oid))
+            raise ApiManagerError(f"Orchestrator {cid} already joined to site {self.oid}")
 
         # validate config
         config = kvargs.pop("config")
         ctype = kvargs.pop("type")
 
-        self.logger.debug("+++++ ctype %s" % ctype)
+        self.logger.debug("+++++ ctype %s", ctype)
         if ctype == "vsphere":
             config = self.__validate_vsphere_orchestrator(c, config)
         elif ctype == "openstack":
@@ -446,7 +495,7 @@ class Site(LocalProviderResource):
         res = self.action(
             "add_orchestrator",
             steps,
-            log="add orchestrator to site %s" % self.oid,
+            log=f"add orchestrator to site {self.oid}",
             check=None,
             **kvargs,
         )
@@ -469,16 +518,16 @@ class Site(LocalProviderResource):
         # check orchestrator already joined to site
         orchestrator = self.get_orchestrator_by_id(c.oid, select_types=self.available_orchestrator_types)
         if orchestrator is None:
-            raise ApiManagerError("orchestrator %s is not joined to site %s" % (cid, self.oid))
+            raise ApiManagerError(f"orchestrator {cid} is not joined to site {self.oid}")
 
         # check site has no childs with physical resource in orchestrator
-        childs, tot = self.manager.get_resources(parent_id=self.oid, with_perm_tag=False)
+        childs, _ = self.manager.get_resources(parent_id=self.oid, with_perm_tag=False)
         for child in childs:
             res_physical = self.manager.get_linked_resources_internal(
                 child.id, link_type="relation", container_id=c.oid
             )
             if len(res_physical) > 0:
-                raise ApiManagerError("orchestrator %s contains resources" % cid)
+                raise ApiManagerError(f"orchestrator {cid} contains resources")
 
         # run celery job
         params = {
@@ -492,7 +541,7 @@ class Site(LocalProviderResource):
         res = self.action(
             "del_orchestrator",
             steps,
-            log="del orchestrator to site %s" % self.oid,
+            log=f"del orchestrator to site {self.oid}",
             check=None,
             **kvargs,
         )
@@ -505,16 +554,19 @@ class SiteChildResource(LocalProviderResource):
     task_path = "beehive_resource.plugins.provider.task_v2.AbstractProviderResourceTask."
 
     def get_site(self):
+        """
+        Get site.
+        """
         oid = self.parent_id
         try:
             entity = self.manager.get_entity(ModelResource, oid)
         except QueryError as ex:
             self.logger.error(ex, exc_info=1)
-            raise ApiManagerError("%s %s not found or name is not unique" % ("Site", oid), code=400)
+            raise ApiManagerError(f'Site {oid} not found or name is not unique', code=400) from ex
 
         if entity is None:
-            self.logger.warn("%s %s not found" % ("Site", oid))
-            raise ApiManagerError("%s %s not found" % ("Site", oid), code=404)
+            self.logger.warn("Site %s not found", oid)
+            raise ApiManagerError(f"Site {oid} not found", code=404)
 
         res = Site(
             self.controller,
@@ -553,6 +605,16 @@ class SiteChildResource(LocalProviderResource):
         :raise ApiManagerError:
         """
         return self.get_site().get_orchestrators_by_tag(tag, index_field=index_field, select_types=select_types)
+
+    def get_orchestrator_and_container(self, orch_type: str, tag: Optional[str], name: Optional[str]):
+        """
+        Get physical orchestrator by type,tag and name
+
+        :param orch_type: orchestrator type
+        :param tag: orchestrator tag
+        :param name: orchestrator name
+        """
+        return self.get_site().get_orchestrator_and_container(orch_type, tag, name)
 
     def get_hypervisors_by_tag(self, tag, index_field="id"):
         """Get physical hypervisors by tag
@@ -654,4 +716,7 @@ class SiteChildResource(LocalProviderResource):
 
 
 class OrchestratorError(ApiManagerError):
+    """
+    OrchestratorError is euquals to ApiManagerError
+    """
     pass

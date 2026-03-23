@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beecell.simple import id_gen, truncate
 from beecell.types.type_dict import dict_get
@@ -425,7 +425,10 @@ class OpenstackProject(OpenstackResource):
         try:
             for quota in quotas:
                 self.logger.debug("Set openstack project %s - quota: %s" % (self.name, quota))
-                res = self.container.conn.project.update_quota(
+                print("Set openstack project %s - quota: %s" % (self.name, quota))
+                from beedrones.openstack.project import OpenstackProject as OpenstackProjectBeedrones
+                project: OpenstackProjectBeedrones = self.container.conn.project
+                res = project.update_quota(
                     self.ext_id,
                     quota.get("type"),
                     quota.get("quota"),

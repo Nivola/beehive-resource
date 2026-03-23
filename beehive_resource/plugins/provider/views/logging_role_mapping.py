@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
@@ -9,20 +9,25 @@ from beehive.common.apimanager import (
     GetApiObjectRequestSchema,
     CrudApiObjectTaskResponseSchema,
 )
+
 from beehive_resource.plugins.provider.entity.logging_role_mapping import (
     ComputeLoggingRoleMapping,
 )
+
 from beehive_resource.plugins.provider.entity.logging_space import ComputeLoggingSpace
+
 from beehive_resource.plugins.provider.views import (
     ProviderAPI,
     LocalProviderApiView,
     CreateProviderResourceRequestSchema,
 )
+
 from beehive_resource.view import (
     ListResourcesRequestSchema,
     ResourceResponseSchema,
     ResourceSmallResponseSchema,
 )
+
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
 
@@ -37,22 +42,39 @@ class ProviderLoggingRoleMapping(LocalProviderApiView):
 
 
 class ListLoggingRoleMappingsRequestSchema(ListResourcesRequestSchema):
-    instance = fields.String(context="query", description="instance id, uuid or name")
-    parent = fields.String(required=False, default="", description="il padre Space id", allow_none=True)
+    instance = fields.String(
+        context="query",
+        metadata={
+            "description": 'instance id, uuid or name',
+        },
+    )
+
+    parent = fields.String(
+        context="query",
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": 'il padre Space id',
+        },
+    )
 
 
 class ListLoggingRoleMappingsResponseSchema(PaginatedResponseSchema):
-    logging_role_mappings = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
+    logging_role_mappings = fields.Nested(
+        ResourceResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListLoggingRoleMappings(ProviderLoggingRoleMapping):
     summary = "List logging role mappings"
     description = "List logging role mappings"
-    definitions = {
-        "ListLoggingRoleMappingsResponseSchema": ListLoggingRoleMappingsResponseSchema,
-    }
+    definitions = {"ListLoggingRoleMappingsResponseSchema": ListLoggingRoleMappingsResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListLoggingRoleMappingsRequestSchema)
     parameters_schema = ListLoggingRoleMappingsRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {
             200: {
@@ -70,20 +92,28 @@ class ListLoggingRoleMappings(ProviderLoggingRoleMapping):
 
 
 class GetLoggingRoleMappingParamsResponseSchema(ResourceResponseSchema):
-    applied = fields.Nested(ResourceSmallResponseSchema, required=True, many=False, allow_none=True)
+    applied = fields.Nested(
+        ResourceSmallResponseSchema,
+        required=True,
+        many=False,
+        allow_none=True,
+    )
 
 
 class GetLoggingRoleMappingResponseSchema(Schema):
-    logging_role_mapping = fields.Nested(GetLoggingRoleMappingParamsResponseSchema, required=True, allow_none=True)
+    logging_role_mapping = fields.Nested(
+        GetLoggingRoleMappingParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetLoggingRoleMapping(ProviderLoggingRoleMapping):
     summary = "Get logging role mapping"
     description = "Get logging role mapping"
-    definitions = {
-        "GetLoggingRoleMappingResponseSchema": GetLoggingRoleMappingResponseSchema,
-    }
+    definitions = {"GetLoggingRoleMappingResponseSchema": GetLoggingRoleMappingResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": GetLoggingRoleMappingResponseSchema}}
     )
@@ -95,31 +125,85 @@ class GetLoggingRoleMapping(ProviderLoggingRoleMapping):
 class CreateLoggingRoleMappingElkRoleMappingRequestSchema(Schema):
     name = fields.String(
         required=True,
-        example="Test role_mapping",
-        default="",
-        description="RoleMapping name",
+        metadata={
+            "example": 'Test role_mapping',
+            "description": 'RoleMapping name',
+        },
     )
+
     desc = fields.String(
         required=True,
-        example="This is the test role_mapping",
-        default="",
-        description="RoleMapping description",
+        metadata={
+            "example": 'This is the test role_mapping',
+            "description": 'RoleMapping description',
+        },
     )
-    role_name = fields.String(required=True, example="test-role", default="", description="Role name")
-    users_email = fields.String(required=True, example="test-users email", default="", description="Users email")
-    realm_name = fields.String(required=True, example="test-realm name", default="", description="Realm name")
+
+    role_name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test-role',
+            "description": 'Role name',
+        },
+    )
+
+    users_email = fields.String(
+        required=True,
+        metadata={
+            "example": 'test-users email',
+            "description": 'Users email',
+        },
+    )
+
+    realm_name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test-realm name',
+            "description": 'Realm name',
+        },
+    )
 
 
 class CreateLoggingRoleMappingParamRequestSchema(CreateProviderResourceRequestSchema):
-    name = fields.String(required=True, example="test", description="logging_role_mapping name")
-    desc = fields.String(required=True, example="test", description="logging_role_mapping description")
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'logging_role_mapping name',
+        },
+    )
+
+    desc = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'logging_role_mapping description',
+        },
+    )
+
     # compute_zone = fields.String(required=True, example='1', description='parent compute zone id or uuid')
-    logging_space = fields.String(required=True, example="1", description="parent compute space id or uuid")
-    norescreate = fields.Boolean(required=False, allow_none=True, description="don't create physical resource")
+    logging_space = fields.String(
+        required=True,
+        metadata={
+            "example": '1',
+            "description": 'parent compute space id or uuid',
+        },
+    )
+
+    norescreate = fields.Boolean(
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": "don't create physical resource",
+        },
+    )
+
     elk_role_mapping = fields.Nested(
         CreateLoggingRoleMappingElkRoleMappingRequestSchema,
         required=True,
-        description="elk role_mapping parameters",
+        metadata={
+            "description": 'elk role_mapping parameters',
+        },
     )
 
 
@@ -134,12 +218,15 @@ class CreateLoggingRoleMappingBodyRequestSchema(Schema):
 class CreateLoggingRoleMapping(ProviderLoggingRoleMapping):
     summary = "Create logging role mapping"
     description = "Create logging role mapping"
+
     definitions = {
         "CreateLoggingRoleMappingRequestSchema": CreateLoggingRoleMappingRequestSchema,
         "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateLoggingRoleMappingBodyRequestSchema)
     parameters_schema = CreateLoggingRoleMappingRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
@@ -153,6 +240,7 @@ class DeleteLoggingRoleMapping(ProviderLoggingRoleMapping):
     description = "Delete logging role mapping"
     definitions = {"CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
@@ -162,7 +250,12 @@ class DeleteLoggingRoleMapping(ProviderLoggingRoleMapping):
 
 
 class GetAppliedLoggingRoleMappingsResponseSchema(PaginatedResponseSchema):
-    applied_logging_role_mappings = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
+    applied_logging_role_mappings = fields.Nested(
+        ResourceResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ComputeLoggingRoleMappingAPI(ProviderAPI):

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from time import sleep
 from logging import getLogger
@@ -8,7 +8,7 @@ import ujson as json
 from beecell.simple import id_gen, dict_get, str2bool
 from beehive.common.apimanager import ApiManagerError
 from beehive.common.task_v2 import task_step, TaskError
-from beehive.common.task_v2.manager import task_manager
+from beehive.common.task_v2.manager import get_task_manager
 from beehive_resource.model import ResourceState
 from beehive_resource.task_v2 import AbstractResourceTask
 from beehive_resource.plugins.openstack.entity.ops_port import OpenstackPort
@@ -145,7 +145,7 @@ class ServerHelper(object):
                 if volume_clone is True:
                     # create volume resource
                     parent = self.task.get_resource_by_extid(project_extid)
-                    objid = "{parent.objid}//{id_gen()}"
+                    objid = f"{parent.objid}//{id_gen()}"
                     volume_size = volume.get_size()
                     volume_type_id = config.get("volume_type", None)
                     volume_type = self.task.get_resource(volume_type_id)
@@ -164,7 +164,7 @@ class ServerHelper(object):
 
                     # link volume id to server
                     server.add_link(
-                        "{server.oid}-{final_volume_resource.id}-volume-link",
+                        f"{server.oid}-{final_volume_resource.id}-volume-link",
                         "volume",
                         final_volume_resource.id,
                         attributes={"boot": boot},
@@ -614,7 +614,7 @@ class ServerTask(AbstractResourceTask):
         parent_id = params.get("parent_id")
 
         container = task.get_container(cid, projectid=parent_id)
-        resource = task.get_resource(oid)
+        resource: OpenstackServer = task.get_resource(oid)
         helper = ServerHelper(task, step_id, container)
         task.progress(step_id, msg="Get server resource")
 
@@ -728,6 +728,7 @@ class ServerTask(AbstractResourceTask):
                 resource.expunge_internal()
                 task.progress(step_id, msg=f"Delete volume {volume_id} resource")
             except ApiManagerError as ex:
+                logger.error(ex, exc_info=True)
                 task.progress(step_id, msg=ex)
 
         return oid, params
@@ -775,6 +776,7 @@ class ServerTask(AbstractResourceTask):
 
         # loop until action completed or return error
         while True:
+            sleep(2)
             inst = OpenstackServer.get_remote_server(resource.controller, ext_id, container, ext_id)
             status = inst["status"]
             task.progress(step_id, msg=f"Read server {ext_id} status: {status}")
@@ -783,7 +785,6 @@ class ServerTask(AbstractResourceTask):
             if status == "ERROR":
                 raise Exception(error)
 
-            sleep(2)
 
         task.progress(step_id, msg=success)
         task.progress(step_id, msg=f"stop action {action.__name__}")
@@ -1026,7 +1027,7 @@ class ServerTask(AbstractResourceTask):
             volume_obj = params["volume"]
             server_obj = params["server"]
             server_obj.add_link(
-                "{volume_obj.oid}-{server_obj.oid}-volume-link",
+                f"{volume_obj.oid}-{server_obj.oid}-volume-link",
                 "volume",
                 volume_obj.oid,
                 attributes={"boot": False},
@@ -1565,4 +1566,4 @@ No space left on backend host {backend_host} the remaing space is {free_capacity
         return res, params
 
 
-task_manager.tasks.register(ServerTask())
+get_task_manager().register_task(ServerTask())

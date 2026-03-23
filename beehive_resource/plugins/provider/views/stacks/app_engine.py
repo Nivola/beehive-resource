@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_resource.plugins.provider.entity.app_stack import AppComputeStack
 from beehive_resource.plugins.provider.entity.zone import ComputeZone
 from beehive_resource.view import ListResourcesRequestSchema, ResourceResponseSchema
+
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
@@ -13,14 +14,17 @@ from beehive.common.apimanager import (
     CrudApiObjectJobResponseSchema,
     ApiManagerError,
 )
+
 from beecell.swagger import SwaggerHelper
 from flasgger import fields, Schema
+
 from beehive_resource.plugins.provider.views import (
     ProviderAPI,
     LocalProviderApiView,
     UpdateProviderResourceRequestSchema,
     CreateProviderResourceRequestSchema,
 )
+
 from marshmallow.validate import OneOf
 
 
@@ -30,24 +34,30 @@ class AppProviderAppStack(LocalProviderApiView):
 
 
 class ListAppStacksRequestSchema(ListResourcesRequestSchema):
-    compute_zones = fields.String(context="query", description="comma separated list of compute zone id or uuid")
+    compute_zones = fields.String(
+        context="query",
+        metadata={
+            "description": 'comma separated list of compute zone id or uuid',
+        },
+    )
 
 
 class ListAppStacksResponseSchema(PaginatedResponseSchema):
-    app_stacks = fields.Nested(ResourceResponseSchema, many=True, required=True)
+    app_stacks = fields.Nested(
+        ResourceResponseSchema,
+        many=True,
+        required=True,
+    )
 
 
 class ListAppStacks(AppProviderAppStack):
-    definitions = {
-        "ListAppStacksResponseSchema": ListAppStacksResponseSchema,
-    }
+    definitions = {"ListAppStacksResponseSchema": ListAppStacksResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListAppStacksRequestSchema)
     parameters_schema = ListAppStacksRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListAppStacksResponseSchema}})
 
     def get(self, controller, data, *args, **kwargs):
         """
-        List app_stacks
         List app_stacks
 
         # - filter by: tags
@@ -71,15 +81,12 @@ class GetAppStackResponseSchema(Schema):
 
 
 class GetAppStack(AppProviderAppStack):
-    definitions = {
-        "GetAppStackResponseSchema": GetAppStackResponseSchema,
-    }
+    definitions = {"GetAppStackResponseSchema": GetAppStackResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetAppStackResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
-        Get app_stack
         Get app_stack
         """
         containers, tot = controller.get_containers(container_type="Provider")
@@ -94,15 +101,12 @@ class GetAppStackResourcesResponseSchema(Schema):
 
 
 class GetAppStackResources(AppProviderAppStack):
-    definitions = {
-        "GetAppStackResourcesResponseSchema": GetAppStackResourcesResponseSchema,
-    }
+    definitions = {"GetAppStackResourcesResponseSchema": GetAppStackResourcesResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetAppStackResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
-        Get app_stack resources
         Get app_stack resources
         """
         resource = self.get_resource_reference(controller, oid)
@@ -114,95 +118,188 @@ class GetAppStackResources(AppProviderAppStack):
 
 
 class CreateAppStackParamConfigRequestSchema(Schema):
-    document_root = fields.String(required=False, example="/var/www", description="[apache-php] document root")
+    document_root = fields.String(
+        required=False,
+        metadata={
+            "example": '/var/www',
+            "description": '[apache-php] document root',
+        },
+    )
+
     ftp_server = fields.Boolean(
         required=False,
-        example=True,
-        description="[apache-php] if true install ftp server",
+        metadata={
+            "example": True,
+            "description": '[apache-php] if true install ftp server',
+        },
     )
+
     smb_server = fields.Boolean(
         required=False,
-        example=False,
-        description="[apache-php] if true install samba server",
+        metadata={
+            "example": False,
+            "description": '[apache-php] if true install samba server',
+        },
     )
+
     share_dimension = fields.Integer(
         required=False,
-        example=10,
-        default=10,
-        description="[apache-php] share dimension in GB",
+        metadata={
+            "example": 10,
+            "description": '[apache-php] share dimension in GB',
+        },
     )
+
     share_cfg_dimension = fields.Integer(
         required=False,
-        example=2,
-        default=2,
-        description="[apache-php] share config dimension in GB",
+        metadata={
+            "example": 2,
+            "description": '[apache-php] share config dimension in GB',
+        },
     )
+
     app_port = fields.Integer(
         required=False,
-        example=80,
-        default=80,
-        description="[apache-php] internal application port",
+        metadata={
+            "example": 80,
+            "description": '[apache-php] internal application port',
+        },
     )
+
     farm_name = fields.String(
         required=True,
-        example="tst-portali",
-        description="[apache-php] parent compute zone id or uuid",
+        metadata={
+            "example": 'tst-portali',
+            "description": '[apache-php] parent compute zone id or uuid',
+        },
     )
 
 
 class CreateAppStackParamRequestSchema(CreateProviderResourceRequestSchema):
-    compute_zone = fields.String(required=True, example="1", description="parent compute zone id or uuid")
+    compute_zone = fields.String(
+        required=True,
+        metadata={
+            "example": '1',
+            "description": 'parent compute zone id or uuid',
+        },
+    )
+
     availability_zone = fields.String(
         required=True,
-        example="2995",
-        description="id, uuid or name of the site where create sql",
+        metadata={
+            "example": '2995',
+            "description": 'id, uuid or name of the site where create sql',
+        },
     )
-    flavor = fields.String(required=True, example="2995", description="id, uuid or name of the flavor")
-    image = fields.String(required=True, example="2995", description="id, uuid or name of the image")
-    vpc = fields.String(required=True, example="2995", description="id, uuid or name of the private vpc")
-    subnet = fields.String(required=True, example="10.102.167.90/24", description="subnet definition")
+
+    flavor = fields.String(
+        required=True,
+        metadata={
+            "example": '2995',
+            "description": 'id, uuid or name of the flavor',
+        },
+    )
+
+    image = fields.String(
+        required=True,
+        metadata={
+            "example": '2995',
+            "description": 'id, uuid or name of the image',
+        },
+    )
+
+    vpc = fields.String(
+        required=True,
+        metadata={
+            "example": '2995',
+            "description": 'id, uuid or name of the private vpc',
+        },
+    )
+
+    subnet = fields.String(
+        required=True,
+        metadata={
+            "example": '10.102.167.90/24',
+            "description": 'subnet definition',
+        },
+    )
+
     vpc_public = fields.String(
         required=False,
-        example="2995",
-        missing="",
+        load_default="",
         allow_none=True,
-        description="id, uuid or name of the public vpc",
+        metadata={
+            "example": '2995',
+            "description": 'id, uuid or name of the public vpc',
+        },
     )
+
     is_public = fields.Boolean(
         required=False,
-        missing=False,
-        description="if True load balancer is on public network",
+        load_default=False,
+        metadata={
+            "description": 'if True load balancer is on public network',
+        },
     )
+
     security_group = fields.String(
         required=True,
-        example="2995",
-        description="id, uuid or name of the private security group",
+        metadata={
+            "example": '2995',
+            "description": 'id, uuid or name of the private security group',
+        },
     )
-    routes = fields.List(fields.String(), required=False, example="6.5", description="List of routes")
+
+    routes = fields.List(
+        fields.String(),
+        required=False,
+        metadata={
+            "example": '6.5',
+            "description": 'List of routes',
+        },
+    )
+
     key_name = fields.String(
         required=False,
-        example="opstkportali",
-        default="opstkportali",
         allow_none=True,
-        description="Openstack public key name",
+        metadata={
+            "example": 'opstkportali',
+            "description": 'Openstack public key name',
+        },
     )
-    version = fields.String(required=True, example="7", description="App engine version")
+
+    version = fields.String(
+        required=True,
+        metadata={
+            "example": '7',
+            "description": 'App engine version',
+        },
+    )
+
     engine = fields.String(
         required=True,
-        example="php",
-        description="App engine",
-        validate=OneOf(["apache-php"]),
+        validate=OneOf(['apache-php']),
+        metadata={
+            "example": 'php',
+            "description": 'App engine',
+        },
     )
+
     engine_configs = fields.Nested(
         CreateAppStackParamConfigRequestSchema,
         required=True,
-        description="App engine specific params",
+        metadata={
+            "description": 'App engine specific params',
+        },
     )
+
     resolve = fields.Boolean(
-        example=False,
-        missing=True,
+        load_default=True,
         required=False,
-        description="Define if stack instances must registered on the availability_zone dns zone",
+        metadata={
+            "example": False,
+            "description": 'Define if stack instances must registered on the availability_zone dns zone',
+        },
     )
 
 
@@ -219,13 +316,13 @@ class CreateAppStack(AppProviderAppStack):
         "CreateAppStackRequestSchema": CreateAppStackRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateAppStackBodyRequestSchema)
     parameters_schema = CreateAppStackRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def post(self, controller, data, *args, **kwargs):
         """
-        Create app_stack
         Create app_stack
         """
         res = self.create_resource(controller, data)
@@ -249,13 +346,13 @@ class UpdateAppStack(AppProviderAppStack):
         "UpdateAppStackRequestSchema": UpdateAppStackRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateAppStackBodyRequestSchema)
     parameters_schema = UpdateAppStackRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def put(self, controller, data, oid, *args, **kwargs):
         """
-        Update app_stack
         Update app_stack
         """
         return self.update_resource(controller, oid, data)
@@ -264,11 +361,20 @@ class UpdateAppStack(AppProviderAppStack):
 class ActionAppStackParamRequestSchema(Schema):
     action = fields.String(
         required=True,
-        example="set-password",
-        description="Send and action to sql stack",
-        validate=OneOf(["set-password"]),
+        validate=OneOf(['set-password']),
+        metadata={
+            "example": 'set-password',
+            "description": 'Send and action to sql stack',
+        },
     )
-    params = fields.Dict(required=True, example={}, description="The action params")
+
+    params = fields.Dict(
+        required=True,
+        metadata={
+            "example": {},
+            "description": 'The action params',
+        },
+    )
 
 
 class ActionAppStackRequestSchema(Schema):
@@ -288,13 +394,13 @@ class ActionAppStack(AppProviderAppStack):
         "ActionAppStackRequestSchema": ActionAppStackRequestSchema,
         "ActionAppStackResponseSchema": ActionAppStackResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(ActionAppStackBodyRequestSchema)
     parameters_schema = ActionAppStackRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": ActionAppStackResponseSchema}})
 
     def put(self, controller, data, oid, *args, **kwargs):
         """
-        Run app_stack action
         Run app_stack action
         """
         resource = self.get_resource_reference(controller, oid)
@@ -313,7 +419,6 @@ class DeleteAppStack(AppProviderAppStack):
 
     def delete(self, controller, data, oid, *args, **kwargs):
         """
-        Delete app_stack
         Delete app_stack
         """
         return self.expunge_resource(controller, oid)

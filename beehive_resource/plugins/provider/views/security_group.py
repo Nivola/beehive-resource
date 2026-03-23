@@ -1,15 +1,17 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_resource.plugins.provider.entity.security_group import SecurityGroup
 from beehive_resource.plugins.provider.entity.vpc import Vpc
+
 from beehive_resource.view import (
     ListResourcesRequestSchema,
     ResourceResponseSchema,
     ResourceSmallResponseSchema,
 )
+
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
@@ -17,8 +19,10 @@ from beehive.common.apimanager import (
     CrudApiObjectTaskResponseSchema,
     CrudApiObjectResponseSchema,
 )
+
 from beecell.swagger import SwaggerHelper
 from flasgger import fields, Schema
+
 from beehive_resource.plugins.provider.views import (
     ProviderAPI,
     LocalProviderApiView,
@@ -32,9 +36,26 @@ class ProviderSecurityGroup(LocalProviderApiView):
 
 
 class ListSecurityGroupsRequestSchema(ListResourcesRequestSchema):
-    vpc = fields.String(context="query", description="vpc id, uuid")
-    compute_zone = fields.String(context="query", description="compute zone id, uuid")
-    instance = fields.String(context="query", description="compute instance id, uuid")
+    vpc = fields.String(
+        context="query",
+        metadata={
+            "description": 'vpc id, uuid',
+        },
+    )
+
+    compute_zone = fields.String(
+        context="query",
+        metadata={
+            "description": 'compute zone id, uuid',
+        },
+    )
+
+    instance = fields.String(
+        context="query",
+        metadata={
+            "description": 'compute instance id, uuid',
+        },
+    )
 
 
 class ListSecurityGroupsParamsResponseSchema(ResourceResponseSchema):
@@ -51,11 +72,10 @@ class ListSecurityGroupsResponseSchema(PaginatedResponseSchema):
 
 
 class ListSecurityGroups(ProviderSecurityGroup):
-    definitions = {
-        "ListSecurityGroupsResponseSchema": ListSecurityGroupsResponseSchema,
-    }
+    definitions = {"ListSecurityGroupsResponseSchema": ListSecurityGroupsResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListSecurityGroupsRequestSchema)
     parameters_schema = ListSecurityGroupsRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": ListSecurityGroupsResponseSchema}}
     )
@@ -63,16 +83,14 @@ class ListSecurityGroups(ProviderSecurityGroup):
     def get(self, controller, data, *args, **kwargs):
         """
         List security groups
-        List security groups
         """
         from ..entity.zone import ComputeZone
         from ..entity.instance import ComputeInstance
-
-        zone_id = data.get("super_zone", None)
+        zone_id = data.get("compute_zone", None)
         vpc_id = data.get("vpc", None)
         instance_id = data.get("instance", None)
         if vpc_id is not None:
-            return self.get_resources_by_parent(controller, vpc_id, "Vcp")
+            return self.get_resources_by_parent(controller, parent_id=vpc_id, **data)
         elif zone_id is not None:
             return self.get_linked_resources(controller, zone_id, ComputeZone, "sg")
         elif instance_id is not None:
@@ -90,9 +108,7 @@ class GetSecurityGroupResponseSchema(Schema):
 
 
 class GetSecurityGroup(ProviderSecurityGroup):
-    definitions = {
-        "GetSecurityGroupResponseSchema": GetSecurityGroupResponseSchema,
-    }
+    definitions = {"GetSecurityGroupResponseSchema": GetSecurityGroupResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetSecurityGroupResponseSchema}})
 
@@ -105,14 +121,13 @@ class GetSecurityGroup(ProviderSecurityGroup):
 
 
 class CreateSecurityGroupParamRequestSchema(CreateProviderResourceRequestSchema):
-    vpc = fields.String(required=True, example="test", description="id of the parent vpc")
-    # orchestrator_select_types = fields.List(
-    #     fields.String(example="vsphere"),
-    #     required=False,
-    #     allow_none=True,
-    #     context="query",
-    #     description="orchestrator select types",
-    # )
+    vpc = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'id of the parent vpc',
+        },
+    )
 
 
 class CreateSecurityGroupRequestSchema(Schema):
@@ -128,15 +143,16 @@ class CreateSecurityGroup(ProviderSecurityGroup):
         "CreateSecurityGroupRequestSchema": CreateSecurityGroupRequestSchema,
         "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateSecurityGroupBodyRequestSchema)
     parameters_schema = CreateSecurityGroupRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
 
     def post(self, controller, data, *args, **kwargs):
         """
-        Create security group
         Create security group
         """
         data["tag"] = data.pop("orchestartor_tag", "default")
@@ -158,12 +174,15 @@ class UpdateSecurityGroupBodyRequestSchema(GetApiObjectRequestSchema):
 class UpdateSecurityGroup(ProviderSecurityGroup):
     summary = "Update security group"
     description = "Update security group"
+
     definitions = {
         "UpdateSecurityGroupRequestSchema": UpdateSecurityGroupRequestSchema,
         "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateSecurityGroupBodyRequestSchema)
     parameters_schema = UpdateSecurityGroupRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
@@ -177,6 +196,7 @@ class DeleteSecurityGroup(ProviderSecurityGroup):
     description = "Delete security group"
     definitions = {"CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
@@ -190,15 +210,12 @@ class ListSecurityGroupAclsResponseSchema(Schema):
 
 
 class ListSecurityGroupAcls(ProviderSecurityGroup):
-    definitions = {
-        "ListSecurityGroupAclsResponseSchema": ListSecurityGroupAclsResponseSchema,
-    }
+    definitions = {"ListSecurityGroupAclsResponseSchema": ListSecurityGroupAclsResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetSecurityGroupResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
-        Get security group acls
         Get security group acls
         """
         resource = self.get_resource_reference(controller, oid, run_customize=False)
@@ -207,7 +224,13 @@ class ListSecurityGroupAcls(ProviderSecurityGroup):
 
 
 class AddSecurityGroupAclParamRequestSchema(Schema):
-    acl_id = fields.String(required=True, example="12", description="id of the security group acl")
+    acl_id = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'id of the security group acl',
+        },
+    )
 
 
 class AddSecurityGroupAclRequestSchema(Schema):
@@ -223,13 +246,13 @@ class AddSecurityGroupAcl(ProviderSecurityGroup):
         "AddSecurityGroupAclRequestSchema": AddSecurityGroupAclRequestSchema,
         "CrudApiObjectResponseSchema": CrudApiObjectResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(AddSecurityGroupAclBodyRequestSchema)
     parameters_schema = AddSecurityGroupAclRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectResponseSchema}})
 
     def post(self, controller, data, oid, *args, **kwargs):
         """
-        Add acl to security group
         Add acl to security group
         """
         resource = self.get_resource_reference(controller, oid, run_customize=False)
@@ -238,7 +261,13 @@ class AddSecurityGroupAcl(ProviderSecurityGroup):
 
 
 class DelSecurityGroupAclParamRequestSchema(Schema):
-    acl_id = fields.String(required=True, example="12", description="id of the security group acl")
+    acl_id = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'id of the security group acl',
+        },
+    )
 
 
 class DelSecurityGroupAclRequestSchema(Schema):
@@ -254,13 +283,13 @@ class DelSecurityGroupAcl(ProviderSecurityGroup):
         "DelSecurityGroupAclRequestSchema": DelSecurityGroupAclRequestSchema,
         "CrudApiObjectResponseSchema": CrudApiObjectResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(DelSecurityGroupAclBodyRequestSchema)
     parameters_schema = DelSecurityGroupAclRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectResponseSchema}})
 
     def delete(self, controller, data, oid, *args, **kwargs):
         """
-        Add acl to security group
         Add acl to security group
         """
         resource = self.get_resource_reference(controller, oid, run_customize=False)
@@ -272,23 +301,33 @@ class HasSecurityGroupAclRequestSchema(Schema):
     source = fields.String(
         required=False,
         context="query",
-        example="*:*",
-        missing="*:*",
-        description="acl source. Can be *:*, Cidr:<>, SecurityGroup:<>",
+        load_default="*:*",
+        metadata={
+            "example": '*:*',
+            "description": 'acl source. Can be *:*, Cidr:<>, SecurityGroup:<>',
+        },
     )
+
     protocol = fields.String(
         required=False,
         context="query",
-        example="*:*",
-        missing="*:*",
-        description="acl protocol. Can be *:*, 7:*, 9:0 or tcp:*",
+        load_default="*:*",
+        metadata={
+            "example": '*:*',
+            "description": 'acl protocol. Can be *:*, 7:*, 9:0 or tcp:*',
+        },
     )
+
     ports = fields.String(
         required=False,
         context="query",
-        example="*",
-        missing="*",
-        description="Comma separated acl ports (80,8000), single port (80) or port interval " "(4001-4002). * for all",
+        load_default="*",
+        metadata={
+            "example": '*',
+            "description": (
+                'Comma separated acl ports (80,8000), single port (80) or port interval (4001-4002). * for all'
+            ),
+        },
     )
 
 
@@ -301,15 +340,16 @@ class HasSecurityGroupAcl(ProviderSecurityGroup):
         "HasSecurityGroupAclRequestSchema": HasSecurityGroupAclRequestSchema,
         "HasSecurityGroupAclResponseSchema": HasSecurityGroupAclResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(HasSecurityGroupAclRequestSchema)
     parameters_schema = HasSecurityGroupAclRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": HasSecurityGroupAclResponseSchema}}
     )
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
-        Check security group acl
         Check security group acl
         """
         resource = self.get_resource_reference(controller, oid, run_customize=False)
@@ -322,22 +362,34 @@ class HasSecurityGroupAcl(ProviderSecurityGroup):
 # zabbix
 #
 class CreateSecurityGroupZabbixRuleRequestSchema(Schema):
-    availability_zone = fields.String(required=True, example="SiteTorino01", description="Availability zone name")
+    availability_zone = fields.String(
+        required=True,
+        metadata={
+            "example": 'SiteTorino01',
+            "description": 'Availability zone name',
+        },
+    )
 
 
 class CreateSecurityGroupZabbixRuleBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(CreateSecurityGroupZabbixRuleRequestSchema, context="body")
+    body = fields.Nested(
+        CreateSecurityGroupZabbixRuleRequestSchema,
+        context="body",
+    )
 
 
 class CreateSecurityGroupZabbixRule(ProviderSecurityGroup):
     summary = "Update security group"
     description = "Update security group"
+
     definitions = {
         "CreateSecurityGroupZabbixRuleRequestSchema": CreateSecurityGroupZabbixRuleRequestSchema,
         "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateSecurityGroupZabbixRuleBodyRequestSchema)
     parameters_schema = CreateSecurityGroupZabbixRuleRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
@@ -350,7 +402,13 @@ class CreateSecurityGroupZabbixRule(ProviderSecurityGroup):
 
 
 class DeleteSecurityGroupZabbixRuleRequestSchema(Schema):
-    availability_zone = fields.String(required=True, example="SiteTorino01", description="Availability zone name")
+    availability_zone = fields.String(
+        required=True,
+        metadata={
+            "example": 'SiteTorino01',
+            "description": 'Availability zone name',
+        },
+    )
 
 
 class DeleteSecurityGroupZabbixRuleBodyRequestSchema(GetApiObjectRequestSchema):
@@ -360,12 +418,15 @@ class DeleteSecurityGroupZabbixRuleBodyRequestSchema(GetApiObjectRequestSchema):
 class DeleteSecurityGroupZabbixRule(ProviderSecurityGroup):
     summary = "Delete security group zabbix rule in a specific availability zone"
     description = "Delete security group zabbix rule in a specific availability zone"
+
     definitions = {
         "DeleteSecurityGroupZabbixRuleRequestSchema": DeleteSecurityGroupZabbixRuleRequestSchema,
         "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(DeleteSecurityGroupZabbixRuleBodyRequestSchema)
     parameters_schema = DeleteSecurityGroupZabbixRuleRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )

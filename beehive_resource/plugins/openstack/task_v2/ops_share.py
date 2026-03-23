@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from logging import getLogger
 from time import sleep
 
+from beedrones.openstack.client import OpenstackManager
 from beehive.common.task_v2 import task_step
-from beehive.common.task_v2.manager import task_manager
+from beehive.common.task_v2.manager import get_task_manager
 from beehive_resource.plugins.openstack.entity.ops_share import OpenstackShare
 from beehive_resource.task_v2 import AbstractResourceTask
 
@@ -45,7 +46,9 @@ class ShareTask(AbstractResourceTask):
         subnet_id = params.get("subnet")
 
         container = task.get_container(cid, projectid=parent_id)
-        conn = container.conn.manila
+        ops_manager: OpenstackManager = container.get_connection(projectid=parent_id)
+        # conn = container.conn.manila
+        conn = ops_manager.manila
 
         # if network and subnet are not None check share_network or create a new one
         share_network_id = None
@@ -133,8 +136,10 @@ class ShareTask(AbstractResourceTask):
         ext_id = params.get("ext_id")
 
         container = task.get_container(cid, projectid=parent_id)
-        conn = container.conn.manila
-        resource = container.get_resource(oid)
+        ops_manager: OpenstackManager = container.get_connection(projectid=parent_id)
+        # conn = container.conn.manila
+        conn = ops_manager.manila
+        resource: 'OpenstackShare' = container.get_resource(oid)
 
         if resource.is_ext_id_valid() is True:
             # check share exists
@@ -203,7 +208,9 @@ class ShareTask(AbstractResourceTask):
         access_to = params.get("access_to")
 
         container = task.get_container(cid, projectid=parent_id)
-        conn = container.conn.manila
+        ops_manager: OpenstackManager = container.get_connection(projectid=parent_id)
+        # conn = container.conn.manila
+        conn = ops_manager.manila
         resource = container.get_resource(oid)
 
         # delete vsphere folder
@@ -231,13 +238,22 @@ class ShareTask(AbstractResourceTask):
         parent_id = params.get("parent")
         ext_id = params.get("ext_id")
         access_id = params.get("access_id")
+        access_ids = params.get("access_ids")
 
         container = task.get_container(cid, projectid=parent_id)
-        conn = container.conn.manila
+        ops_manager: OpenstackManager = container.get_connection(projectid=parent_id)
+        # conn = container.conn.manila
+        conn = ops_manager.manila
         resource = container.get_resource(oid)
 
         if resource.is_ext_id_valid() is True:
-            conn.share.action.revoke_access(ext_id, access_id)
+            if access_id:
+                conn.share.action.revoke_access(ext_id, access_id)
+            elif access_ids:
+                for id_i in access_ids:
+                    conn.share.action.revoke_access(ext_id, id_i)
+            else:
+                raise Exception("Access id missing")
             task.progress(step_id, msg="Remove grant %s from share %s" % (ext_id, access_id))
 
         return oid, params
@@ -259,7 +275,9 @@ class ShareTask(AbstractResourceTask):
         new_size = params.get("new_size")
 
         container = task.get_container(cid, projectid=parent_id)
-        conn = container.conn.manila
+        ops_manager: OpenstackManager = container.get_connection(projectid=parent_id)
+        # conn = container.conn.manila
+        conn = ops_manager.manila
         resource = container.get_resource(oid)
 
         if resource.is_ext_id_valid() is True:
@@ -301,7 +319,9 @@ class ShareTask(AbstractResourceTask):
         new_size = params.get("new_size")
 
         container = task.get_container(cid, projectid=parent_id)
-        conn = container.conn.manila
+        ops_manager: OpenstackManager = container.get_connection(projectid=parent_id)
+        # conn = container.conn.manila
+        conn = ops_manager.manila
         resource = container.get_resource(oid)
 
         if resource.is_ext_id_valid() is True:
@@ -343,7 +363,9 @@ class ShareTask(AbstractResourceTask):
         snapshot_id = params.get("snapshot_id")
 
         container = task.get_container(cid, projectid=parent_id)
-        conn = container.conn.manila
+        ops_manager: OpenstackManager = container.get_connection(projectid=parent_id)
+        # conn = container.conn.manila
+        conn = ops_manager.manila
         resource = container.get_resource(oid)
 
         if resource.is_ext_id_valid() is True:
@@ -356,4 +378,4 @@ class ShareTask(AbstractResourceTask):
         return oid, params
 
 
-task_manager.tasks.register(ShareTask())
+get_task_manager().register_task(ShareTask())

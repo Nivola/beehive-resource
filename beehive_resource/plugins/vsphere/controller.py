@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from random import randint
 from beecell.simple import truncate
@@ -15,7 +15,6 @@ from beehive_resource.plugins.vsphere.entity.nsx_edge import NsxEdge
 from gevent.hub import sleep
 from beehive.common.task.handler import task_local
 from beehive_resource.plugins.vsphere.entity.vs_orchestrator import VsphereOrchestrator
-
 
 def get_task(task_name):
     return "%s.task.%s" % (__name__, task_name)
@@ -50,6 +49,8 @@ class VsphereContainer(Orchestrator):
     objdesc = "Vsphere container"
     version = "v1.0"
 
+    conn: 'VsphereManager'
+
     def __init__(self, *args, **kvargs):
         Orchestrator.__init__(self, *args, **kvargs)
 
@@ -60,7 +61,7 @@ class VsphereContainer(Orchestrator):
         ]
 
         self.nsx_enabled = True
-        self.conn = None
+        self.conn: 'VsphereManager' = None
 
     def get_resource_classes(self):
         ref_child_classes = [VsphereDatacenter]
@@ -264,11 +265,13 @@ class VsphereContainer(Orchestrator):
     def get_connection(self):
         """ """
         if self.conn is None:
+            self.logger.info("vsphere - get_connection - NEW")
             self._get_connection()
 
         if self.conn.get_vcenter_session() is None:
-            self.logger.warn("Lost vcenter %s connection. Try to reconnect" % self.oid)
+            self.logger.warning("vsphere - get_connection - Lost vcenter %s connection. Try to reconnect" % self.oid)
             self._get_connection()
+
         Orchestrator.get_connection(self)
 
     def close_connection(self):
@@ -431,7 +434,7 @@ class VsphereContainer(Orchestrator):
 
         :return: None
         """
-        manager = self.get_nsx_managers()[0]
+        manager: 'NsxManager' = self.get_nsx_manager()
         obj = self._print_item(
             manager.oid,
             manager.ext_id,
@@ -440,6 +443,8 @@ class VsphereContainer(Orchestrator):
             manager.objuri,
             size=0,
         )
+
+        raise NotImplementedError("broken, do not call")
 
         # get security groups
         items = manager.get_security_groups()

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_resource.container import Resource
 from beehive_resource.plugins.openstack.entity.ops_volume_type import (
@@ -373,6 +373,6 @@ class VolumeFlavor(AvailabilityZoneChildResource):
             }
             steps.append(substep)
 
-        kvargs["steps"] = AvailabilityZoneChildResource.group_update_step(steps)
+        kvargs["steps"] = self.group_update_step(steps)
         kvargs["sync"] = True
         return kvargs

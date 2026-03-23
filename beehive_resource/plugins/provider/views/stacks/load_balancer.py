@@ -1,30 +1,32 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beecell.simple import id_gen, bool2str
 from beehive_resource.plugins.provider.entity.stack import ComputeStack
 from beehive_resource.plugins.provider.entity.zone import ComputeZone
 from beehive_resource.view import ListResourcesRequestSchema, ResourceResponseSchema
+
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
     GetApiObjectRequestSchema,
-    CrudApiObjectResponseSchema,
     CrudApiObjectJobResponseSchema,
     ApiManagerError,
 )
+
 from beecell.swagger import SwaggerHelper
 from flasgger import fields, Schema
+
 from beehive_resource.plugins.provider.views import (
     ProviderAPI,
     LocalProviderApiView,
     UpdateProviderResourceRequestSchema,
     CreateProviderResourceRequestSchema,
 )
+
 from marshmallow.validate import OneOf
-from re import search
 
 
 class ProviderLoadBalancer(LocalProviderApiView):
@@ -33,7 +35,12 @@ class ProviderLoadBalancer(LocalProviderApiView):
 
 
 class ListLoadBalancersRequestSchema(ListResourcesRequestSchema):
-    compute_zones = fields.String(context="query", description="comma separated list of compute zone id or uuid")
+    compute_zones = fields.String(
+        context="query",
+        metadata={
+            "description": 'comma separated list of compute zone id or uuid',
+        },
+    )
 
 
 class ListLoadBalancersResponseSchema(PaginatedResponseSchema):
@@ -41,18 +48,16 @@ class ListLoadBalancersResponseSchema(PaginatedResponseSchema):
 
 
 class ListLoadBalancers(ProviderLoadBalancer):
-    definitions = {
-        "ListLoadBalancersResponseSchema": ListLoadBalancersResponseSchema,
-    }
+    definitions = {"ListLoadBalancersResponseSchema": ListLoadBalancersResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListLoadBalancersRequestSchema)
     parameters_schema = ListLoadBalancersRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": ListLoadBalancersResponseSchema}}
     )
 
     def get(self, controller, data, *args, **kwargs):
         """
-        List load_balancers
         List load_balancers
 
         # - filter by: tags
@@ -110,15 +115,12 @@ class GetLoadBalancerResponseSchema(Schema):
 
 
 class GetLoadBalancer(ProviderLoadBalancer):
-    definitions = {
-        "GetLoadBalancerResponseSchema": GetLoadBalancerResponseSchema,
-    }
+    definitions = {"GetLoadBalancerResponseSchema": GetLoadBalancerResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetLoadBalancerResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
-        Get load_balancer
         Get load_balancer
         """
         containers, tot = controller.get_containers(container_type="Provider")
@@ -161,15 +163,12 @@ class GetLoadBalancerResourcesResponseSchema(Schema):
 
 
 class GetLoadBalancerResources(ProviderLoadBalancer):
-    definitions = {
-        "GetLoadBalancerResourcesResponseSchema": GetLoadBalancerResourcesResponseSchema,
-    }
+    definitions = {"GetLoadBalancerResourcesResponseSchema": GetLoadBalancerResourcesResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetLoadBalancerResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
-        Get load_balancer resources
         Get load_balancer resources
         """
         resource = self.get_resource_reference(controller, oid)
@@ -182,65 +181,142 @@ class CreateLoadBalancerParamConfigRequestSchema(Schema):
 
 
 class CreateLoadBalancerParamRequestSchema(CreateProviderResourceRequestSchema):
-    compute_zone = fields.String(required=True, example="1", description="parent compute zone id or uuid")
+    compute_zone = fields.String(
+        required=True,
+        metadata={
+            "example": '1',
+            "description": 'parent compute zone id or uuid',
+        },
+    )
+
     availability_zone = fields.String(
         required=True,
-        example="2995",
-        description="id, uuid or name of the site where create sql",
+        metadata={
+            "example": '2995',
+            "description": 'id, uuid or name of the site where create sql',
+        },
     )
-    flavor = fields.String(required=True, example="2995", description="id, uuid or name of the flavor")
-    image = fields.String(required=True, example="2995", description="id, uuid or name of the image")
-    vpc = fields.String(required=True, example="2995", description="id, uuid or name of the private vpc")
+
+    flavor = fields.String(
+        required=True,
+        metadata={
+            "example": '2995',
+            "description": 'id, uuid or name of the flavor',
+        },
+    )
+
+    image = fields.String(
+        required=True,
+        metadata={
+            "example": '2995',
+            "description": 'id, uuid or name of the image',
+        },
+    )
+
+    vpc = fields.String(
+        required=True,
+        metadata={
+            "example": '2995',
+            "description": 'id, uuid or name of the private vpc',
+        },
+    )
+
     vpc_public = fields.String(
         required=False,
-        example="2995",
-        missing="",
-        description="id, uuid or name of the public vpc",
+        load_default="",
+        metadata={
+            "example": '2995',
+            "description": 'id, uuid or name of the public vpc',
+        },
     )
+
     is_public = fields.Boolean(
         required=False,
-        missing=False,
-        description="if True load balancer is on public network",
+        load_default=False,
+        metadata={
+            "description": 'if True load balancer is on public network',
+        },
     )
+
     security_group = fields.String(
         required=True,
-        example="2995",
-        description="id, uuid or name of the private security group",
+        metadata={
+            "example": '2995',
+            "description": 'id, uuid or name of the private security group',
+        },
     )
-    routes = fields.List(fields.String(), required=False, example="6.5", description="List of routes")
+
+    routes = fields.List(
+        fields.String(),
+        required=False,
+        metadata={
+            "description": 'List of routes',
+        },
+    )
+
     key_name = fields.String(
         required=False,
-        example="opstkcsi",
-        default="opstkcsi",
-        description="Openstack public key name",
+        metadata={
+            "example": 'opstkcsi',
+            "description": 'Openstack public key name',
+        },
     )
-    version = fields.String(required=True, example="6.5", description="App engine version")
+
+    version = fields.String(
+        required=True,
+        metadata={
+            "example": '6.5',
+            "description": 'App engine version',
+        },
+    )
+
     engine = fields.String(
         required=True,
-        example="mysql",
-        description="App engine",
-        validate=OneOf(["haproxy"]),
+        validate=OneOf(['haproxy']),
+        metadata={
+            "example": 'mysql',
+            "description": 'App engine',
+        },
     )
+
     engine_configs = fields.Nested(
         CreateLoadBalancerParamConfigRequestSchema,
         required=True,
-        description="App engine specific params",
+        metadata={
+            "description": 'App engine specific params',
+        },
     )
-    admin_password = fields.String(required=True, example="prova", description="Console admin password")
+
+    admin_password = fields.String(
+        required=True,
+        metadata={
+            "example": 'prova',
+            "description": 'Console admin password',
+        },
+    )
+
     resolve = fields.Boolean(
-        example=False,
-        missing=True,
+        load_default=True,
         required=False,
-        description="Define if stack instances must registered on the availability_zone dns zone",
+        metadata={
+            "example": False,
+            "description": 'Define if stack instances must registered on the availability_zone dns zone',
+        },
     )
 
 
 class CreateLoadBalancerRequestSchema(Schema):
-    load_balancer = fields.Nested(CreateLoadBalancerParamRequestSchema, context="body")
+    load_balancer = fields.Nested(
+        CreateLoadBalancerParamRequestSchema,
+        context="body",
+    )
 
 
 class CreateLoadBalancerBodyRequestSchema(Schema):
-    body = fields.Nested(CreateLoadBalancerRequestSchema, context="body")
+    body = fields.Nested(
+        CreateLoadBalancerRequestSchema,
+        context="body",
+    )
 
 
 class CreateLoadBalancer(ProviderLoadBalancer):
@@ -248,13 +324,13 @@ class CreateLoadBalancer(ProviderLoadBalancer):
         "CreateLoadBalancerRequestSchema": CreateLoadBalancerRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateLoadBalancerBodyRequestSchema)
     parameters_schema = CreateLoadBalancerRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def post(self, controller, data, *args, **kwargs):
         """
-        Create load_balancer
         Create load_balancer
         """
         input = data.get("load_balancer")
@@ -351,7 +427,7 @@ class CreateLoadBalancer(ProviderLoadBalancer):
                         "volume1_size": ops_flavor.ext_obj.get("disk", 20),
                         "private_network": ops_vpc.ext_id,
                         "is_public": bool2str(is_public),
-                        "public_network": ops_vpc_public.ext_id,
+                        "public_network": ops_vpc_public.ext_id if is_public else "",
                         "security_groups": ops_security_group.ext_id,
                         "lb_gateway_default": router,
                         "lb_gateway_orig": gw,
@@ -415,13 +491,13 @@ class UpdateLoadBalancer(ProviderLoadBalancer):
         "UpdateLoadBalancerRequestSchema": UpdateLoadBalancerRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateLoadBalancerBodyRequestSchema)
     parameters_schema = UpdateLoadBalancerRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def put(self, controller, data, oid, *args, **kwargs):
         """
-        Update load_balancer
         Update load_balancer
         """
         return self.update_resource(controller, oid, data)
@@ -434,7 +510,6 @@ class DeleteLoadBalancer(ProviderLoadBalancer):
 
     def delete(self, controller, data, oid, *args, **kwargs):
         """
-        Delete load_balancer
         Delete load_balancer
         """
         return self.expunge_resource(controller, oid)

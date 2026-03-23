@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beecell.simple import id_gen
 from beehive_resource.plugins.openstack.entity import OpenstackResource, get_task
@@ -92,7 +92,7 @@ class OpenstackSubnet(OpenstackResource):
         ext_id = entity[1]
         parent_id = entity[2]
         name = entity[4]
-        level = entity[5]
+        # level = entity[5]
 
         # get parent project
         if parent_id is not None:
@@ -196,11 +196,16 @@ class OpenstackSubnet(OpenstackResource):
         :raises ApiManagerError:
         """
         try:
-            ext_obj = self.container.conn.network.subnet.get(oid=self.ext_id)
-            self.set_physical_entity(ext_obj)
-            self.network = self.controller.get_resource_by_extid(ext_obj["network_id"])
+            if self.ext_obj is None:
+                ext_obj = self.container.conn.network.subnet.get(oid=self.ext_id)
+                self.set_physical_entity(ext_obj)
+            if self.network is None:
+                self.network = self.controller.get_resource_by_extid(
+                    ext_obj["network_id"],
+                    container_oid=self.container.oid
+                )
         except:
-            pass
+            self.container.logger.warn("", exc_info=1)
 
     @staticmethod
     def pre_create(controller, container, *args, **kvargs):
@@ -321,7 +326,7 @@ class OpenstackSubnet(OpenstackResource):
             data["ip_version"] = self.ext_obj.get("ip_version", None)
             data["status"] = self.ext_obj.get("status", None)
             data["gateway_ip"] = self.ext_obj.get("gateway_ip", None)
-            allocation_pools = ["%s-%s" % (a["start"], a["end"]) for a in self.ext_obj.get("allocation_pools", [])]
+            allocation_pools = [f"{a['start']}-{a['end']}" for a in self.ext_obj.get("allocation_pools", [])]
             data["allocation_pools"] = allocation_pools
             data["network"] = network
             data["enable_dhcp"] = self.ext_obj.get("enable_dhcp", None)
@@ -363,7 +368,7 @@ class OpenstackSubnet(OpenstackResource):
             data["dns_nameservers"] = self.ext_obj.get("dns_nameservers", None)
             data["status"] = self.ext_obj.get("status", None)
             data["network"] = network
-            allocation_pools = ["%s-%s" % (a["start"], a["end"]) for a in self.ext_obj.get("allocation_pools", [])]
+            allocation_pools = [f"{a['start']}-{a['end']}" for a in self.ext_obj.get("allocation_pools", [])]
             data["allocation_pools"] = allocation_pools
             data["host_routes"] = self.ext_obj.get("host_routes", None)
             data["enable_dhcp"] = self.ext_obj.get("enable_dhcp", None)
@@ -381,19 +386,25 @@ class OpenstackSubnet(OpenstackResource):
         return info
 
     def get_cidr(self):
+        """ Get Cidr """
         if self.ext_obj is not None:
             return self.ext_obj.get("cidr", None)
-        else:
-            return None
+        return None
 
     def get_gateway(self):
+        """ Get gateway """
         if self.ext_obj is not None:
             return self.ext_obj.get("gateway_ip", None)
-        else:
-            return None
+        return None
 
     def get_allocation_pool(self):
+        """ Get allocation pool """
         if self.ext_obj is not None:
             return self.ext_obj.get("allocation_pools", None)
-        else:
-            return None
+        return None
+
+    def get_available_pool_counter(self):
+        """ Get available pool counter; how many free ip have the pool """
+        if self.ext_obj is not None:
+            return self.ext_obj.get("pool_available", None)
+        return None

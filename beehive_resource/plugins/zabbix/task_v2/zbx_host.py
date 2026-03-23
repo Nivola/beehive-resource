@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2018-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from logging import getLogger
 
-from beehive.common.task_v2.manager import task_manager
+from beehive.common.task_v2.manager import get_task_manager
 from beehive_resource.task_v2 import AbstractResourceTask
 from beehive_resource.plugins.zabbix.entity.zbx_host import ZabbixHost
 from beehive_resource.plugins.zabbix.controller import ZabbixContainer, ZabbixManager
@@ -124,4 +124,4 @@ class ZabbixHostTask(AbstractResourceTask):
         return oid, params
 
 
-task_manager.tasks.register(ZabbixHostTask())
+get_task_manager().register_task(ZabbixHostTask())

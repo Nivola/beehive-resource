@@ -1,20 +1,23 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
-from os import path
+from __future__ import annotations
+from collections import defaultdict
+from datetime import datetime
 from inspect import getfile, isclass
 from logging import getLogger
-from datetime import datetime
+from os import path
+from typing import Tuple, List, Callable, Dict, Any, Optional, TYPE_CHECKING
 import ujson as json
+from beecell.db import QueryError, TransactionError
 from beecell.simple import import_class, jsonDumps
-from beecell.types.type_string import compat, truncate
 from beecell.types.type_date import format_date
 from beecell.types.type_id import id_gen
-from beecell.db import QueryError, TransactionError
-from beehive.common.data import trace, operation, cache
+from beecell.types.type_string import compat
 from beehive.common.apimanager import ApiController, ApiManagerError
-from beehive.common.task.manager import task_manager
+from beehive.common.data import trace, operation, cache
+
 from beehive_resource.container import (
     ResourceLink,
     ResourceTag,
@@ -29,6 +32,11 @@ from beehive_resource.model import (
     Container as ModelContainer,
     ContainerState,
 )
+if TYPE_CHECKING:
+    from beehive_resource.plugins.awx.entity.awx_project import AwxProject
+    from beehive_resource.typing_extras.common.sqlalchemy_row_queries import (
+        ResourceDbManager_DirectedLinkedResourcesInternal_Return
+    )
 
 logger = getLogger(__name__)
 
@@ -40,6 +48,7 @@ class ResourceController(ApiController):
     """
 
     version = "v1.0"  #: version
+    manager: 'ResourceDbManager'
 
     def __init__(self, module):
         ApiController.__init__(self, module)
@@ -57,7 +66,7 @@ class ResourceController(ApiController):
         clspath = path.dirname(getfile(ResourceController))
         app = module.api_manager.app
         if app is not None:
-            app.template_folder = "%s/templates" % clspath
+            app.template_folder = f"{clspath}/templates"
             # app.static_folder = '%s/static' % clspath
             # app.static_url_path = '/console/static'
 
@@ -92,8 +101,8 @@ class ResourceController(ApiController):
         try:
             from beehive.common.audit import localAudit
             from beehive.common.apimanager import ApiMethod
-
-            localAudit().set_objid(objid=objid, objdef=objdef, force=(objdef != ApiMethod.objdef))
+            force = objdef != ApiMethod.objdef
+            localAudit().set_objid(objid=objid, objdef=objdef, force=force)
         except Exception as ex:
             logger.error(ex)
 
@@ -104,6 +113,7 @@ class ResourceController(ApiController):
             raise ApiManagerError("You are not SuperAdmin", code=403)
 
         self.logger.debug2("Check authorization OK")
+        return True # TODO check
 
     #
     # count
@@ -153,65 +163,8 @@ class ResourceController(ApiController):
             return True
         return False
 
-    #
-    # helper model for entities
-    #
-    # def get_entity(self, model_class, oid, entity_class=None, details=True, run_customize=True, *args, **kvargs):
-    #     """Get single entity by oid (id, uuid, name) if exists
-    #
-    #     :param entity_class: Controller ApiObject Extension class. Specify when you want to verif match between
-    #         objdef of the required resource and find resource. [optional]
-    #     :param model_class: Model ApiObject Extension class
-    #     :param oid: entity model id or name or uuid
-    #     :param details: if True call custom method post_get()
-    #     :param run_customize: if True run customize [default=True]
-    #     :param kvargs: additional filters [optional]
-    #     :return: entity instance
-    #     :raise ApiManagerError`:
-    #     """
-    #     try:
-    #         entity = self.manager.get_entity(model_class, oid, *args, **kvargs)
-    #         if entity_class is not None:
-    #             int_entity_class = entity_class
-    #         else:
-    #             int_entity_class = import_class(entity.type.objclass)
-    #     except QueryError as ex:
-    #         self.logger.error(ex)
-    #         raise ApiManagerError('Resource %s not found' % (oid), code=404)
-    #
-    #     # check objdef match with required
-    #     if entity_class is not None and entity.type.value != entity_class.objdef:
-    #         raise ApiManagerError('Resource %s %s not found' % (entity_class.objname, oid), code=404)
-    #
-    #     # check authorization
-    #     if operation.authorize is True:
-    #         self.check_authorization(int_entity_class.objtype, int_entity_class.objdef, entity.objid, 'view')
-    #
-    #     res = int_entity_class(self, oid=entity.id, objid=entity.objid, name=entity.name, active=entity.active,
-    #                            desc=entity.desc, model=entity)
-    #
-    #     if run_customize is True:
-    #         # set physical entity
-    #         res.set_physical_entity(entity=None)
-    #
-    #         # set parent
-    #         if entity.parent_id is not None:
-    #             parent = self.manager.get_entity(ModelResource, entity.parent_id)
-    #             res.set_parent({'id': parent.id, 'uuid': parent.uuid, 'name': parent.name})
-    #             self.logger.debug('Set parent %s' % parent.uuid)
-    #
-    #         # set container
-    #         container = self.get_container(entity.container_id)
-    #         res.set_container(container)
-    #         self.logger.debug('Set container %s' % container)
-    #
-    #         # execute custom post_get
-    #         if details is True:
-    #             res.post_get()
-    #             self.logger.debug('Do post get')
-    #
-    #     self.logger.info('Get %s : %s' % (int_entity_class.__name__, res))
-    #     return res
+    def is_monitoring_enabled(self, filter_name):
+        return self.manager.is_monitoring_enabled(filter_name)
 
     def get_entity_for_task(self, entity_class, oid, *args, **kvargs):
         """Get single entity usable bya a celery task
@@ -248,7 +201,7 @@ class ResourceController(ApiController):
             res.set_container(container)
             res.post_get()
 
-        self.logger.info("get %s : %s" % (int_entity_class.__name__, res))
+        self.logger.debug("get %s : %s", int_entity_class.__name__, res)
         return res
 
     def get_entity_v2(
@@ -256,11 +209,11 @@ class ResourceController(ApiController):
         model_class,
         oid,
         entity_class=None,
-        customize=None,
+        customize: Optional[ Callable[[ 'Resource', Tuple[Any, ...], Dict[str, Any]], 'Resource'] ]=None,
         run_customize=True,
         *args,
         **kvargs,
-    ):
+    ) -> 'Resource':
         """Get single entity by oid (id, uuid, name) if exists
 
         :param entity_class: Controller ApiObject Extension class. Specify when you want to verify match between
@@ -274,26 +227,26 @@ class ResourceController(ApiController):
         :return: entity instance
         :raise ApiManagerError`:
         """
-        cache = kvargs.pop("cache", True)
-        self.logger.debug("+++++ cache: %s" % cache)
-        if cache is True:
+        l_cache = kvargs.pop("cache", True)
+        self.logger.debug("+++++ cache: %s", l_cache)
+
+        entity = None
+        if l_cache:
             entity = self.manager.get_entity_with_cache(model_class, oid, *args, **kvargs)
-        else:
+
+        # If no cache or cache fail
+        if entity is None:
             try:
                 entity = self.manager.get_entity(model_class, oid, *args, **kvargs)
                 if entity is None:
-                    self.logger.error("Resource %s not found" % oid)
-                    raise ApiManagerError("Resource %s not found" % oid, code=404)
+                    self.logger.error("Resource %s not found", oid)
+                    raise ApiManagerError(f"Resource {oid} not found", code=404)
                 if entity_class is not None:
                     int_entity_class = entity_class
                 else:
                     int_entity_class = import_class(entity.type.objclass)
             except QueryError as ex:
-                self.logger.error(ex)
-                raise ApiManagerError("Resource %s not found" % oid, code=404)
-
-        # cached_entity = model_class.get_entity_with_cache(self, oid, *args, **kvargs)
-        # entity = model_class.dict_to_model(cached_entity)
+                raise ApiManagerError(f"Resource {oid} not found", code=404) from ex
 
         if entity_class is not None:
             int_entity_class = entity_class
@@ -302,11 +255,7 @@ class ResourceController(ApiController):
 
         # check objdef match with required
         if entity_class is not None and entity.type.value != entity_class.objdef:
-            raise ApiManagerError("Resource %s %s not found" % (entity_class.objname, oid), code=404)
-
-        # check authorization
-        if operation.authorize is True:
-            self.check_authorization(int_entity_class.objtype, int_entity_class.objdef, entity.objid, "view")
+            raise ApiManagerError(f"Resource {entity_class.objname} {oid} not found", code=404)
 
         res = int_entity_class(
             self,
@@ -322,25 +271,25 @@ class ResourceController(ApiController):
         if run_customize is True and customize is not None:
             res = customize(res, *args, **kvargs)
 
-        self.logger.info("Get %s : %s" % (int_entity_class.__name__, res))
+        self.logger.debug("Get %s : %s", int_entity_class.__name__, res)
         return res
 
     def get_paginated_entities(
         self,
         objtype,
-        get_entities,
+        get_entities: Callable[[Tuple['Any', ...], Dict[str, Any]],Tuple[List['ModelResource'],int]],
         page=0,
         size=10,
         order="DESC",
         field="id",
-        customize=None,
+        customize: Optional[ Callable[[ List['Resource'], Tuple[Any, ...], Dict[str, Any] ], List['Resource']] ]=None,
         run_customize=True,
         objdef=None,
         entity_class=None,
         *args,
         **kvargs,
-    ):
-        """Method override to check user is SuperAdmin
+    ) -> Tuple[List['Resource'],int]:
+        """ Method override to check user is SuperAdmin
         Get entities with pagination
 
         :param authorize: if False disable authorization check
@@ -377,7 +326,12 @@ class ResourceController(ApiController):
             if not self.is_admin_resource():
                 raise ApiManagerError("You are not SuperAdmin", code=403)
 
+        if not get_entities:
+            raise Exception("get_entities missing. function must be specified")
+
         try:
+            entities: List['ModelResource'] = []
+            total: int = 0
             entities, total = get_entities(
                 tags=tags,
                 page=page,
@@ -396,9 +350,9 @@ class ResourceController(ApiController):
                     objclass = entity_class
 
                 if objclass is None:
-                    self.logger.info("+++++ entity_class %s" % entity_class)
-                    self.logger.info("+++++ entity.type %s" % entity.type)
-                    self.logger.info("+++++ entity.type.objclass %s" % entity.type.objclass)
+                    self.logger.debug("+++++ entity_class %s", entity_class)
+                    self.logger.debug("+++++ entity.type %s", entity.type)
+                    self.logger.debug("+++++ entity.type.objclass %s", entity.type.objclass)
 
                 # bypass object that does not match objdef
                 if objdef is not None and objclass.objdef != objdef:
@@ -420,7 +374,7 @@ class ResourceController(ApiController):
             if run_customize is True and customize is not None:
                 res = customize(res, tags=tags, *args, **kvargs)
 
-            self.logger.info("Get %s (total:%s): %s" % (objtype, total, truncate(res)))
+            self.logger.debug("Get %s (total:%s): %s", objtype, total, res)
             return res, total
         except QueryError as ex:
             self.logger.warning(ex, exc_info=True)
@@ -467,7 +421,7 @@ class ResourceController(ApiController):
             return res
 
     @trace(entity="ResourceContainer", op="view")
-    def get_container(self, oid, cache=True, connect=True, **kvargs):
+    def get_container(self, oid, cache=True, connect=True, **kvargs) -> 'ResourceContainer':
         """Get single container.
 
         :param oid: entity model id, name or uuid
@@ -481,7 +435,7 @@ class ResourceController(ApiController):
             try:
                 entity = self.manager.get_entity(ModelContainer, oid)
                 if entity is None:
-                    raise QueryError("Container %s not found" % oid)
+                    raise QueryError(f"Container {oid} not found")
                 entity_class = import_class(entity.type.objclass)
 
                 # check authorization
@@ -489,7 +443,7 @@ class ResourceController(ApiController):
                     self.check_authorization(entity_class.objtype, entity_class.objdef, entity.objid, "view")
 
                 if entity.id not in self.containers:
-                    container = entity_class(
+                    container: 'ResourceContainer' = entity_class(
                         self,
                         oid=entity.id,
                         name=entity.name,
@@ -499,10 +453,10 @@ class ResourceController(ApiController):
                         model=entity,
                     )
                     self.containers[entity.id] = container
-                    self.logger.info("Cache container %s" % oid)
+                    self.logger.debug("Cache container %s", oid)
                 else:
                     self.containers[entity.id].model = entity
-                    self.logger.info("Get container %s from cache" % oid)
+                    self.logger.debug("Get container %s from cache", oid)
 
                 container = self.containers[entity.id]
                 # get connection
@@ -510,8 +464,7 @@ class ResourceController(ApiController):
                     container.get_connection(**kvargs)
                 return container
             except QueryError as ex:
-                self.logger.error(ex, exc_info=True)
-                raise ApiManagerError("Container %s not found" % oid, code=404)
+                raise ApiManagerError(f"Container {oid} not found", code=404) from ex
         else:
             entity = self.manager.get_entity(ModelContainer, oid)
             entity_class = import_class(entity.type.objclass)
@@ -530,7 +483,7 @@ class ResourceController(ApiController):
                 model=entity,
             )
             self.containers[entity.id] = container
-            self.logger.info("Get container %s" % oid)
+            self.logger.debug("Get container %s", oid)
 
             # get connection
             if connect is True:
@@ -570,41 +523,8 @@ class ResourceController(ApiController):
         res, total = self.get_paginated_entities("container", get_entities, customize=customize, *args, **kvargs)
         return res, total
 
-    @trace(entity="ResourceContainer", op="view")
-    def index_containers_by_id(self, entity_class=None):
-        """Get indexed containers. This method does not verify authorization. Use only for internal assignment.
-
-        :param entity_class: container class [optional]
-        :return: index of Container by id
-        :raise ApiManagerError:
-        """
-        try:
-            if entity_class is not None:
-                type = entity_class.objdef
-            else:
-                type = None
-            entities = self.manager.get_containers_by_type(type=type)
-            resp = {}
-            for entity in entities:
-                entity_class = import_class(entity.type.objclass)
-                res = entity_class(
-                    self,
-                    oid=entity.id,
-                    objid=entity.objid,
-                    name=entity.name,
-                    active=entity.active,
-                    desc=entity.desc,
-                    model=entity,
-                )
-                resp[entity.id] = res
-            self.logger.debug("Index containers by id")
-            return resp
-        except QueryError as ex:
-            self.logger.warning(ex, exc_info=True)
-            return None
-
     @trace(entity="ResourceContainer", op="insert")
-    def add_container(self, type=None, name=None, desc=None, conn={}):
+    def add_container(self, type=None, name=None, desc=None, conn=None):
         """Add new container
 
         :param type: container type
@@ -614,14 +534,16 @@ class ResourceController(ApiController):
         :return: container uuid
         :raise ApiManagerError:
         """
+        conn = conn or {}
+
         container_class = self.get_container_class(type)
-        self.logger.debug("Get container_class %s" % container_class)
+        self.logger.debug("Get container_class %s", container_class)
 
         # check authorization
         self.check_authorization(container_class.objtype, container_class.objdef, None, "insert")
 
         if self.manager.exist_entity(ModelContainer, name) is True:
-            raise ApiManagerError("Container %s already exists" % name)
+            raise ApiManagerError(f"Container {name} already exists")
 
         # call pre create
         kvargs = container_class.pre_create(controller=self, type=type, name=name, desc=desc, active=False, conn=conn)
@@ -634,17 +556,14 @@ class ResourceController(ApiController):
         try:
             # create container reference
             ctype = self.manager.get_container_type(value=container_class.objdef, category=container_class.category)[0]
-        except QueryError as ex:
-            self.logger.error(ex, exc_info=True)
-            raise ApiManagerError("Container type %s does not exist" % container_class.__name__, code=404)
+        except QueryError as exc:
+            raise ApiManagerError(f"Container type {container_class.__name__} does not exist", code=404) from exc
 
         try:
             res = self.manager.add_container(objid, name, ctype, conn, desc, active)
             self.manager.update_container_state(res.id, ContainerState.BUILDING)
-        except TransactionError as ex:
-            # self.manager.update_container_state(res.id, ContainerState.ERROR)
-            self.logger.error(ex)
-            raise ApiManagerError("Container %s already exists" % name, code=409)
+        except TransactionError as exc:
+            raise ApiManagerError(f"Container {name} already exists", code=409) from exc
 
         # create object and permission
         container = container_class(
@@ -663,13 +582,11 @@ class ResourceController(ApiController):
 
         try:
             self.manager.update_container(oid=res.id, state=ContainerState.ACTIVE, active=True)
-            self.manager.update_container(oid=res.id, state=ContainerState.ACTIVE, active=True)
-        except TransactionError as ex:
+        except TransactionError as exc:
             self.manager.update_container_state(res.id, ContainerState.ERROR)
-            self.logger.error(ex, exc_info=True)
-            raise ApiManagerError(ex, code=400)
+            raise ApiManagerError(exc, code=400) from exc
 
-        self.logger.info("Add container %s %s" % (container_class.__name__, name))
+        self.logger.debug("Add container %s %s", container_class.__name__, name)
         return res.uuid
 
     #
@@ -685,10 +602,10 @@ class ResourceController(ApiController):
         """
         try:
             if entity_class is not None:
-                type = entity_class.objdef
+                l_type = entity_class.objdef
             else:
-                type = None
-            entities = self.manager.get_resources_by_type(type=type)
+                l_type = None
+            entities = self.manager.get_resources_by_type(type=l_type)
             resp = {}
             for entity in entities:
                 entity_class = import_class(entity.type.objclass)
@@ -703,7 +620,7 @@ class ResourceController(ApiController):
                 )
                 resp[entity.id] = res
                 resp[entity.uuid] = res
-            self.logger.info("Index resources by id: %s" % truncate(resp))
+            self.logger.debug("Index resources by id: %s", resp)
             return resp
         except QueryError as ex:
             self.logger.warning(ex, exc_info=True)
@@ -737,7 +654,7 @@ class ResourceController(ApiController):
                     model=entity,
                 )
                 resp[entity.ext_id] = res
-            self.logger.info("Index resources by ext_id: %s" % truncate(resp))
+            self.logger.debug("Index resources by ext_id: %s", resp)
             return resp
         except QueryError as ex:
             self.logger.warning(ex, exc_info=True)
@@ -755,7 +672,7 @@ class ResourceController(ApiController):
         """
         try:
             res = self.manager.get_resource_types(oid=oid, value=value, filter=rfilter)
-            self.logger.info("Get resource types: %s" % truncate(res))
+            self.logger.debug("Get resource types: %s", res)
             return [{"id": i.id, "type": i.value, "resclass": i.objclass} for i in res]
         except QueryError as ex:
             self.logger.warning(ex, exc_info=True)
@@ -773,20 +690,14 @@ class ResourceController(ApiController):
         :raise ApiManagerError:
         """
 
-        def customize(entity, *args, **kvargs):
+        def customize(entity: 'Resource', *args, **kvargs) -> 'Resource':
             # set physical entity
             entity.set_physical_entity(entity=None)
-
-            # # set parent
-            # if entity.parent_id is not None:
-            #     parent = self.manager.get_entity(ModelResource, entity.parent_id)
-            #     entity.set_parent({'id': parent.id, 'uuid': parent.uuid, 'name': parent.name})
-            #     self.logger.debug('Set parent %s' % parent.uuid)
 
             # set container
             container = self.get_container(entity.container_id, connect=True)
             entity.set_container(container)
-            self.logger.debug("Set container %s" % container)
+            self.logger.debug("Set container %s", container)
 
             # execute custom post_get
             entity.post_get()
@@ -802,7 +713,7 @@ class ResourceController(ApiController):
 
         return res
 
-    def get_simple_resource(self, oid, entity_class=None, **kvargs):
+    def get_simple_resource(self, oid, entity_class=None, **kvargs) -> 'Resource':
         """Get single resource without details
 
         :param entity_class: Controller ApiObject Extension class. Specify when you want to verify match between
@@ -814,7 +725,7 @@ class ResourceController(ApiController):
         return self.get_resource(oid, entity_class=entity_class, run_customize=False, **kvargs)
 
     @trace(entity="Resource", op="view")
-    def get_resource_by_extid(self, ext_id):
+    def get_resource_by_extid(self, ext_id, container_oid=None) -> 'Resource':
         """Get resource by remote platform id
 
         :param ext_id: remote platform entity id
@@ -824,7 +735,7 @@ class ResourceController(ApiController):
         if ext_id is None:
             return None
         try:
-            entity = self.manager.get_resource_by_extid(ext_id)
+            entity = self.manager.get_resource_by_extid(ext_id, container_oid)
             entity_class = import_class(entity.type.objclass)
             res = entity_class(
                 self,
@@ -835,14 +746,14 @@ class ResourceController(ApiController):
                 desc=entity.desc,
                 model=entity,
             )
-            self.logger.info("Get resource by ext_id %s : %s" % (ext_id, res))
+            self.logger.debug("Get resource by ext_id %s : %s", ext_id, res)
             return res
         except QueryError as ex:
             self.logger.warning(ex, exc_info=False)
             return None
 
     @trace(entity="Resource", op="view")
-    def customize_resource(self, entities, *args, **kvargs):
+    def customize_resource(self, entities: List['Resource'], *args, **kvargs):
         from beehive_resource.plugins.provider.entity.flavor import ComputeFlavor
 
         kvargs.pop("container", None)
@@ -852,10 +763,18 @@ class ResourceController(ApiController):
         container_idx = {}
         class_idx = {}
         flavor_idx = self.index_resources_by_id(entity_class=ComputeFlavor)
-        # set parent
+
+        entity_ids = [e.model.id for e in entities]
+        all_links, _ = self.get_links(start_resource_ids=entity_ids, type="flavor")
+
+        flavor_link_idx = defaultdict(list)
+        for link in all_links:
+            flavor_link_idx[link.model.start_resource_id].append(link)
+
         for entity in entities:
-            index = "%s-%s" % (entity.objdef, entity.model.container_id)
+            index = f"{entity.objdef}-{entity.model.container_id}"
             cid = entity.model.container_id
+
             if index in class_idx:
                 class_idx[index]["entities"].append(entity)
             else:
@@ -867,9 +786,9 @@ class ResourceController(ApiController):
                     "container": container_idx[cid],
                     "entities": [entity],
                 }
-                # self.logger.debug('Append new entity type: %s' % entity.objdef)
-            links, tot = entity.get_out_links(type="flavor")
-            if tot > 0:
+
+            links = flavor_link_idx.get(entity.model.id, [])
+            if links:
                 entity.flavor = flavor_idx.get(links[0].model.end_resource_id)
 
             entity.set_physical_entity(entity=None)
@@ -888,7 +807,7 @@ class ResourceController(ApiController):
         return entities
 
     @trace(entity="Resource", op="view")
-    def get_resources(self, *args, **kvargs):
+    def get_resources(self, *args, **kvargs) -> Tuple[List['Resource'],int]:
         """Get resources.
 
         :param authorize: if False disable authorization check
@@ -922,13 +841,13 @@ class ResourceController(ApiController):
         :raise ApiManagerError:
         """
 
-        def get_entities(*args, **kvargs):
+        def get_entities(*args, **kvargs) -> Tuple[List['ModelResource'],int]:
             # get filter field
             uuids = kvargs.pop("uuids", None)
             container = kvargs.pop("container", None)
             parent = kvargs.pop("parent", None)
             parent_list = kvargs.pop("parent_list", None)
-            type = kvargs.pop("type", None)
+            l_type = kvargs.pop("type", None)
 
             if uuids is not None:
                 kvargs["uuids"] = uuids.split(",")
@@ -951,11 +870,11 @@ class ResourceController(ApiController):
                         else:
                             kvargs["parent_ids"].append(self.get_simple_resource(parent_item).oid)
                     except:
-                        self.logger.warning("resource %s does not exist" % parent_item)
+                        self.logger.warning("resource %s does not exist", parent_item)
 
-            if type is not None:
+            if l_type is not None:
                 kvargs["types"] = []
-                types = type.split(",")
+                types = l_type.split(",")
                 for item in types:
                     res_types = self.manager.get_resource_types(filter=item)
                     kvargs["types"].extend([t.id for t in res_types])
@@ -964,7 +883,7 @@ class ResourceController(ApiController):
                 if len(types) == 1 and container is not None:
                     entity_class = import_class(res_types[0].objclass)
                     kvargs["ext_ids"] = entity_class.get_entities_filter(self, **kvargs)
-                    self.logger.debug("Get ext_ids filter: %s" % kvargs["ext_ids"])
+                    self.logger.debug("Get ext_ids filter: %s", kvargs["ext_ids"])
 
             # get all resources
             ext_ids = kvargs.get("ext_ids", None)
@@ -975,7 +894,7 @@ class ResourceController(ApiController):
 
             return resources, total
 
-        def customize(entities, *args, **kvargs):
+        def customize(entities: List['Resource'], *args, **kvargs) -> List['Resource']:
             if kvargs.get("run_customize", True) is True:
                 return self.customize_resource(entities, *args, **kvargs)
             return entities
@@ -1010,7 +929,7 @@ class ResourceController(ApiController):
         :raise ApiManagerError:
         """
 
-        def get_entities(*args, **kvargs):
+        def get_entities(*args, **kvargs) -> Tuple[List['ModelResource'],int]:
             # get filter field
             # container = kvargs.pop('container', None)
 
@@ -1032,14 +951,19 @@ class ResourceController(ApiController):
 
             return res, total
 
-        def customize(entities, *args, **kvargs):
+        def customize(entities: List['Resource'], *args, **kvargs) -> List['Resource']:
             return self.customize_resource(entities, *args, **kvargs)
 
         res, total = self.get_paginated_entities("resource", get_entities, customize=customize, *args, **kvargs)
-        self.logger.info("Get linked resources: %s" % truncate(res))
+        self.logger.debug("Get linked resources: %s", res)
         return res, total
 
-    def __get_linked_resources_internal(self, query_method, resources, *args, **kwargs):
+    def __get_linked_resources_internal(
+        self,
+        query_method: Callable[...,List['ResourceDbManager_DirectedLinkedResourcesInternal_Return']],
+        resources: List[int],
+        *args, **kwargs
+    ) -> Dict[int,List[Resource]]:
         """Get direct linked resources. Use this method for internal query without authorization.
 
         :param query_method: query_method to use
@@ -1058,70 +982,87 @@ class ResourceController(ApiController):
         objdefs = kwargs.get("objdefs", None)
         run_customize = kwargs.get("run_customize", False)
         customize_func = kwargs.get("customize_func", "customize_list")
-
-        try:
-            if len(resources) == 0:
-                models = []
-            else:
-                models = query_method(resources, link_type, container_id, objdef, objdefs)
-            resp = {}
-            container_idx = {}
-            class_idx = {}
-
-            for model in models:
-                entity_class = import_class(model.objclass)
-                entity = entity_class(
-                    self,
-                    oid=model.id,
-                    objid=model.objid,
-                    name=model.name,
-                    active=model.active,
-                    desc=model.desc,
-                    model=model,
-                )
-                entity.link_attr = model.link_attr
-                entity.link_type = model.link_type
-                entity.link_creation = model.link_creation
-                try:
-                    resp[model.resource].append(entity)
-                except:
-                    resp[model.resource] = [entity]
-
-                if run_customize is True:
-                    index = "%s-%s" % (model.objdef, model.container_id)
-                    cid = model.container_id
-                    if index in class_idx:
-                        class_idx[index]["entities"].append(entity)
-                    else:
-                        # get connection
-                        if cid not in container_idx.keys():
-                            container_idx[cid] = self.get_container(cid)
-                        class_idx[index] = {
-                            "class": entity.__class__,
-                            "container": container_idx[cid],
-                            "entities": [entity],
-                        }
-                        self.logger.debug("Append new entity type: %s" % model.objdef)
-
-                    entity.set_physical_entity(entity=None)
-                    # set container
-                    entity.set_container(container_idx[cid])
-
-            # execute custom post_list
-            if run_customize is True:
-                for item in class_idx.values():
-                    func = getattr(item["class"], customize_func)
-                    func(self, item["entities"], container=item["container"])
-
-            self.logger.info("Get direct linked resources: %s" % truncate(resp))
-
-            return resp
-        except:
-            self.logger.warning("", exc_info=True)
+        if not resources:
             return {}
 
+        try:
+            models = query_method(resources, link_type, container_id, objdef, objdefs)
+        except Exception as e:
+            self.logger.error("Linked resources query failed: %s", e)
+            raise
+
+        resp = defaultdict(list)
+
+        # Local caches to avoid redundant imports/lookups in loop
+        _class_cache = {}
+        _container_cache = {}
+
+        # Group entities by (class, container) for batch customization
+        customization_groups = defaultdict(lambda: {"class": None, "entities": []})
+
+        for model in models:
+            if model.objclass not in _class_cache:
+                _class_cache[model.objclass] = import_class(model.objclass)
+
+            entity_class = _class_cache[model.objclass]
+
+            entity = entity_class(
+                self,
+                oid=model.id,
+                objid=model.objid,
+                name=model.name,
+                active=model.active,
+                desc=model.desc,
+                model=model,
+            )
+
+            entity.link_attr = model.link_attr
+            entity.link_type = model.link_type
+            entity.link_creation = model.link_creation
+
+            resp[model.resource].append(entity)
+
+            if run_customize:
+                cid = model.container_id
+
+                # Lazy load container
+                if cid not in _container_cache:
+                    _container_cache[cid] = self.get_container(cid)
+
+                entity.set_container(_container_cache[cid])
+                entity.set_physical_entity(entity=None)
+
+                # Group by class and container to execute customize in bulk later
+                group_key = (model.objclass, cid)
+                group = customization_groups[group_key]
+                if group["class"] is None:
+                    group["class"] = entity_class
+                group["entities"].append(entity)
+
+        # Execute custom post_list in batch
+        if run_customize:
+            for (objclass_name, cid), group in customization_groups.items():
+                klass = group["class"]
+                customizer = getattr(klass, customize_func, None)
+                if customizer:
+                    customizer(
+                        self,
+                        group["entities"],
+                        container = _container_cache[cid]
+                    )
+                else:
+                    self.logger.warning("Missing %s on %s", customize_func, klass)
+
+        self.logger.debug("Get direct linked resources: %s", resp)
+        return resp
+
     @trace(entity="Resource", op="view")
-    def get_directed_linked_resources_internal(self, resources, *args, **kwargs):
+    def get_directed_linked_resources_internal(
+        self,
+        resources: List[int],
+        *args,
+        **kwargs
+    ) -> Dict[int, List['Resource']]:
         """Get direct linked resources. Use this method for internal query without authorization.
 
         :param resources: start resource id list
@@ -1131,7 +1072,7 @@ class ResourceController(ApiController):
         :param objdefs: resource definitions
         :param run_customize: if True run customize [default=True]
         :param customize_func: customize function to run [default=customize_list]
-        :return: dict like {<resource_id>: [<list o linked resource ids>]}
+        :return: dict like {<resource_id>: [<list of linked resource ids>]}
         """
         return self.__get_linked_resources_internal(
             self.manager.get_directed_linked_resources_internal,
@@ -1141,7 +1082,7 @@ class ResourceController(ApiController):
         )
 
     @trace(entity="Resource", op="view")
-    def get_indirected_linked_resources_internal(self, resources, *args, **kwargs):
+    def get_indirected_linked_resources_internal(self, resources, *args, **kwargs) -> Dict[int,List['Resource']]:
         """Get indirect linked resources. Use this method for internal query without authorization.
 
         :param resources: end resource id list
@@ -1151,7 +1092,7 @@ class ResourceController(ApiController):
         :param objdefs: resource definitions
         :param run_customize: if True run customize [default=True]
         :param customize_func: customize function to run [default=customize_list]
-        :return: dict like {<resource_id>: [<list o linked resource ids>]}
+        :return: dict like {<resource_id>: [<list of linked resource ids>]}
         """
         return self.__get_linked_resources_internal(
             self.manager.get_indirected_linked_resources_internal,
@@ -1205,30 +1146,6 @@ class ResourceController(ApiController):
             model=entity,
         )
         return res
-
-    # @trace(entity='ResourceLink', op='view')
-    # def get_directed_links_internal(self, resources, link_type=None, *args, **kvargs):
-    #     """Get links that start from resources select from an input list.
-    #
-    #     :param resources: list of start resource id
-    #     :param link_type: link type [optional]
-    #     :return: :py:class:`list` of :py:class:`ResourceLink`
-    #     :raise ApiManagerError:
-    #     """
-    #     resp = {}
-    #     models, total = self.manager.get_links(start_resources=resources, type=link_type)
-    #     for model in models:
-    #         entity_class = import_class(model.objclass)
-    #         entity = entity_class(self, oid=model.id, objid=model.objid, name=model.name, active=model.active,
-    #                               desc=model.desc, model=model)
-    #         entity.link_attr = model.link_attr
-    #         try:
-    #             resp[model.start].append(entity)
-    #         except:
-    #             resp[model.start] = [entity]
-    #
-    #     res, total = ApiController.get_paginated_entities(self, ResourceLink, get_entities, *args, **kvargs)
-    #     return res, total
 
     #
     # tags
@@ -1342,14 +1259,12 @@ class ResourceController(ApiController):
             # add object and permission
             ResourceTag(self, oid=tag.id).register_object([objid], desc=value)
 
-            self.logger.info("Add new tag: %s" % value)
+            self.logger.debug("Add new tag: %s", value)
             return tag.uuid
-        except TransactionError as ex:
-            self.logger.error(ex, exc_info=True)
-            raise ApiManagerError(ex, code=ex.code)
-        except Exception as ex:
-            self.logger.error(ex, exc_info=True)
-            raise ApiManagerError(ex, code=400)
+        except TransactionError as exc:
+            raise ApiManagerError(exc, code=exc.code) from exc
+        except Exception as exc:
+            raise ApiManagerError(exc, code=400) from exc
 
     #
     # links
@@ -1365,7 +1280,7 @@ class ResourceController(ApiController):
         return ApiController.get_entity(self, ResourceLink, ModelResourceLink, oid)
 
     @trace(entity="ResourceLink", op="view")
-    def get_links(self, *args, **kvargs):
+    def get_links(self, *args, **kvargs) -> Tuple[List[ResourceLink], int]:
         """Get links.
 
         :param start_resource: start resource id or uuid [optional]
@@ -1394,7 +1309,9 @@ class ResourceController(ApiController):
                 kvargs["start_resource"] = self.get_simple_resource(start_resource).oid
             if resource is not None:
                 kvargs["resource"] = self.get_simple_resource(resource).oid
-            links, total = self.manager.get_links(*args, **kvargs)
+
+            resource_db_manager: ResourceDbManager = self.manager
+            links, total = resource_db_manager.get_links(*args, **kvargs)
 
             return links, total
 
@@ -1410,7 +1327,7 @@ class ResourceController(ApiController):
         type=None,
         start_resource=None,
         end_resource=None,
-        attributes={},
+        attributes=None,
         *args,
         **kvargs,
     ):
@@ -1424,6 +1341,8 @@ class ResourceController(ApiController):
         :return: link uuid
         :raise ApiManagerError:
         """
+        attributes = attributes or {}
+
         # check authorization
         if operation.authorize is True:
             self.check_authorization(ResourceLink.objtype, ResourceLink.objdef, None, "insert")
@@ -1447,19 +1366,19 @@ class ResourceController(ApiController):
             # add object and permission
             ResourceLink(self, oid=link.id).register_object([objid], desc=name)
 
-            self.logger.info("Add new link: %s" % name)
+            self.logger.debug("Add new link: %s", name)
             return link.uuid
-        except TransactionError as ex:
-            self.logger.error(ex, exc_info=True)
-            raise ApiManagerError(ex, code=ex.code)
-        except Exception as ex:
-            self.logger.error(ex, exc_info=True)
-            raise ApiManagerError(ex, code=400)
+        except TransactionError as exc:
+            raise ApiManagerError(exc, code=exc.code) from exc
+        except Exception as exc:
+            raise ApiManagerError(exc, code=400) from exc
 
     #
     # jobs
     #
     def __get_task(self, task_id):
+        from beehive.common.task_v2.manager import get_task_manager
+        task_manager = get_task_manager()
         try:
             redis_manager = self.redis_taskmanager
             task = redis_manager.get(task_manager.conf.CELERY_REDIS_RESULT_KEY_PREFIX + task_id)
@@ -1513,24 +1432,6 @@ class ResourceController(ApiController):
         for j in jobs:
             task = self.__get_task(j.job)
             status = task.get("status", None)
-
-            # childs = t.get('children', [])
-            # if childs is not None:
-            #     for child in childs:
-            #         jobs = child.get('jobs', [])
-            #         res[info(child)] = OD()
-            #         for job in jobs:
-            #             res[info(child)][info(job)] = explore(job)
-
-            # childrens = []
-            # children_jobs = []
-            # main_task = task.get('children', [])
-            # if len(main_task) > 0:
-            #     main_task = self.__get_task(main_task[0])
-            #     childrens = main_task.get('children', [])
-            #     for children in childrens:
-            #         children = self.__get_task(children)
-            #         children_jobs.extend(children.get('jobs', []))
             if jobstatus is None or status == jobstatus:
                 start_time = format_date(j.creation_date)
                 stop_time = task.get("stop_time", None)
@@ -1553,6 +1454,72 @@ class ResourceController(ApiController):
                     }
                 )
 
-        self.logger.info("Get jobs: %s" % truncate(res))
+        self.logger.debug("Get jobs: %s", res)
 
         return res, count
+
+    def get_awx_project(
+        self,
+        customization_base_name: str,
+        site_id: int,
+        awx_orchestrator_tag: str=None,
+        raise_on_error=True
+    ) -> AwxProject:
+        """get awx project by customization, zone, and awx tag
+
+        :param customization_base_name: the base name e.g. staas
+        :type customization_base_name: str
+        :param site_id: site id e.g. 706
+        :type site_id: int
+        :param awx_orchestrator_tag: optional tag. used to determine
+        compute customization actual name together with base name. defaults to None
+        :type awx_orchestrator_tag: str, optional
+        :param raise_on_error: if true raises on error, otherwise return None.
+        defaults to True
+        :type raise_on_error: bool, optional
+        :raises Exception: if any resource (compute customization, customization, awx project)
+        not found
+        :return: the awx project, if any
+        :rtype: AwxProject
+        """
+        if awx_orchestrator_tag:
+            customization_name = f"{customization_base_name}-{awx_orchestrator_tag}"
+        else:
+            customization_name = customization_base_name
+
+        # get compute customization
+        from beehive_resource.plugins.provider.entity.customization import ComputeCustomization, Customization
+        from beehive_resource.plugins.awx.entity.awx_project import AwxProject
+
+        try:
+            compute_customization: ComputeCustomization = self.get_resource(
+                entity_class=ComputeCustomization,
+                oid=customization_name,
+                run_customize=False,
+                cache=False
+            )
+        except Exception as exc:
+            if raise_on_error:
+                raise Exception(f"ComputeCustomization {customization_name} not found") from exc
+            return None
+
+        # get customization
+        try:
+            customization: Customization = compute_customization.get_local_resource(site_id)
+        except Exception as exc:
+            c_oid = compute_customization.oid
+            self.logger.error("ComputeCustomization %s has no child in zone %s", c_oid, site_id)
+            if raise_on_error:
+                raise Exception(f"ComputeCustomization {c_oid} has no child in zone {site_id}") from exc
+
+        # get project
+        try:
+            awx_project: AwxProject = customization.get_physical_resource_from_container(None, AwxProject.objdef)
+            # same as above, but also gets container and executes resource post_get
+            # awx_project2 = customization.get_physical_resource(AwxProject.objdef)
+        except Exception as ex:
+            self.logger.error("Error while determining awx project: %s", str(ex))
+            if raise_on_error:
+                raise Exception(f"Error while determining awx project: {ex!s}") from ex
+
+        return awx_project

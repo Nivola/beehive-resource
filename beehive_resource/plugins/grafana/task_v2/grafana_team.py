@@ -1,14 +1,15 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import logging
 from beecell.types.type_dict import dict_get
 from beehive.common.task_v2 import task_step
 from beehive_resource.plugins.grafana.entity.grafana_team import GrafanaTeam
 from beehive_resource.plugins.grafana.controller import GrafanaContainer
-from beehive_resource.task_v2 import AbstractResourceTask, task_manager
+from beehive_resource.task_v2 import AbstractResourceTask
+from beehive.common.task_v2.manager import get_task_manager
 import string
 import os, random
 
@@ -252,4 +253,4 @@ class GrafanaTeamTask(AbstractResourceTask):
         return True
 
 
-task_manager.tasks.register(GrafanaTeamTask())
+get_task_manager().register_task(GrafanaTeamTask())

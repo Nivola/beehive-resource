@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_resource.plugins.vsphere.entity.vs_cluster import VsphereCluster
 from beehive_resource.plugins.vsphere.views import VsphereAPI, VsphereApiView
@@ -26,7 +26,12 @@ class ListClustersRequestSchema(ListResourcesRequestSchema):
 
 
 class ListClustersResponseSchema(PaginatedResponseSchema):
-    clusters = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
+    clusters = fields.Nested(
+        ResourceResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListClusters(VsphereClusterApiView):
@@ -47,7 +52,11 @@ class ListClusters(VsphereClusterApiView):
 
 ## get
 class GetClusterResponseSchema(Schema):
-    cluster = fields.Nested(ResourceResponseSchema, required=True, allow_none=True)
+    cluster = fields.Nested(
+        ResourceResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetCluster(VsphereClusterApiView):

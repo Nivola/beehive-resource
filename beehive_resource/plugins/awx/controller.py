@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import json
 from time import sleep
@@ -14,7 +14,7 @@ from beehive_resource.plugins.awx.entity.awx_project import AwxProject
 
 
 def get_task(task_name):
-    return "%s.task.%s" % (__name__.rstrip(".controller"), task_name)
+    return f"{__name__.removesuffix('.controller')}.task.{task_name}"
 
 
 class AwxContainer(Orchestrator):
@@ -44,7 +44,7 @@ class AwxContainer(Orchestrator):
             AwxAdHocCommand,
         ]
 
-        self.conn = None
+        self.conn: AwxManager = None
         self.prefix = "awx-token-"
 
     def ping(self):
@@ -214,14 +214,14 @@ class AwxContainer(Orchestrator):
             err = ""
             if job_error_func is not None:
                 err = job_error_func()
-            raise ApiManagerError("awx job %s error: %s" % (job_id, err))
+            raise ApiManagerError(f"awx job {job_id} in container {self.name} error: {err}")
 
         elif status == "cancelled":
             self.logger.error(job["awx job %s cancelled" % job_id])
             raise ApiManagerError("awx job %s cancelled" % job_id)
 
         else:
-            self.logger.info("awx job %s successful" % job_id)
+            self.logger.info(f"awx job {job_id} in container {self.name} successful")
             if job_success_func is not None:
                 stdout = job_success_func()
                 return stdout

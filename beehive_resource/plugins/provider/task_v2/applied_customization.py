@@ -1,10 +1,13 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beecell.simple import id_gen
+from beecell.util import ensure_text
+
 from beehive.common.task_v2 import task_step, run_sync_task
+from beehive_resource.plugins.awx.controller import AwxContainer
 from beehive_resource.plugins.provider.entity.applied_customization import (
     AppliedComputeCustomization,
     AppliedCustomization,
@@ -42,6 +45,7 @@ class AppliedComputeCustomizationTask(AbstractProviderResourceTask):
         name = params.get("name")
         instances = params.get("instances")
         playbook = params.get("playbook")
+        job_tags = params.get("job_tags")
         verbosity = params.get("verbosity")
         extra_vars = params.get("extra_vars")
 
@@ -50,10 +54,11 @@ class AppliedComputeCustomizationTask(AbstractProviderResourceTask):
         abstractResourceTask: AbstractResourceTask = task
 
         from beehive_resource.plugins.provider.controller import LocalProvider
+        from beehive_resource.plugins.provider.entity.site import Site
 
         provider: LocalProvider = abstractResourceTask.get_container(cid)
         availability_zone = abstractResourceTask.get_simple_resource(availability_zone_id)
-        site = availability_zone.get_parent()
+        site: Site = availability_zone.get_parent()
         site_id = site.oid
         abstractResourceTask.progress(step_id, msg="Get resources")
 
@@ -97,7 +102,7 @@ class AppliedComputeCustomizationTask(AbstractProviderResourceTask):
                     computeZone: ComputeZone = compute_instance.get_parent()
                     bastion_host: ComputeBastion = computeZone.get_bastion_host()
                     if bastion_host is not None:
-                        raise Exception("Ansible connection with winrm is not supported through bastion")
+                        raise Exception("Operation not allowed in private account. Ansible connection with winrm is not supported through bastion")
 
                 else:
                     inst_extra_vars.update(
@@ -115,6 +120,50 @@ class AppliedComputeCustomizationTask(AbstractProviderResourceTask):
                     # add data per account private
                     inst_extra_vars = compute_instance.set_ansible_ssh_common_args(inst_extra_vars)
 
+                    # check vm on openstack
+                    hypervisor = compute_instance.get_hypervisor()
+                    logger.debug("+++++ create_zone_customization_step - hypervisor: %s" % hypervisor)
+                    if hypervisor == "openstack":
+
+                        # check is not in private
+                        computeZone: ComputeZone = compute_instance.get_parent()
+                        bastion_host: ComputeBastion = computeZone.get_bastion_host()
+                        if bastion_host is None:
+
+                            # select remote orchestrator
+                            orchestrator_tag = params.get("orchestrator_tag")
+                            logger.debug("+++++ create_zone_customization_step - orchestrator_tag: %s" % orchestrator_tag)
+                            orchestrator_idx = site.get_orchestrators_by_tag(orchestrator_tag, select_types=["awx"])
+                            orchestrator = list(orchestrator_idx.values())[0]
+                            logger.debug("+++++ create_zone_customization_step - orchestrator: %s" % orchestrator)
+                            awx_container: AwxContainer = abstractResourceTask.get_container(orchestrator["id"])
+                            logger.debug("+++++ create_zone_customization_step - awx_container: %s" % awx_container)
+
+                            if "bastion" not in awx_container.conn_params:
+                                logger.debug("+++++ create_zone_customization_step - no bastion for Awx: %s" % awx_container.name)
+                            else:
+                                bastion_awx = awx_container.conn_params["bastion"]
+                                bastion_username = bastion_awx["user"]
+                                bastion_pwd = provider.decrypt_data(bastion_awx["pwd"])
+                                bastion_pwd = ensure_text(bastion_pwd)
+                                bastion_host = bastion_awx["host"]
+                                bastion_port = bastion_awx["port"]
+
+                                proxy_params = {
+                                    "username": bastion_username,
+                                    "pwd": bastion_pwd,
+                                    "host": bastion_host,
+                                    "port": bastion_port,
+                                }
+                                ansible_ssh_common_args = (
+                                    "-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "
+                                    '-o ProxyCommand="sshpass -p {pwd} ssh -o UserKnownHostsFile=/dev/null '
+                                    "-o StrictHostKeyChecking=no -W %h:%p -q "
+                                    '{username}@{host} -p {port}"'.format(**proxy_params)
+                                )
+                                logger.debug("+++++ create_zone_customization_step - ansible_ssh_common_args: %s" % ansible_ssh_common_args)
+                                inst_extra_vars["ansible_ssh_common_args"] = ansible_ssh_common_args
+
                 # get instance ip address
                 ip_address = compute_instance.get_real_ip_address()
                 # vpc_links, total = obj.get_links(type='vpc')
@@ -122,7 +171,9 @@ class AppliedComputeCustomizationTask(AbstractProviderResourceTask):
                 hosts.append(
                     {
                         "ip_addr": ip_address,
-                        "extra_vars": ";".join(["%s:%s" % (k, v) for k, v in inst_extra_vars.items()]),
+                        ### BUG
+                        # "extra_vars": ";".join(["%s:%s" % (k, v) for k, v in inst_extra_vars.items()]),
+                        "extra_vars": inst_extra_vars,
                     }
                 )
 
@@ -136,10 +187,11 @@ class AppliedComputeCustomizationTask(AbstractProviderResourceTask):
             )
             return False, params
 
-        if extra_vars is not None and len(extra_vars.keys()) > 0:
-            extra_vars = ";".join(["%s:%s" % (k, v) for k, v in extra_vars.items()])
-        else:
-            extra_vars = None
+        #### BUG converting  extravars into a string is a BUG
+        # if extra_vars is not None and len(extra_vars.keys()) > 0:
+        #     extra_vars = ";".join(["%s:%s" % (k, v) for k, v in extra_vars.items()])
+        # else:
+        #     extra_vars = None
 
         awx_job_template = {
             "name": "%s-jobtemplate-%s" % (name, id_gen()),
@@ -147,6 +199,7 @@ class AppliedComputeCustomizationTask(AbstractProviderResourceTask):
             "hosts": hosts,
             "project": project,
             "playbook": playbook,
+            "job_tags": job_tags,
             "verbosity": verbosity,
             # "ssh_creds": compute_instance.get_real_admin_credential(),
             "ssh_creds": ssh_creds,
@@ -222,6 +275,7 @@ class AppliedCustomizationTask(AbstractProviderResourceTask):
                 "hosts": awx_job_template.get("hosts"),
                 "project": awx_job_template.get("project"),
                 "playbook": awx_job_template.get("playbook"),
+                "job_tags": awx_job_template.get("job_tags"),
                 "verbosity": awx_job_template.get("verbosity"),
             },
             "launch": {

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from random import randint
 from datetime import datetime
@@ -101,7 +101,7 @@ class ComputeVolume(ComputeProviderResource):
         try:
             physical_flavor = physical_volume.get_volume_type()
             if physical_flavor is None:
-                self.logger.warn("Get flavor fail for volume {physical_volume}, physical flavor does not exist")
+                self.logger.warn(f"Get flavor fail for volume {physical_volume}, physical flavor does not exist")
                 return None
             self.flavor = self.container.get_aggregated_resource_from_physical_resource(physical_flavor.oid)
         except:
@@ -914,7 +914,10 @@ class ComputeVolume(ComputeProviderResource):
             }
 
         # base metric units
-        metric_units = {"gbdisk_hi": "GB", "gbdisk_low": "GB"}
+        metric_units = {
+            "gbdisk_hi": "GB", 
+            "gbdisk_low": "GB"
+        }
 
         # base metric label
         metric_labels = {}
@@ -922,9 +925,23 @@ class ComputeVolume(ComputeProviderResource):
         # get hypervisor specific metric label
         hypervisor = self.get_hypervisor()
         if hypervisor == "openstack":
-            metric_labels.update({"gbdisk_hi": "vm_gbdisk_hi_os", "gbdisk_low": "vm_gbdisk_low_os"})
+            metric_labels.update({
+                "gbdisk_hi": "vm_gbdisk_hi_os", 
+                "gbdisk_low": "vm_gbdisk_low_os"
+            })
         elif hypervisor == "vsphere":
-            metric_labels.update({"gbdisk_hi": "vm_gbdisk_hi_com", "gbdisk_low": "vm_gbdisk_low_com"})
+            metric_labels.update({
+                "gbdisk_hi": "vm_gbdisk_hi_com", 
+                "gbdisk_low": "vm_gbdisk_low_com"
+            })
+
+        # JBoss metrics
+        metrics_prefix = self.get_attribs("metrics_prefix", None)
+        if metrics_prefix is not None:
+            metric_labels.update({
+                "gbdisk_hi": metrics_prefix + "_vm_gbdisk_hi", 
+                "gbdisk_low": metrics_prefix + "_vm_gbdisk_low"
+            })
 
         # if hypervisor == 'openstack' or (hypervisor == 'vsphere' and self.is_allocated() is True):
         if hypervisor == "openstack" or hypervisor == "vsphere":

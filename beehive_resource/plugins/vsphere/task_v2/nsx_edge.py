@@ -1,12 +1,14 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from time import sleep
 from beedrones.vsphere.client import VsphereError
+from beedrones.vsphere.ip_pool import VsphereNetworkIpPool
 from beehive.common.task_v2 import task_step, TaskError
 from beehive_resource.plugins.vsphere.entity.nsx_edge import NsxEdge
 from beehive_resource.task_v2 import AbstractResourceTask
+from beehive.common.task_v2.manager import get_task_manager
 
 
 class NsxEdgeTask(AbstractResourceTask):
@@ -69,11 +71,12 @@ class NsxEdgeTask(AbstractResourceTask):
         respool = respools[0].get("obj")._moId
 
         if uplink_subnet_pool is not None:
-            ip_allocated = conn.network.nsx.ippool.allocations(uplink_subnet_pool)
+            vsphereNetworkIpPool: VsphereNetworkIpPool = conn.network.nsx.ippool
+            ip_allocated = vsphereNetworkIpPool.allocations(uplink_subnet_pool)
             if uplink_ipaddress is not None and uplink_ipaddress in ip_allocated:
                 raise TaskError("uplink ip %s is already allocated" % uplink_ipaddress)
 
-            new_ip = conn.network.nsx.ippool.allocate(uplink_subnet_pool, static_ip=uplink_ipaddress)
+            new_ip = vsphereNetworkIpPool.allocate(uplink_subnet_pool, static_ip=uplink_ipaddress)
             dns = [new_ip.get("dnsServer1"), new_ip.get("dnsServer2")]
             domain = new_ip.get("dnsSuffix")
             uplink_ipaddress = new_ip.get("ipAddress")

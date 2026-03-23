@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_resource.container import Resource
 from beehive_resource.controller import ResourceController
@@ -11,7 +11,11 @@ from beehive_resource.plugins.provider.entity.zone import AvailabilityZone, Avai
 from beehive_resource.plugins.provider.entity.applied_customization import (
     AppliedComputeCustomization,
 )
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from beehive_resource.container import ResourceContainer, Provider
+    from beehive_resource.controller import ResourceController
 
 class ComputeCustomization(ComputeProviderResource):
     """Compute customization"""
@@ -77,7 +81,7 @@ class ComputeCustomization(ComputeProviderResource):
         return applied_customs
 
     @staticmethod
-    def customize_list(controller, entities, *args, **kvargs):
+    def customize_list(controller: 'ResourceController', entities, *args, **kvargs):
         """Post list function. Extend this function to execute some operation after entity was created. Used only for
         synchronous creation.
 
@@ -99,7 +103,7 @@ class ComputeCustomization(ComputeProviderResource):
         pass
 
     @staticmethod
-    def pre_create(controller, container, *args, **kvargs):
+    def pre_create(controller, container: 'Provider', *args, **kvargs):
         """Check input params before resource creation. This function is used in container resource_factory method.
         Use create when you want to create new awx project and connect to customization.
 
@@ -266,7 +270,7 @@ class Customization(AvailabilityZoneChildResource):
         AvailabilityZoneChildResource.__init__(self, *args, **kvargs)
 
     @staticmethod
-    def pre_create(controller, container, *args, **kvargs):
+    def pre_create(controller, container:'Provider', *args, **kvargs):
         """Check input params before resource creation. This function is used
         in container resource_factory method.
 
@@ -292,7 +296,7 @@ class Customization(AvailabilityZoneChildResource):
         orchestrator_tag = kvargs.get("orchestrator_tag", "default")
 
         # get availability_zone
-        avz = container.get_simple_resource(avz_id)
+        avz :AvailabilityZone = container.get_simple_resource(avz_id)
 
         # select remote orchestrator
         # try:

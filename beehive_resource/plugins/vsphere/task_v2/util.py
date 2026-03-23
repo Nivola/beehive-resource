@@ -1,30 +1,32 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
-
+# (C) Copyright 2018-2026 CSI-Piemonte
+from __future__ import annotations
 import ujson as json
-import base64
 from celery.utils.log import get_task_logger
 from gevent import sleep
 
 from beecell.simple import id_gen, prefixlength_to_netmask
 from beedrones.vsphere.server import VsphereGuestUtils
-from beehive.common.task.job import job_task, task_local, job, JobError, Job
+from beehive.common.task.job import JobError
 from beehive.common.task_v2 import run_sync_task
 from beehive_resource.plugins.vsphere.entity.vs_server import VsphereServer
 from beehive_resource.model import ResourceState
 from beehive_resource.plugins.vsphere.entity.vs_volume import VsphereVolume
 from beehive_resource.plugins.vsphere.entity.vs_volumetype import VsphereVolumeType
-
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from pyVmomi import vim
+    from beehive_resource.task_v2 import AbstractResourceTask
+    from beehive_resource.plugins.vsphere import VsphereContainer
+    from beedrones.vsphere.client import VsphereManager
 logger = get_task_logger(__name__)
 
 
 class VsphereServerBaseHelper(object):
     """Some vsphere server base helper methods"""
 
-    def __init__(self, task, step_id, orchestrator, params, username="root", password=None):
-        from beehive_resource.plugins.vsphere import VsphereContainer
-        from beedrones.vsphere.client import VsphereManager
+    def __init__(self, task: AbstractResourceTask, step_id, orchestrator: VsphereContainer, params, username="root", password=None):
 
         vsphereContainer: VsphereContainer = orchestrator
 
@@ -36,7 +38,7 @@ class VsphereServerBaseHelper(object):
         self.step_id = step_id
         self.template_pwd = password
         if self.template_pwd is None:
-            logger.warn("Root password is not defined. Guest customization is not applicable")
+            logger.warning("Root password is not defined. Guest customization is not applicable")
 
     def progress(self, msg):
         self.task.progress(self.step_id, msg=msg)
@@ -562,7 +564,7 @@ class VsphereServerBaseHelper(object):
 
         return inst
 
-    def set_security_group(self, inst):
+    def set_security_group(self, inst: 'vim.VirtualMachine'):
         inst_id = inst._moId
         securitygroups = self.params.get("security_groups")
         for sg in securitygroups:
@@ -583,7 +585,16 @@ class VsphereServerBaseHelper(object):
         self.orchestrator.query_remote_task(self.task, self.step_id, vsphere_task)
         self.progress("Start server %s" % inst_id)
 
-    def stop(self, inst):
+    def hard_stop(self, inst: vim.VirtualMachine, interval=10):
+        state = inst.runtime.powerState
+        oid = inst._moId
+        logger.debug("Server %s current powerState is: %s" % (oid, state))
+        if format(state) == "poweredOn":
+            self.progress("Hard powering off server %s" % oid)
+            self.conn.server.hard_stop(inst, wait_for_completion=True, interval=interval)
+            self.progress("Hard powered off server %s" % oid)
+
+    def stop(self, inst: vim.VirtualMachine):
         state = inst.runtime.powerState
         oid = inst._moId
         logger.debug("Server %s current powerState is: %s" % (oid, state))
@@ -593,7 +604,7 @@ class VsphereServerBaseHelper(object):
             # self.orchestrator.query_remote_task(self.task, self.step_id, vsphere_task)
             self.progress("Power off server %s" % oid)
 
-    def release_network_ip_address(self, resource):
+    def release_network_ip_address(self, resource: VsphereServer):
         # get ip and ippool
         ip_config = resource.get_ip_address_config()
         # release ip
@@ -604,7 +615,7 @@ class VsphereServerBaseHelper(object):
                 self.conn.network.nsx.ippool.release(subnet_pool, ip)
                 self.progress("Release ip %s from subnet pool %s" % (ip, subnet_pool))
 
-    def delete(self, resource, inst):
+    def delete(self, resource, inst: vim.VirtualMachine):
         # delete vsphere server
         oid = inst._moId
         vsphere_task = self.conn.server.remove(inst)
@@ -623,15 +634,17 @@ class VsphereServerBaseHelper(object):
         else:
             self.progress(msg="Customization done successfully for server %s" % server_oid)
 
-    def wait_guest_tools_is_running(self, inst, maxtime=240, delta=3):
+    def wait_guest_tools_is_running(self, inst, maxtime=240, delta=10):
         # wait until guest tools are running
         elapsed = 0
         status = self.conn.server.guest_tools_is_running(inst)
         while status is not True:
-            status = self.conn.server.guest_tools_is_running(inst)
-            self.progress(msg="Wait guest tools are running")
             # sleep a little
             sleep(delta)
+
+            status = self.conn.server.guest_tools_is_running(inst)
+            self.progress(msg="Waiting guest tools are running")
+
             elapsed += delta
             if elapsed > maxtime:
                 raise Exception(
@@ -756,7 +769,6 @@ class VsphereServerBaseHelper(object):
         if self.is_windows(inst):
             logger.warn("No setup ssh key for windows.")
             return
-        self.wait_guest_tools_is_running(inst)
         # get ssh key
         ssh_key = self.params.get("metadata", {}).get("pubkey", None)
         username = self.params.get("admin_username", None)
@@ -764,6 +776,7 @@ class VsphereServerBaseHelper(object):
             logger.warn("Ssh key is not defined.")
             return None
 
+        self.wait_guest_tools_is_running(inst)
         self.conn.server.guest_setup_ssh_key(
             inst,
             self.user,
@@ -788,6 +801,7 @@ class VsphereServerBaseHelper(object):
             logger.warn("ssh password is not defined.")
             return None
 
+        self.wait_guest_tools_is_running(inst)
         self.conn.server.guest_setup_admin_password(
             inst,
             self.user,

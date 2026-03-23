@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beecell.simple import id_gen, truncate, dict_get
 from beecell.types.type_string import str2bool
+from beedrones.vsphere.edge import VsphereNetworkEdge
 from beehive.common.apimanager import ApiManagerError
 from beehive_resource.plugins.vsphere.entity import NsxResource
 
@@ -382,7 +383,8 @@ class NsxEdge(NsxResource):
         :return:
         """
         if self.container is not None:
-            self.container.conn.network.nsx.edge.vnic_del(self.ext_id, index)
+            vsphereNetworkEdge: VsphereNetworkEdge = self.container.conn.network.nsx.edge
+            vsphereNetworkEdge.vnic_del(self.ext_id, index)
             self.logger.info("delete edge %s vnic %s" % (self.oid, index))
 
     #

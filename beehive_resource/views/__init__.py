@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beecell.types.type_class import import_class
 from beecell.types.type_string import str2bool
@@ -108,6 +108,8 @@ class ResourceApiView(ResourceApiViewV1):
             data = self.__set_parent(controller, data)
             sync = data.pop("sync", False)
             res = container.create_resource(resclass, sync=sync, **data)
+        else:
+            raise Exception("Unsupported task version for resclass %s" % resclass)
         return res
 
     def clone_resource(self, controller: ResourceController, oid, data, check_name=True):
@@ -148,6 +150,8 @@ class ResourceApiView(ResourceApiViewV1):
             data = self.__set_parent(controller, data)
             sync = data.pop("sync", False)
             res = container.import_resource(resclass, sync=sync, **data)
+        else:
+            raise Exception("Unsupported task version for resclass %s" % resclass)
         return res
 
     def patch_resource(self, controller: ResourceController, oid, data):
@@ -160,6 +164,8 @@ class ResourceApiView(ResourceApiViewV1):
             data = data.get(self.resclass.objname)
             sync = data.pop("sync", False)
             res = obj.patch2(data, sync=sync)
+        else:
+            raise Exception("Unsupported task version for resource %s" % obj)
         return res
 
     def update_resource(self, controller: ResourceController, oid, data):
@@ -176,6 +182,9 @@ class ResourceApiView(ResourceApiViewV1):
             data = data.get(self.resclass.objname)
             sync = data.pop("sync", False)
             res = obj.update2(data, sync=sync)
+
+        else:
+            raise Exception("Unsupported task version for resource %s" % obj)
         return res
 
     def delete_resource(self, controller: ResourceController, oid, **kvargs):
@@ -185,6 +194,8 @@ class ResourceApiView(ResourceApiViewV1):
             res = super().delete(controller, oid, **kvargs)
         elif controller.is_class_task_version_v3(obj.__class__):
             res = obj.delete2(kvargs, sync=kvargs.pop("sync", False))
+        else:
+            raise Exception("Unsupported task version for resource %s" % obj)
         return res
 
     def expunge_resource(self, controller: ResourceController, oid, **kvargs):
@@ -205,4 +216,6 @@ class ResourceApiView(ResourceApiViewV1):
                 raise ApiManagerError("Resource %s is not in a valid state" % oid, code=400)
         elif controller.is_class_task_version_v3(obj.__class__):
             res = obj.expunge2(kvargs, sync=kvargs.pop("sync", False))
+        else:
+            raise Exception("Unsupported task version for resource %s" % obj)
         return res

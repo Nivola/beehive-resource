@@ -1,15 +1,17 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_resource.plugins.openstack.entity.ops_domain import OpenstackDomain
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
+
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
     GetApiObjectRequestSchema,
 )
+
 from beehive_resource.view import ResourceResponseSchema, ListResourcesRequestSchema
 from beehive_resource.plugins.openstack.views import OpenstackAPI, OpenstackApiView
 
@@ -28,14 +30,21 @@ class ListDomainsParamsResponseSchema(ResourceResponseSchema):
 
 
 class ListDomainsResponseSchema(PaginatedResponseSchema):
-    domains = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
+    domains = fields.Nested(
+        ResourceResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListDomains(OpenstackDomainApiView):
     tags = ["openstack"]
+
     definitions = {
         "ListDomainsResponseSchema": ListDomainsResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(ListDomainsRequestSchema)
     parameters_schema = ListDomainsRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListDomainsResponseSchema}})
@@ -49,14 +58,20 @@ class ListDomains(OpenstackDomainApiView):
 
 
 class GetDomainResponseSchema(Schema):
-    domain = fields.Nested(ResourceResponseSchema, required=True, allow_none=True)
+    domain = fields.Nested(
+        ResourceResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetDomain(OpenstackDomainApiView):
     tags = ["openstack"]
+
     definitions = {
         "GetDomainResponseSchema": GetDomainResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetDomainResponseSchema}})
 

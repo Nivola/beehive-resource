@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from celery.utils.log import get_task_logger
 from beecell.simple import truncate
 from beehive.common.data import operation
 from beehive.common.task_v2 import BaseTask, task_step
-from beehive.common.task_v2.manager import task_manager
+from beehive.common.task_v2.manager import get_task_manager
 from beehive_resource.container import ResourceContainer
 from beehive_resource.model import ResourceState
 
@@ -182,4 +182,4 @@ class ResourceContainerTask(BaseTask):
         return True, params
 
 
-task_manager.tasks.register(ResourceContainerTask())
+get_task_manager().register_task(ResourceContainerTask())

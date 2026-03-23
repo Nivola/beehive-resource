@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2021-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from gitlab import Gitlab
 from beehive_resource.container import Orchestrator
@@ -11,7 +11,7 @@ from beehive_resource.plugins.gitlab.entity.project import GitlabProject
 
 
 def get_task(task_name):
-    return "%s.task.%s" % (__name__, task_name)
+    return f"{__name__.removesuffix('.controller')}.task.{task_name}"
 
 
 class GitlabContainer(Orchestrator):

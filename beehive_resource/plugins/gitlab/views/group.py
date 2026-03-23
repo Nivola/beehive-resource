@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2021-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from flasgger import fields, Schema
 from marshmallow.validate import OneOf
@@ -9,6 +9,7 @@ from beecell.swagger import SwaggerHelper
 from beehive_resource.plugins.gitlab.entity.group import GitlabGroup
 from beehive_resource.plugins.gitlab.views import GitlabAPI, GitlabApiView
 from beehive_resource.view import ResourceResponseSchema, ListResourcesRequestSchema
+
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
@@ -32,16 +33,19 @@ class ListGroupsParamsResponseSchema(ResourceResponseSchema):
 
 
 class ListGroupsResponseSchema(PaginatedResponseSchema):
-    # groups = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
-    groups = fields.List(fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True))
+    groups = fields.List(
+        fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True),
+    )
 
 
 class ListGroups(GitlabGroupApiView):
     summary = "List groups"
     description = "List groups"
+
     definitions = {
         "ListGroupsResponseSchema": ListGroupsResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(ListGroupsRequestSchema)
     parameters_schema = ListGroupsRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListGroupsResponseSchema}})
@@ -51,15 +55,21 @@ class ListGroups(GitlabGroupApiView):
 
 
 class GetGroupResponseSchema(Schema):
-    group = fields.Nested(ResourceResponseSchema, required=True, allow_none=True)
+    group = fields.Nested(
+        ResourceResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetGroup(GitlabGroupApiView):
     summary = "Get group"
     description = "Get group"
+
     definitions = {
         "GetGroupResponseSchema": GetGroupResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetGroupResponseSchema}})
 
@@ -68,32 +78,75 @@ class GetGroup(GitlabGroupApiView):
 
 
 class GroupInterfaceRequestSchema(Schema):
-    ip_addr = fields.String(required=True, example="192.168.3.1", default="127.0.0.1")
-    port = fields.String(required=True, example="10050", default="10050")
+    ip_addr = fields.String(
+        required=True,
+        metadata={
+            "example": '192.168.3.1',
+        },
+    )
+
+    port = fields.String(
+        required=True,
+        metadata={
+            "example": '10050',
+        },
+    )
 
 
 class CreateGroupParamRequestSchema(Schema):
-    container = fields.String(required=True, example="1234", description="container id, uuid or name")
-    name = fields.String(required=True, example="linux server")
-    desc = fields.String(required=False, example="group description")
-    sync = fields.Bool(required=False, missing=False, example="set api execution as sync")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '1234',
+            "description": 'container id, uuid or name',
+        },
+    )
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'linux server',
+        },
+    )
+
+    desc = fields.String(
+        required=False,
+        metadata={
+            "example": 'group description',
+        },
+    )
+
+    sync = fields.Bool(
+        required=False,
+        load_default=False,
+        metadata={
+            "example": 'set api execution as sync',
+        },
+    )
 
 
 class CreateGroupRequestSchema(Schema):
-    group = fields.Nested(CreateGroupParamRequestSchema)
+    group = fields.Nested(
+        CreateGroupParamRequestSchema,
+    )
 
 
 class CreateGroupBodyRequestSchema(Schema):
-    body = fields.Nested(CreateGroupRequestSchema, context="body")
+    body = fields.Nested(
+        CreateGroupRequestSchema,
+        context="body",
+    )
 
 
 class CreateGroup(GitlabGroupApiView):
     summary = "Create group"
     description = "Create group"
+
     definitions = {
         "CreateGroupRequestSchema": CreateGroupRequestSchema,
         "CrudApiTaskResponseSchema": CrudApiTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateGroupBodyRequestSchema)
     parameters_schema = CreateGroupRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiTaskResponseSchema}})
@@ -103,26 +156,40 @@ class CreateGroup(GitlabGroupApiView):
 
 
 class UpdateGroupParamRequestSchema(Schema):
-    name = fields.String(default="")
-    desc = fields.String(default="")
-    sync = fields.Bool(required=False, missing=False, example="set api execution as sync")
+    name = fields.String()
+    desc = fields.String()
+
+    sync = fields.Bool(
+        required=False,
+        load_default=False,
+        metadata={
+            "example": 'set api execution as sync',
+        },
+    )
 
 
 class UpdateGroupRequestSchema(Schema):
-    group = fields.Nested(UpdateGroupParamRequestSchema)
+    group = fields.Nested(
+        UpdateGroupParamRequestSchema,
+    )
 
 
 class UpdateGroupBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateGroupRequestSchema, context="body")
+    body = fields.Nested(
+        UpdateGroupRequestSchema,
+        context="body",
+    )
 
 
 class UpdateGroup(GitlabGroupApiView):
     summary = "Update group"
     description = "Update group"
+
     definitions = {
         "UpdateGroupRequestSchema": UpdateGroupRequestSchema,
         "CrudApiTaskResponseSchema": CrudApiTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateGroupBodyRequestSchema)
     parameters_schema = UpdateGroupRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiTaskResponseSchema}})
@@ -132,24 +199,37 @@ class UpdateGroup(GitlabGroupApiView):
 
 
 class DeleteGroupParamRequestSchema(Schema):
-    sync = fields.Bool(required=False, missing=False, example="set api execution as sync")
+    sync = fields.Bool(
+        required=False,
+        load_default=False,
+        metadata={
+            "example": 'set api execution as sync',
+        },
+    )
 
 
 class DeleteGroupRequestSchema(Schema):
-    group = fields.Nested(DeleteGroupParamRequestSchema)
+    group = fields.Nested(
+        DeleteGroupParamRequestSchema,
+    )
 
 
 class DeleteGroupBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(DeleteGroupRequestSchema, context="body")
+    body = fields.Nested(
+        DeleteGroupRequestSchema,
+        context="body",
+    )
 
 
 class DeleteGroup(GitlabGroupApiView):
     summary = "Delete group"
     description = "Delete group"
+
     definitions = {
         "DeleteGroupRequestSchema": DeleteGroupRequestSchema,
         "CrudApiTaskResponseSchema": CrudApiTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateGroupBodyRequestSchema)
     parameters_schema = DeleteGroupRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiTaskResponseSchema}})

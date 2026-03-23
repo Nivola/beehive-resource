@@ -1,22 +1,26 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
+
+from __future__ import annotations
 from ipaddress import IPv4Network
 from urllib.parse import urlparse
 from base64 import b64decode
 from datetime import datetime
 from random import randint
 from logging import getLogger
-from six import ensure_text
+from typing import TYPE_CHECKING, List, Union, Dict, Any
 import ujson as json
+from beecell.util import ensure_text
 from beecell.crypto_util.sha512_crypto import sha512_crypt
 from beecell.simple import jsonDumps, format_date, dict_get, id_gen, dict_set
 from beecell.types.type_string import str2bool
+from beecell.types.type_ip import ip_is_internet
 from beehive.common import DNS_TTL
 from beehive.common.apiclient import BeehiveApiClientError
-from beehive.common.apimanager import ApiManagerError
+from beehive.common.apimanager import ApiManagerError, ApiObject
 from beehive.common.data import trace, operation
 from beehive.common.task_v2 import prepare_or_run_task
 from beehive_resource.container import Resource
@@ -37,6 +41,25 @@ from beehive_resource.plugins.provider.entity.zone import AvailabilityZoneChildR
 from beehive_resource.plugins.vsphere.entity.vs_server import VsphereServer
 
 
+if TYPE_CHECKING:
+    from beehive_resource.controller import ResourceController
+    from beehive_resource.container import ResourceContainer
+    from beehive_resource.plugins.provider.controller import Provider
+
+    #from beehive_resource.plugins.provider.entity.site import Site
+    from beehive_resource.plugins.provider.entity.zone import ComputeZone, AvailabilityZone
+    from beehive_resource.plugins.veeam.controller import VeeamContainer, VeeamManager
+    from beedrones.veeam.restore_point import VeeamRestorePoint
+    from beehive_resource.plugins.provider.entity.bastion import ComputeBastion
+
+    from beehive_resource.plugins.vsphere.entity.nsx_ipset import NsxIpSet
+    from beehive_resource.plugins.openstack.entity.ops_port import OpenstackPort
+
+    from beehive_resource.plugins.provider.entity.security_group import RuleGroup
+    from beehive_resource.plugins.vsphere.entity.nsx_security_group import NsxSecurityGroup
+    from beehive_resource.plugins.openstack.entity.ops_security_group import OpenstackSecurityGroup
+
+
 logger = getLogger(__name__)
 
 
@@ -47,7 +70,9 @@ class ComputeInstance(ComputeProviderResource):
     objuri = "%s/instances/%s"
     objname = "instance"
     objdesc = "Provider ComputeInstance"
+
     task_path = "beehive_resource.plugins.provider.task_v2.instance.ComputeInstanceTask."
+    action_task = "beehive_resource.plugins.provider.task_v2.compute_provider_resource_action_task"
 
     def __init__(self, *args, **kvargs):
         ComputeProviderResource.__init__(self, *args, **kvargs)
@@ -62,9 +87,10 @@ class ComputeInstance(ComputeProviderResource):
         self.volumes = []
         self.physical_server = None
         self.physical_server_status = "unknown"
-        self.runstate_cache_key = "ComputeInstance.runstate.%s" % self.oid
-        self.backup_cache_key = "ComputeInstance.backup.%s" % self.oid
-        self.monitor_cache_key = "ComputeInstance.monitor.%s" % self.oid
+        self.runstate_cache_key = f"ComputeInstance.runstate.{self.oid}"
+        self.backup_cache_key = f"ComputeInstance.backup.{self.oid}"
+        self.monitor_cache_key = f"ComputeInstance.monitor.{self.oid}"
+        self.full_initialized = False
 
         try:
             self.availability_zone_id = self.get_attribs().get("availability_zone", None)
@@ -105,6 +131,13 @@ class ComputeInstance(ComputeProviderResource):
             "restore_from_backup",
         ]
 
+    def is_internet(self)->bool:
+        """
+        Returns:
+            bool: True iff has a public ip
+        """
+        return ip_is_internet(self.get_ip_address())
+
     def is_windows(self):
         if self.image is not None:
             # self.logger.debug('+++++ is_windows - self.image.get_configs(): %s' % self.image.get_configs())
@@ -143,63 +176,64 @@ class ComputeInstance(ComputeProviderResource):
             os = self.get_attribs(key="os.name", default="")
         os = os.lower().strip(" -_.0123456789")
 
-        if os.find("windows") >= 0:
-            return "windows"
-        elif os.find("redhat") >= 0:
-            return "redhat"
-        elif os.find("centos") >= 0:
-            return "centos"
-        elif os.find("ubuntu") >= 0:
-            return "ubuntu"
-        elif os.find("debian") >= 0:
-            return "debian"
-        elif os.find("oraclelinux") >= 0:
-            return "oraclelinux"
-        else:
-            return os
+        for distro in (
+            "oraclelinux",
+            "centos",
+            "ubuntu",
+            "redhat",
+            "windows",
+            "debian",
+        ):
+            if distro in os:
+                return distro
 
-    def is_image_py3(self):
-        """check if image is python 3 compliant"""
-        images, total = self.get_linked_resources(link_type="image", with_perm_tag=False, run_customize=False)
-        if total > 0:
-            image = images[0]
-            name = image.get_attribs(key="configs.os").lower()
-            version = str(image.get_attribs(key="configs.os_ver"))
-            if (
-                (version == "8" and name in ("oraclelinux", "redhatlinux", "centos"))
-                or (version in ("18", "20", "22", "24") and name == "ubuntu")
-                or (version in ("11", "12") and name == "debian")
-            ):
-                return True
-        return False
+        return None
 
-    def get_hypervisor(self):
-        hypervisor = self.get_attribs().get("type")
+    def get_hypervisor(self) -> str:
+        """get hypervisor type
+
+        :return: hypervisor type (e.g. vsphere, openstack)
+        :rtype: str
+        """
+        hypervisor = self.get_attribs("type")
         return hypervisor
 
-    def get_hypervisor_tag(self):
-        hypervisor = self.get_attribs().get("orchestrator_tag", "default")
+    def get_hypervisor_tag(self) -> str:
+        """get hypervisor tag
+
+        :return: orchestrator tag or 'default'
+        :rtype: str
+        """
+        hypervisor = self.get_attribs("orchestrator_tag", "default")
         return hypervisor
 
-    def get_key_name(self):
+    def get_key_name(self) -> str | None:
+        """get key name
+
+        :return: key name or None
+        :rtype: str | None
+        """
         key_name = self.get_attribs(key="key_name", default=None)
         return key_name
 
-    def get_main_zone_instance(self):
-        site = self.get_attribs().get("availability_zone", None)
+    def get_main_zone_instance(self) -> 'Instance' | None:
+        site = self.get_attribs("availability_zone", None)
         if site is None:
             return None
-        instances, total = self.get_linked_resources(link_type_filter="relation.%s" % site, with_perm_tag=False)
+        instances: List['Instance']
+        instances, total = self.get_linked_resources(link_type_filter=f"relation.{site}", with_perm_tag=False)
         res = None
         if total == 1:
             res = instances[0]
         return res
 
-    def get_main_availability_zone(self):
-        site = self.get_attribs().get("availability_zone", None)
+    def get_main_availability_zone(self, raise_exc=False) -> 'Site' | None:
+        site = self.get_attribs("availability_zone", None)
         if site is None:
+            if raise_exc:
+                raise Exception(f"unable to get main Site for ComputeInstance {self.oid}")
             return None
-        return self.controller.get_simple_resource(site)
+        return self.controller.get_simple_resource(site, entity_class=Site)
 
     def __get_image_info(self, info):
         if self.image is not None:
@@ -230,7 +264,7 @@ class ComputeInstance(ComputeProviderResource):
 
         return info
 
-    def __get_availability_zone_info(self, info):
+    def __get_availability_zone_info(self, info) -> Dict[str,Any]:
         if self.availability_zone is not None:
             info["availability_zone"] = self.availability_zone.small_info()
         else:
@@ -256,7 +290,7 @@ class ComputeInstance(ComputeProviderResource):
         info["block_device_mapping"] = []
         for volume in self.volumes:
             attachment = volume.link_creation
-            if type(attachment) != str:
+            if not isinstance(attachment, str):
                 attachment = format_date(attachment)
             data = {
                 "name": volume.name,
@@ -287,7 +321,7 @@ class ComputeInstance(ComputeProviderResource):
 
     def get_ip_address(self):
         ip_address = None
-        vpc_links, total = self.get_links(type="vpc")
+        vpc_links, __ = self.get_links(type="vpc")
         if len(vpc_links) > 0:
             ip_address = vpc_links[0].attribs.get("fixed_ip", {}).get("ip", "")
         return ip_address
@@ -302,7 +336,7 @@ class ComputeInstance(ComputeProviderResource):
         links, tot = self.get_out_links(type="flavor")
         if tot > 0:
             flavor = links[0].get_end_resource()
-            self.logger.debug2("Get compute instance flavor: %s" % flavor)
+            self.logger.debug2("Get compute instance flavor: %s", flavor)
             return flavor
         return None
 
@@ -344,6 +378,7 @@ class ComputeInstance(ComputeProviderResource):
         :param ttl: cache time to live [default=1800]
         :return: None if runstate does not exist
         """
+        #return self.physical_server_status
 
         def func():
             return self.get_physical_server_param("get_status")
@@ -351,14 +386,6 @@ class ComputeInstance(ComputeProviderResource):
         res = self.cache_data(self.runstate_cache_key, func, cache, ttl)
         return res
 
-    def get_runstate_DEPRECATED(self):
-        """Get resource running state if exixst.
-
-        DEPRECATED
-
-        :return: None if runstate does not exist
-        """
-        return self.physical_server_status
 
     def get_cache(self):
         """Get cache items"""
@@ -375,6 +402,57 @@ class ComputeInstance(ComputeProviderResource):
         ps = self.get_physical_server()
         if ps is not None:
             ps.clean_cache()
+
+    def simple_info(self, data_info):
+        last_runstate = self.get_attribs(key="last_runstate")
+        if last_runstate is None:
+            last_runstate = self.get_runstate()
+            # add and save in attribs to
+            self.set_configs("last_runstate", last_runstate)
+
+        ip_address = self.get_attribs(key="ip_address")
+        if ip_address is None:
+            ip_address = self.get_ip_address()
+            self.set_configs("ip_address", ip_address)
+
+        availability_zone_name = self.get_attribs(key="availability_zone_name")
+        if availability_zone_name is None:
+            zone_idx: Dict[Union[str, int], Site] = self.controller.index_resources_by_id(entity_class=Site)
+            if self.availability_zone_id is not None:
+                availability_zone = zone_idx.get(self.availability_zone_id)
+                self.set_configs("availability_zone_name", availability_zone.name)
+
+        # info = Resource.info(self)
+        info = ApiObject.info(self)
+        info["state"] = self.get_extended_state()
+        info["attributes"] = self.attribs
+
+        # security group
+        sg_info = data_info.get("sg_info")
+        self.logger.info("simple_info - sg_info: %s" % sg_info)
+        if sg_info:
+            resource_ids = []
+            resource_ids.append(self.oid)
+
+            objdefs = [
+                SecurityGroup.objdef,
+            ]
+            linked = self.controller.get_directed_linked_resources_internal(
+                resources=resource_ids, objdefs=objdefs, run_customize=False
+            )
+            for resource, entities in linked.items():
+                for entity in entities:
+                    if isinstance(entity, SecurityGroup):
+                        self.sgs.append(entity)
+            info = self.__get_security_groups_info(info)
+
+        flavor_info = data_info.get("flavor_info")
+        self.logger.info("simple_info - flavor_info: %s" % flavor_info)
+        if flavor_info:
+            info = self.__get_flavor_info(info)
+
+        self.logger.info(f"simple_info {info}")
+        return info
 
     def info(self):
         """Get infos.
@@ -397,9 +475,16 @@ class ComputeInstance(ComputeProviderResource):
                 info = self.__get_security_groups_info(info)
                 info = self.__get_services(info)
                 info = self.__get_host(info)
-                self.set_cache("info", info)
+
+                # JBoss middleware
+                middleware = self.get_attribs("middleware", None)
+                if middleware is not None:
+                    info["middleware"] = middleware
+
+                if self.full_initialized:
+                    self.set_cache("info", info)
         except:
-            self.logger.warn("error in entity info", exc_info=True)
+            self.logger.warning("error in entity info", exc_info=True)
         return info
 
     def detail(self):
@@ -425,20 +510,29 @@ class ComputeInstance(ComputeProviderResource):
                 info = self.__get_security_groups_info(info)
                 info = self.__get_services(info)
                 info = self.__get_host(info)
-                self.set_cache("detail", info)
+
+                # JBoss middleware
+                middleware = self.get_attribs("middleware", None)
+                if middleware is not None:
+                    info["middleware"] = middleware
+
+                if self.full_initialized:
+                    self.set_cache("detail", info)
         except:
-            self.logger.warn("error in entity detail", exc_info=True)
+            self.logger.warning("error in entity detail", exc_info=True)
         return info
 
     def __check_or_update_sg(self, update=False):
         # get sites
-        availability_zones, tot = self.get_parent().get_linked_resources(
+        availability_zones: List['AvailabilityZone']
+        availability_zones, __ = self.get_parent().get_linked_resources(
             link_type_filter="relation%", with_perm_tag=False, run_customize=False
         )
-        sites = [a.get_parent() for a in availability_zones]
+        sites: List['Site'] = [a.get_parent() for a in availability_zones]
 
         # get sgs
-        sgs, tot = self.get_linked_resources(link_type="security-group", with_perm_tag=False, run_customize=False)
+        sgs: List['SecurityGroup']
+        sgs, __ = self.get_linked_resources(link_type="security-group", with_perm_tag=False, run_customize=False)
 
         mappings = {
             "Openstack.Domain.Project.Network.Port": "Openstack.Domain.Project.SecurityGroup",
@@ -448,32 +542,44 @@ class ComputeInstance(ComputeProviderResource):
         }
         res = {}
         check = True
+
+        # for each site
         for site in sites:
             res[site.name] = {}
-            zone_instance, tot = self.get_linked_resources(
-                link_type_filter="relation.%s" % site.oid,
+            zone_instance: List['Instance']
+            # get all linked zone resources
+            zone_instance, __ = self.get_linked_resources(
+                link_type_filter=f"relation.{site.oid}",
                 with_perm_tag=False,
                 run_customize=False,
             )
             if len(zone_instance) > 0:
-                items, tot = zone_instance[0].get_linked_resources(
+                # if zone is present, get all linked physical resources
+                items: List[Union['NsxIpSet','VsphereServer','OpenstackServer','OpenstackPort']]
+                items, __ = zone_instance[0].get_linked_resources(
                     link_type_filter="relation",
                     with_perm_tag=False,
                     run_customize=False,
                 )
                 for item in items:
-                    self.logger.warn("%s[%s]" % (item.objdef, item.ext_id))
+                    self.logger.warning("%s[%s]", item.objdef, item.ext_id)
 
+                    # for each previously found (provider-level) security group
                     for sg in sgs:
-                        zone_sg, tot = sg.get_linked_resources(
-                            link_type_filter="relation.%s" % site.oid,
+                        # get zone resources
+                        zone_sg: List['RuleGroup']
+                        zone_sg, __ = sg.get_linked_resources(
+                            link_type_filter=f"relation.{site.oid}",
                             with_perm_tag=False,
                             run_customize=False,
                         )
+                        # try and get the security group (nsx or ops)
+                        # you expect to find in the zone
                         sg_type = mappings.get(item.objdef)
                         run_customize = False
                         if sg_type == "Vsphere.Nsx.NsxSecurityGroup":
                             run_customize = False
+                        sgitems: List[Union[NsxSecurityGroup, OpenstackSecurityGroup]]
                         sgitems, tot = zone_sg[0].get_linked_resources(
                             link_type_filter="relation",
                             with_perm_tag=False,
@@ -484,6 +590,7 @@ class ComputeInstance(ComputeProviderResource):
                             if sg_type == "Vsphere.Nsx.NsxSecurityGroup":
                                 sgitem.set_container(self.controller.get_container(sgitem.container_id))
                                 sgitem.post_get()
+                            # check server, ipset, or port is member of the security group
                             is_member = sgitem.is_member(item)
                             res[site.name][sg_type] = {
                                 "sg_ext_id": sgitem.ext_id,
@@ -494,7 +601,6 @@ class ComputeInstance(ComputeProviderResource):
                             if is_member is False and update is True:
                                 # add item to sg
                                 sgitem.container.conn.network.nsx.sg.add_member(sgitem.ext_id, item.ext_id)
-                                pass
         return check, res
 
     def check(self):
@@ -510,6 +616,10 @@ class ComputeInstance(ComputeProviderResource):
 
         #### use to recover error in security group ####
         check, msg = self.__check_or_update_sg()
+        if not check:
+            res = {"check": check, "msg": msg}
+            self.logger.debug2("Check resource %s: %s", self.uuid, res)
+            return res
         #### use to recover error in security group ####
 
         try:
@@ -529,20 +639,23 @@ class ComputeInstance(ComputeProviderResource):
             # check flavor
             if flavor != remote_flavor:
                 check = False
-                msg = "instance flavor %s does not match with remote server flavor %s" % (flavor, remote_flavor)
+                msg = f"instance flavor {flavor} does not match with remote server flavor {remote_flavor}"
             # get physical server volumes
             elif len(self.get_volumes()) != len(physical_server.get_volumes()):
                 check = False
                 msg = "volumes number does not match with remote server"
             else:
                 check = True
-                msg = None
-                pcheck = physical_server.check().get("check")
+                # msg = None
+                # TODO fix check (physical level volumes case wrong)
+                pcheck_res = physical_server.check()
+                pcheck = pcheck_res.get("check")
+                pmsg = pcheck_res.get("msg")
                 if pcheck is False:
                     check = False
-                    msg = "no remote server found"
+                    msg = pmsg if pmsg else "no remote server found"
         res = {"check": check, "msg": msg}
-        self.logger.debug2("Check resource %s: %s" % (self.uuid, res))
+        self.logger.debug2("Check resource %s: %s", self.uuid, res)
         return res
 
     def get_quotas(self):
@@ -563,20 +676,18 @@ class ComputeInstance(ComputeProviderResource):
         ram = self.get_attribs("quotas.compute.ram")
         # cores = self.get_attribs().get('cores')
         # ram = self.get_attribs().get('ram')
-        self.logger.debug("Get resource - cores: %s - ram: %s" % (cores, ram))
+        self.logger.debug("Get resource - cores: %s - ram: %s", cores, ram)
 
         if cores is None or ram is None:
             if self.flavor is None:
-                # self.logger.debug('Get resource %s - get flavor' % (self.uuid))
                 self.flavor = self.get_flavor()
 
-            self.logger.debug(
-                "Get resource %s - is_running: %s - flavor: %s" % (self.uuid, self.is_running(), self.flavor)
-            )
+            running = self.is_running(raise_error=False)
+            self.logger.debug("Get resource %s - running: %s - flavor: %s", self.uuid, running, self.flavor)
 
-            if self.is_running() is True and self.flavor is not None:
+            if running is True and self.flavor is not None:
                 if self.has_quotas() is False:
-                    self.logger.debug("Get resource %s - has_quotas False" % (self.uuid))
+                    self.logger.debug("Get resource %s - has_quotas False", self.uuid)
                 else:
                     flavor = self.flavor.get_configs()
                     quotas["compute.cores"] = flavor.get("vcpus", 0)
@@ -589,17 +700,7 @@ class ComputeInstance(ComputeProviderResource):
             quotas["compute.cores"] = cores
             quotas["compute.ram"] = ram
 
-        # confronto con logica di get_metrics
-        # physical_server = self.get_physical_server()
-        # cpu = 0
-        # if physical_server is not None:
-        #     data = physical_server.info().get('details')
-        #     if data.get('state') == 'poweredOn':
-        #         cpu = data.get('cpu')
-        # if cpu != quotas['compute.cores']:
-        #     self.logger.debug('+++++ Get resource %s - different cpu: %s - compute.cores: %s' % (self.uuid, cpu, quotas['compute.cores']))
-
-        self.logger.debug("Get resource %s quotas: %s" % (self.uuid, quotas))
+        self.logger.debug("Get resource %s quotas: %s", self.uuid, quotas)
         return quotas
 
     def disable_quotas(self):
@@ -613,24 +714,25 @@ class ComputeInstance(ComputeProviderResource):
             volume.disable_quotas()
         return res
 
-    def is_running(self):
+    def is_running(self, raise_error=True):
         """True if server is running"""
         # status = self.physical_server_status
         status = self.get_runstate()
+        if status is None and raise_error:
+            raise ApiManagerError("Unable to get server status")
         if status is not None and status == "poweredOn":
             return True
-        else:
-            return False
+        return False
 
     def get_physical_server(self):
         """Get physical server"""
         oid = self.oid
         if self.physical_server is None:
-            self.main_zone_instance = self.controller.get_main_zone_instance(oid)
-            self.logger.debug(f"Get main avz instance for compute instance {oid}: {self.main_zone_instance}")
+            self.main_zone_instance: 'Instance' = self.controller.get_main_zone_instance(oid)
+            self.logger.debug("Get main avz instance for compute instance %s: %s", oid, self.main_zone_instance)
             if self.main_zone_instance is not None:
                 self.physical_server = self.main_zone_instance.get_physical_server()
-        self.logger.debug(f"Get physical server for compute instance {oid}: {self.physical_server}")
+        self.logger.debug("Get physical server for compute instance %s: %s", oid, self.physical_server)
         return self.physical_server
 
     def get_physical_server_param(self, method, *args, **kwargs):
@@ -658,7 +760,7 @@ class ComputeInstance(ComputeProviderResource):
         return self.get_physical_server_param("get_host_group")
 
     @staticmethod
-    def customize_list(controller, entities, *args, **kvargs):
+    def customize_list(controller: 'ResourceController', entities: List['ComputeInstance'], *args, **kvargs):
         """Post list function. Extend this function to execute some operation after entity was created. Used only for
         synchronous creation.
 
@@ -669,9 +771,6 @@ class ComputeInstance(ComputeProviderResource):
         :return: None
         :raise ApiManagerError:
         """
-        # get main availability zones
-        zone_idx = controller.index_resources_by_id(entity_class=Site)
-
         resource_idx = {}
         resource_ids = []
         for e in entities:
@@ -679,7 +778,7 @@ class ComputeInstance(ComputeProviderResource):
             resource_ids.append(e.oid)
 
         # get main availability zones
-        zone_idx = controller.index_resources_by_id(entity_class=Site)
+        zone_idx: Dict[Union[str, int], Site] = controller.index_resources_by_id(entity_class=Site)
         for entity in entities:
             if entity.availability_zone_id is not None:
                 entity.availability_zone = zone_idx.get(entity.availability_zone_id)
@@ -723,22 +822,22 @@ class ComputeInstance(ComputeProviderResource):
         # get main availability zones
         if self.availability_zone_id is not None:
             self.availability_zone = self.controller.get_simple_resource(self.availability_zone_id)
-        self.logger.debug2("Get compute instance availability zones: %s" % self.availability_zone)
+        self.logger.debug2("Get compute instance availability zones: %s", self.availability_zone)
 
         # get main zone instance
         res = self.controller.get_directed_linked_resources_internal(resources=[self.oid], link_type="relation%")
-        for resource, zone_insts in res.items():
+        for zone_insts in res.values():
             for zone_inst in zone_insts:
                 if zone_inst.get_attribs().get("main", False) is True:
                     self.main_zone_instance = zone_inst
-        self.logger.debug2("Get compute instance main zone instance: %s" % self.main_zone_instance)
+        self.logger.debug2("Get compute instance main zone instance: %s", self.main_zone_instance)
 
         # set physical_server
         if self.main_zone_instance is not None:
             self.physical_server = self.main_zone_instance.get_physical_server()
             if self.physical_server is not None:
                 self.physical_server_status = self.physical_server.get_status()
-        self.logger.debug2("Get physical server: %s" % self.physical_server)
+        self.logger.debug2("Get physical server: %s", self.physical_server)
 
         # get other linked entities
         objdefs = [
@@ -752,7 +851,7 @@ class ComputeInstance(ComputeProviderResource):
         linked = self.controller.get_directed_linked_resources_internal(
             resources=[self.oid], objdefs=objdefs, run_customize=False
         )
-        self.logger.debug2("Get compute instance linked entities: %s" % linked)
+        self.logger.debug2("Get compute instance linked entities: %s", linked)
 
         for entity in linked.get(self.oid, []):
             if isinstance(entity, ComputeImage):
@@ -765,9 +864,10 @@ class ComputeInstance(ComputeProviderResource):
                 self.vpcs.append(entity)
             elif isinstance(entity, ComputeVolume):
                 self.volumes.append(entity)
+        self.full_initialized = True
 
     @staticmethod
-    def pre_import(controller, container, *args, **kvargs):
+    def pre_import(controller: ResourceController, container: ResourceContainer, *args, **kvargs):
         """Check input params before resource import. This function is used in container resource_import_factory method.
 
         :param controller: resource controller instance
@@ -813,7 +913,7 @@ class ComputeInstance(ComputeProviderResource):
         project_id = server.parent_id
         parent = container.get_aggregated_resource_from_physical_resource(project_id)
         parent.set_container(container)
-        kvargs["objid"] = "%s//%s" % (parent.objid, id_gen())
+        kvargs["objid"] = f"{parent.objid}//{id_gen()}"
         kvargs["parent"] = parent.oid
 
         from beehive_resource.plugins.provider.entity.zone import ComputeZone
@@ -835,7 +935,7 @@ class ComputeInstance(ComputeProviderResource):
         # get flavor
         mapping_flavor = server.get_flavor_resource()
         if mapping_flavor is None:
-            raise ApiManagerError("no mapping flavor found for server %s" % server.oid)
+            raise ApiManagerError(f"no mapping flavor found for server {server.oid}")
         flavor = container.get_aggregated_resource_from_physical_resource(mapping_flavor.oid)
 
         # get host group
@@ -899,7 +999,7 @@ class ComputeInstance(ComputeProviderResource):
         hostname = params.get("hostname", kvargs.get("name"))
         fixed_ip0 = nets[0]["fixed_ip"]
         fqdn_name = hostname.replace("_", "-")
-        fqdn = "%s.%s" % (fqdn_name, fixed_ip0.get("dns_search"))
+        fqdn = f"{fqdn_name}.{fixed_ip0.get('dns_search')}"
 
         # get key_name or admin_pass
         key_name = params.get("key_name", None)
@@ -980,7 +1080,7 @@ class ComputeInstance(ComputeProviderResource):
         return kvargs
 
     @staticmethod
-    def pre_create(controller, container, *args, **kvargs):
+    def pre_create(controller: ResourceController, container: Provider, *args, **kvargs):
         """Check input params before resource creation. This function is used in container resource_factory method.
 
         :param controller: resource controller instance
@@ -1011,13 +1111,28 @@ class ComputeInstance(ComputeProviderResource):
         :param kvargs.networks.x.fixed_ip.ip: ip address [optional]
         :param kvargs.networks.x.fixed_ip.hostname: hostname [optional]
         :param kvargs.block_device_mapping: Enables fine grained control of the block device mapping for an instance.
+
+            device_name (str): A path to the device for the volume
+            source_type (str): The source type of the volume.: snapshot -
+            volume_size (real): size of volume in GB
+            uuid (str): This is the uuid of source resource.
+            flavor (str): The volumeflavor.
+            delete_on_termination (bool): delete volume on server delete
+            guest_format ():
+            boot_index (int):
+            tag (str): datastore tag (ex. user oracle to create server vsphere in cluster
+            volume_tags (str): comma separated list of tags for the volume resource
+
+
         :param kvargs.block_device_mapping.x.device_name: A path to the device for the volume that you want to use to
             boot the server. [TODO]
-        :param kvargs.block_device_mapping.x.source_type: The source type of the volume. A valid value is: snapshot -
-            creates a volume backed by the given volume snapshot referenced via the block_device_mapping_v2.uuid
-            parameter and attaches it to the server, volume - uses the existing persistent volume referenced via the
-            block_device_mapping_v2.uuid parameter and attaches it to the server, image - creates an image-backed
-            volume in the block storage service and attaches it to the server
+        :param kvargs.block_device_mapping.x.source_type: The source type of the volume.
+            A valid value is:
+            * "snapshot": not supported creates a volume backed by the given volume snapshot referenced via
+                the block_device_mapping_v2.uuid parameter and attaches it to the server,
+            * "volume": uses the existing persistent volume referenced via the block_device_mapping_v2.uuidù
+                parameter and attaches it to the server,
+            * "image": creates an image-backed volume in the block storage service and attaches it to the server
         :param kvargs.block_device_mapping.x.volume_size: size of volume in GB
         :param kvargs.block_device_mapping.x.uuid: This is the uuid of source resource. The uuid points to different
             resources based on the source_type. If source_type is image, the block device is created based on the
@@ -1040,6 +1155,7 @@ class ComputeInstance(ComputeProviderResource):
             disk and CD-ROM. [TODO]
         :param kvargs.block_device_mapping.x.tag: datastore tag (ex. user oracle to create server vsphere in cluster
             oracle)
+        :param kvargs.block_device_mapping.x.volume_tags: comma separated list of tags for the volume resource
         :param kvargs.user_data: Ex. 'IyEvYmluL2Jhc2gKL2Jpbi9zdQplY2hvICJJIGFtIGluIHlvdSEiCg==',
         :param kvargs.key_name: ssh key name or uuid
         :param kvargs.metadata: custom metadata. To create vsphere server in a non default cluster specify the key
@@ -1066,10 +1182,10 @@ class ComputeInstance(ComputeProviderResource):
         admin_username = kvargs.get("admin_username")
 
         # get compute zone
-        compute_zone = container.get_simple_resource(compute_zone_id)
+        compute_zone: ComputeZone = container.get_simple_resource(compute_zone_id)
         compute_zone.check_active()
         compute_zone.set_container(container)
-        site = container.get_resource(site_id)
+        site: Site = container.get_resource(site_id)
 
         # check host group
         host_group_config = {}
@@ -1079,7 +1195,7 @@ class ComputeInstance(ComputeProviderResource):
             clusters = dict_get(orchestrator, "config.clusters")
             host_group_config = clusters.get(host_group, None)
             if host_group_config is None:
-                raise ApiManagerError("Host group %s does not exist" % host_group)
+                raise ApiManagerError(f"Host group {host_group} does not exist")
 
         # get main availability zone
         main_availability_zone = ComputeProviderResource.get_active_availability_zone(compute_zone, site)
@@ -1091,12 +1207,11 @@ class ComputeInstance(ComputeProviderResource):
         #     availability_zones.remove(main_availability_zone)
 
         # get flavor
-        flavor = container.get_simple_resource(flavor_id, entity_class=ComputeFlavor)
+        flavor: ComputeFlavor = container.get_simple_resource(flavor_id, entity_class=ComputeFlavor)
         flavor.check_active()
         flavor_attrib = flavor.get_attribs().get("configs")
 
         # get volumes
-        total_storage = 0
         template_additional_disks = []
         max_boot_index = 0
         for block_device in block_devices:
@@ -1112,6 +1227,9 @@ class ComputeInstance(ComputeProviderResource):
             if boot_index == 0 and volume_size is None:
                 volume_size = flavor_attrib.get("disk")
 
+            # Attention we want one and only one volume from image, and than we check if image has
+            # additional volumes described in the configs.template_disks and then compile template_additional_disks list
+            # But we never check we have one and only one
             if source_type == "image":
                 obj = container.get_simple_resource(volume_flavor, entity_class=ComputeVolumeFlavor)
                 block_device["flavor"] = obj.uuid
@@ -1122,47 +1240,47 @@ class ComputeInstance(ComputeProviderResource):
                 obj.check_active()
 
                 # check image exists in selected availability zone
+                imgs: List[Image]
                 imgs, tot = obj.get_linked_resources(
-                    link_type="relation.%s" % site.oid,
+                    link_type=f"relation.{site.oid}",
                     run_customize=False,
                     objdef=Image.objdef,
                 )
                 if tot == 0:
                     raise ApiManagerError(
-                        "Image %s does not exist in availability zone %s" % (block_device["uuid"], site.uuid)
+                        f"Image {block_device['uuid']} does not exist in availability zone {site.uuid}"
                     )
+                img = imgs[0]
 
                 if check_main_vol_size and boot_index == 0:
                     from beehive_resource.plugins.openstack.entity.ops_image import (
                         OpenstackImage,
                     )
-                    from beehive_resource.plugins.vsphere.entity.vs_server import (
-                        VsphereServer,
-                    )
-
                     template_res_type = VsphereServer if orchestrator_type == "vsphere" else OpenstackImage
                     disk_size_var_name = "disk" if orchestrator_type == "vsphere" else "minDisk"
-                    template, tot = imgs[0].get_linked_resources(
+                    templates, tot = img.get_linked_resources(
                         link_type="relation",
-                        run_customize=True,  # altrimenti info() non contiene i dati relativi alla dimensione minima volume
+                        run_customize=True, # required to populate the minimum volume size data.
                         objdef=template_res_type.objdef,
                     )
+
                     if tot == 0:
                         raise ApiManagerError(
-                            "Template for image %s does not exist for hypervisor %s in availability zone %s"
-                            % (block_device["uuid"], orchestrator_type, site.uuid)
+                            f"Template for image {block_device.get('uuid')} does not exist "
+                            f"for hypervisor {orchestrator_type} "
+                            f"in availability zone {site.uuid}"
                         )
-                    template_min_disk_size = template[0].info().get("details", {}).get(disk_size_var_name, 0)
+
+                    template = templates[0]
+                    template_details: Dict = template.info().get("details", {})
+                    template_min_disk_size = template_details.get(disk_size_var_name, 0)
                     if volume_size < template_min_disk_size:
                         raise ApiManagerError(
-                            "Template for image %s with hypervisor %s in availability zone %s requires a main disk of min size %s, but %s was given"
-                            % (
-                                block_device["uuid"],
-                                orchestrator_type,
-                                site.uuid,
-                                template_min_disk_size,
-                                volume_size,
-                            )
+                            f"Template for image {block_device.get('uuid')} "
+                            f"with hypervisor {orchestrator_type} "
+                            f"in availability zone {site.uuid} "
+                            f"requires a main disk of min size {template_min_disk_size}, "
+                            f"but {volume_size} was given"
                         )
 
                 # if orchestrator type is vsphere get server template
@@ -1179,8 +1297,7 @@ class ComputeInstance(ComputeProviderResource):
                         )
 
                 image_volume_size = obj.get_attribs(key="configs.min_disk_size")
-                if volume_size < image_volume_size:
-                    volume_size = image_volume_size
+                volume_size = max(volume_size, image_volume_size)
                 block_device["volume_size"] = volume_size
                 block_device["uuid"] = obj.uuid
             elif source_type == "volume":
@@ -1208,8 +1325,9 @@ class ComputeInstance(ComputeProviderResource):
             # get vpc
             vpc: Vpc = container.get_simple_resource(network["vpc"], entity_class=Vpc)
             vpc.check_active()
-            if vpc.parent_id != compute_zone.oid:
-                raise ApiManagerError("Vpc %s is not in compute zone  %s" % (network["vpc"], compute_zone.oid))
+
+            if not vpc.is_internet() and vpc.parent_id != compute_zone.oid:
+                raise ApiManagerError(f"Vpc {network['vpc']} is not in compute zone  {compute_zone.oid}")
 
             vpc_net: SiteNetwork = vpc.get_network_by_site(site.oid)  # vede i link "relation." + site
             vpc_net_id = vpc_net.oid
@@ -1227,7 +1345,7 @@ class ComputeInstance(ComputeProviderResource):
             # - verify that vpc is not external
             attrib = vpc_net.get_attribs(key="configs")
             if attrib.get("external", False) is True:
-                raise ApiManagerError("Vpc %s is external" % vpc_net_id)
+                raise ApiManagerError(f"Vpc {vpc_net_id} is external")
 
             # - get http proxy
             http_proxy = attrib.get("proxy", None)
@@ -1262,7 +1380,7 @@ class ComputeInstance(ComputeProviderResource):
         # fqdn
         fixed_ip0 = nets[0]["fixed_ip"]
         fqdn_name = hostname.replace("_", "-")
-        fqdn = "%s.%s" % (fqdn_name, fixed_ip0.get("dns_search"))
+        fqdn = f"{fqdn_name}.{fixed_ip0.get('dns_search')}"
 
         # set key_name in metadata
         if key_name is not None:
@@ -1276,6 +1394,15 @@ class ComputeInstance(ComputeProviderResource):
 
         manage = kvargs.get("manage", True)
         manage = manage and compute_zone.is_managed()
+
+        if manage:
+            # check fqdn is free
+            try:
+                ssh_node = controller.api_client.get_ssh_node(fqdn)
+                if ssh_node is not None:
+                    raise ApiManagerError(f"Ssh fqdn {fqdn} already exists")
+            except BeehiveApiClientError:
+                controller.logger.warning("Ssh fqdn %s not exists. Can create computeinstance", fqdn)
 
         # get availability zones ACTIVE
         availability_zones = []
@@ -1374,30 +1501,29 @@ class ComputeInstance(ComputeProviderResource):
 
         # self.logger.warn(physical_volumes)
         # self.logger.warn(physical_volumes_present)
-        self.logger.warn("this volumes are missing and must be added" % physical_volumes_missed)
+        self.logger.warning("this volumes are missing and must be added %s", physical_volumes_missed)
 
         # run import volume task
-        index = 1
         for physical_volume in physical_volumes_missed:
             disk_index = physical_volume.get_disk_index()
             if disk_index is None:
                 disk_index = id_gen(length=4)
             data = {
                 "parent": self.parent_id,
-                "name": "%s-volume-%s" % (self.name, disk_index),
-                "desc": "Volume %s" % params.get("desc"),
+                "name": f"{self.name}-volume-{disk_index}",
+                "desc": f"Volume {params.get('desc')}",
                 "physical_id": physical_volume.uuid,
                 "set_as_sync": True,
             }
-            res, code = self.container.resource_import_factory(ComputeVolume, **data)
+            res, __ = self.container.resource_import_factory(ComputeVolume, **data)
             volume_resource_uuid = res["uuid"]
             volume = self.container.get_simple_resource(volume_resource_uuid)
             self.add_link(
-                "%s-volume-%s-link" % (self.oid, volume.oid),
-                "volume.%s" % disk_index,
+                f"{self.oid}-volume-{volume.oid}-link",
+                f"volume.{disk_index}",
                 volume.oid,
             )
-            self.logger.debug("Link volume %s to instance %s" % (volume.oid, self.oid))
+            self.logger.debug("Link volume %s to instance %s", volume.oid, self.oid)
         self.clean_cache()
         return {"uuid": self.uuid}, 200
 
@@ -1481,10 +1607,10 @@ class ComputeInstance(ComputeProviderResource):
         :raise ApiManagerError:
         """
         # get instances
-        instances, total = self.get_linked_resources(link_type_filter="relation%")
+        instances, __ = self.get_linked_resources(link_type_filter="relation%")
         childs = [p.oid for p in instances]
 
-        volumes, total = self.get_linked_resources(link_type_filter="volume%")
+        volumes, __ = self.get_linked_resources(link_type_filter="volume%")
         child_volumes = [p.oid for p in volumes]
 
         # create task workflow
@@ -1538,11 +1664,11 @@ class ComputeInstance(ComputeProviderResource):
             self.api_client.get_ssh_node(self.fqdn)
         except BeehiveApiClientError as ex:
             if ex.code == 404:
-                self.logger.debug("Compute instance %s is not managed by ssh module" % self.uuid)
+                self.logger.debug("Compute instance %s is not managed by ssh module", self.uuid)
                 return False
-            self.logger.error("Compute instance %s" % self.uuid, exc_info=True)
+            self.logger.error(f"Compute instance {self.uuid}", exc_info=True)
             raise
-        self.logger.debug("Compute instance %s is managed by ssh module" % self.uuid)
+        self.logger.debug("Compute instance %s is managed by ssh module", self.uuid)
         return True
 
     def get_credential(self, username="root"):
@@ -1570,7 +1696,7 @@ class ComputeInstance(ComputeProviderResource):
 
             return user
         except BeehiveApiClientError as ex:
-            raise ApiManagerError(ex.value)
+            raise ApiManagerError(ex.value) from ex
 
     @trace(op="update")
     def manage(self, user=None, key=None, password="", *args, **kvargs):
@@ -1589,7 +1715,7 @@ class ComputeInstance(ComputeProviderResource):
             res = self.api_client.get_ssh_node(self.fqdn)
             uuid = res.get("uuid")
             self.logger.warning(
-                "Compute instance %s is already managed by ssh module" % self.uuid,
+                "Compute instance %s is already managed by ssh module", self.uuid,
                 exc_info=True,
             )
             return uuid
@@ -1634,7 +1760,7 @@ class ComputeInstance(ComputeProviderResource):
             password=password,
         )
 
-        self.logger.debug("Compute instance %s is now managed by ssh group %s" % (self.uuid, uuid))
+        self.logger.debug("Compute instance %s is now managed by ssh group %s", self.uuid, uuid)
         return uuid
 
     @trace(op="update")
@@ -1648,20 +1774,20 @@ class ComputeInstance(ComputeProviderResource):
         self.verify_permisssions("update")
 
         try:
-            res = self.api_client.get_ssh_node(self.fqdn)
-            uuid = res.get("uuid")
+            self.api_client.get_ssh_node(self.fqdn)
+            #uuid = res.get("uuid")
         except BeehiveApiClientError as ex:
             if ex.code == 404:
                 self.logger.warning(
-                    "Compute instance %s is not managed by ssh module" % self.uuid,
+                    "Compute instance %s is not managed by ssh module", self.uuid,
                     exc_info=True,
                 )
             else:
                 raise
 
-        uuid = self.api_client.delete_ssh_node(self.fqdn)
+        self.api_client.delete_ssh_node(self.fqdn)
 
-        self.logger.debug("Compute instance %s is now unmanaged by ssh module" % (self.uuid))
+        self.logger.debug("Compute instance %s is now unmanaged by ssh module", self.uuid)
         return True
 
     #
@@ -1699,11 +1825,11 @@ class ComputeInstance(ComputeProviderResource):
                     recorda = recordas[0]
                     recorda.post_get()
 
-                self.logger.debug("Compute instance %s recorda %s" % (self.uuid, recorda))
+                self.logger.debug("Compute instance %s recorda %s", self.uuid, recorda)
                 self.set_cache("get_dns_recorda", recorda, ttl=DNS_TTL)
             return recorda
         except ApiManagerError as ex:
-            self.logger.error(ex.value, exc_info=True)
+            self.logger.warning(ex.value, exc_info=True)
             return None
 
     @trace(op="update")
@@ -1721,6 +1847,7 @@ class ComputeInstance(ComputeProviderResource):
         # check recorda does not exist
         recorda = self.get_dns_recorda()
         self.reset_cache("get_dns_recorda")
+
         if recorda is None:
             fqdn = self.fqdn.split(".")
             name = fqdn[0]
@@ -1732,11 +1859,11 @@ class ComputeInstance(ComputeProviderResource):
 
             res = zone.resource_factory(DnsRecordA, name, desc=name, ip_addr=ip_addr, ttl=ttl, force=force)[0]
 
-            self.logger.debug("Create instance %s recorda %s" % (self.uuid, res.get("uuid")))
+            self.logger.debug("Create instance %s recorda %s", self.uuid, res.get("uuid"))
             return res.get("uuid")
-        else:
-            self.logger.error("Recorda for instance %s already exist" % self.uuid)
-            raise ApiManagerError("Recorda for instance %s already exist" % self.uuid)
+
+        self.logger.error("Recorda for instance %s already exist", self.uuid)
+        raise ApiManagerError(f"Recorda for instance {self.uuid} already exist")
 
     @trace(op="update")
     def unset_dns_recorda(self):
@@ -1756,14 +1883,14 @@ class ComputeInstance(ComputeProviderResource):
             uuid = recorda.uuid
 
             if recorda.get_base_state() not in ["ACTIVE", "ERROR"]:
-                raise ApiManagerError("Recorda %s is not in a valid state" % uuid, code=400)
+                raise ApiManagerError(f"Recorda {uuid} is not in a valid state", code=400)
             recorda.delete()
 
-            self.logger.debug("Delete instance %s recorda %s" % (self.uuid, uuid))
+            self.logger.debug("Delete instance %s recorda %s", self.uuid, uuid)
             return uuid
-        else:
-            self.logger.error("Recorda for instance %s does not exist" % self.uuid)
-            raise ApiManagerError("Recorda for instance %s does not exist" % self.uuid)
+
+        self.logger.error("Recorda for instance %s does not exist", self.uuid)
+        raise ApiManagerError(f"Recorda for instance {self.uuid} does not exist")
 
     #
     # volumes
@@ -1798,27 +1925,6 @@ class ComputeInstance(ComputeProviderResource):
             physical_server = self.get_physical_server()
             res = physical_server.get_snapshots()
             self.set_cache("get_snapshots", res, ttl=DNS_TTL)
-        return res
-
-    #
-    # backup
-    #
-    def is_backup_configurable(self, *args, **kwargs):
-        """check if backup is configurable for this instance
-
-        :param args:
-        :param kwargs:
-        :return: True or False
-        """
-        res = False
-
-        # get site
-        site_id = self.get_attribs().get("availability_zone")
-        site = self.controller.get_resource(site_id)
-        cluster_allowed = site.get_attribs().get("config.backup")
-        # cluster_allowed: {'openstack': ['default', 'bck'], 'vsphere': ['default', 'oracle']}
-
-        self.logger.debug("backup for instance %s is configurable? %s" % (self.oid, res))
         return res
 
     def has_backup(self, cache=True, ttl=1800):
@@ -1862,14 +1968,14 @@ class ComputeInstance(ComputeProviderResource):
         res = {"job": "", "restore_points": restore_points, "restore_point_total": restore_point_total}
 
         hypervisor = self.get_hypervisor()
-        self.logger.debug("+++++ AAA - get_physical_backup_status - hypervisor: %s" % (hypervisor))
+        self.logger.debug("+++++ AAA - get_physical_backup_status - hypervisor: %s", hypervisor)
 
         if hypervisor == "openstack":
             physical_server: OpenstackServer = self.get_physical_server()
             if physical_server is not None:
                 # implemented for openstack
                 if hasattr(physical_server, "get_trilio_backup"):
-                    workload_name, workload_id = physical_server.get_trilio_backup()
+                    __, workload_id = physical_server.get_trilio_backup()
                     job = workload_id
                     if workload_id is not None:
                         restore_points = physical_server.get_backup_restore_points(workload_id)
@@ -1879,45 +1985,45 @@ class ComputeInstance(ComputeProviderResource):
 
         elif hypervisor == "vsphere":
             site_id = self.get_attribs().get("availability_zone")
-            self.logger.debug("+++++ AAA - get_physical_backup_status - site_id: %s" % (site_id))
+            self.logger.debug("+++++ AAA - get_physical_backup_status - site_id: %s", site_id)
             site: Site = self.controller.get_resource(site_id)
 
             try:
                 hypervisor_tag = "default"
                 orchestrator_idx_veeam = site.get_orchestrators_by_tag(hypervisor_tag, select_types=["veeam"])
-                self.logger.debug("+++++ AAA - get_backup_jobs - orchestrator_idx_veeam: %s" % orchestrator_idx_veeam)
+                self.logger.debug("+++++ AAA - get_backup_jobs - orchestrator_idx_veeam: %s", orchestrator_idx_veeam)
                 veeam_id_container = list(orchestrator_idx_veeam.keys())[0]
-                self.logger.debug("+++++ AAA - get_backup_jobs - veeam_id_container: %s" % veeam_id_container)
+                self.logger.debug("+++++ AAA - get_backup_jobs - veeam_id_container: %s", veeam_id_container)
 
-                from beehive_resource.controller import ResourceController
-                from beehive_resource.plugins.veeam.controller import VeeamContainer, VeeamManager
+                # from beehive_resource.controller import ResourceController
+                # from beehive_resource.plugins.veeam.controller import VeeamContainer, VeeamManager
 
-                resourceController: ResourceController = self.controller
-                veeamContainer: VeeamContainer = resourceController.get_container(veeam_id_container)
-                veeamContainer.get_connection()
+                resource_controller: ResourceController = self.controller
+                veeam_container: VeeamContainer = resource_controller.get_container(veeam_id_container)
+                veeam_container.get_connection()
 
                 physical_server: Resource = self.get_physical_server()
                 server_name = physical_server.name
                 ext_id = physical_server.ext_id
                 self.logger.debug(
-                    "+++++ AAA - get_backup_jobs - list restore point for server_name: %s - ext_id: %s"
-                    % (server_name, ext_id)
+                    "+++++ AAA - get_backup_jobs - list restore point for server_name: %s - ext_id: %s",
+                    server_name, ext_id
                 )
                 # server_name = "dev-beehive-01" # test
 
                 page = page + 1
 
-                from beedrones.veeam.restore_point import VeeamRestorePoint
+                # from beedrones.veeam.restore_point import VeeamRestorePoint
 
-                veeamManager: VeeamManager = veeamContainer.conn_veeam
-                veeamRestorePoint: VeeamRestorePoint = veeamManager.restorepoint
-                veeam_restore_point = veeamRestorePoint.list(restorepoint_name=server_name, page_size=size, page=page)
+                veeam_manager: VeeamManager = veeam_container.conn_veeam
+                veeam_restore_point: VeeamRestorePoint = veeam_manager.restorepoint
+                veeam_restore_point_l = veeam_restore_point.list(restorepoint_name=server_name, page_size=size, page=page)
 
-                veeam_restore_point_data = veeam_restore_point["data"]
-                veeam_restore_point_pagination = veeam_restore_point["pagination"]
+                veeam_restore_point_data = veeam_restore_point_l["data"]
+                veeam_restore_point_pagination = veeam_restore_point_l["pagination"]
                 restore_point_total = veeam_restore_point_pagination["total"]
                 self.logger.debug(
-                    "+++++ AAA - get_backup_jobs - veeam_restore_point_data: %s" % veeam_restore_point_data
+                    "+++++ AAA - get_backup_jobs - veeam_restore_point_data: %s", veeam_restore_point_data
                 )
 
                 resource_type = "ComputeInstance"
@@ -1978,33 +2084,17 @@ class ComputeInstance(ComputeProviderResource):
     # per test cache=False
     def is_monitoring_enabled(self, cache=False, ttl=300):
         def func():
-            filter_name = self.fqdn
-            if self.is_windows() is True:
-                filter_name = self.fqdn.split(".")[0] + "%"
-            self.logger.debug(
-                "+++++ AAA - is_monitoring_enabled - func - oid: %s - filter_name: %s" % (self.oid, filter_name)
-            )
-
-            from beehive_resource.plugins.zabbix.entity.zbx_host import ZabbixHost
-            from beehive_resource.controller import ResourceController
-
-            resourceController: ResourceController = self.controller
-            # res, total = resourceController.get_resources(type=ZabbixHost.objdef, name=filter_name)
-            res, total = resourceController.get_resources(
-                objdef=ZabbixHost.objdef, type=ZabbixHost.objdef, name=filter_name, run_customize=False
-            )
-            self.logger.debug(
-                "+++++ AAA - is_monitoring_enabled - func - oid: %s - res: %s - total: %s" % (self.oid, res, total)
-            )
-            if total >= 1:
-                return 1
-
-            return 0
+            filter_name = self.fqdn.split(".")[0] + "%" if self.is_windows() else self.fqdn
+            self.logger.debug("+++++ AAA - is_monitoring_enabled - oid: %s - filter_name: %s", self.oid, filter_name)
+            resource_controller: ResourceController = self.controller
+            is_mon_enabled = resource_controller.is_monitoring_enabled(filter_name)
+            self.logger.debug("+++++ AAA - is_monitoring_enabled - func - oid: %s - result: %s", self.oid, is_mon_enabled)
+            return is_mon_enabled
 
         str_monitoring_wait_sync_till = self.get_attribs(key="monitoring_wait_sync_till")
         if str_monitoring_wait_sync_till is not None:
             self.logger.debug(
-                "+++++ AAA - is_monitoring_enabled - str_monitoring_wait_sync_till: %s" % str_monitoring_wait_sync_till
+                "+++++ AAA - is_monitoring_enabled - str_monitoring_wait_sync_till: %s", str_monitoring_wait_sync_till
             )
             monitoring_wait_sync_till = datetime.strptime(str_monitoring_wait_sync_till, "%m/%d/%Y, %H:%M:%S")
 
@@ -2065,7 +2155,7 @@ class ComputeInstance(ComputeProviderResource):
             }
         """
         if self.has_quotas() is False:
-            self.logger.warning("Compute instance %s has metric disabled" % self.oid)
+            self.logger.warning("Compute instance %s has metric disabled", self.oid)
             return {
                 "id": self.oid,
                 "uuid": self.uuid,
@@ -2089,6 +2179,7 @@ class ComputeInstance(ComputeProviderResource):
             "vm_power_on": "#",
             "vcpu": "#",
             "gbram": "GB",
+            "vm_public_ip":"#",
             # 'gbdisk_hi': 'GB',
             # 'gbdisk_low': 'GB'
         }
@@ -2106,6 +2197,7 @@ class ComputeInstance(ComputeProviderResource):
             "vm_os_ty": f"vm_{os}_{hypervisor}",
             # 'vm_bck': 'vm_bck',
             "vm_power_on": "vm_power_on",
+            "vm_public_ip": "vm_public_ip",
         }
 
         if hypervisor == "openstack":
@@ -2127,6 +2219,20 @@ class ComputeInstance(ComputeProviderResource):
                 }
             )
 
+        # JBoss metrics
+        metrics_prefix = self.get_attribs("metrics_prefix", None)
+        if metrics_prefix is not None:
+            metric_labels.update(
+                {
+                    "vcpu": metrics_prefix + "_vm_vcpu",
+                    "gbram": metrics_prefix + "_vm_gbram",
+                }
+            )
+
+        pip = 0
+        if self.is_internet():
+            pip = 1
+
         metrics = {
             # metric_labels.get("vm_power_on"): False,
             metric_labels.get("vcpu"): 0,
@@ -2139,13 +2245,20 @@ class ComputeInstance(ComputeProviderResource):
             metric_labels.get("vm_float_ip"): 0,
             metric_labels.get("vm_monit"): self.is_monitoring_enabled(),
             metric_labels.get("vm_log"): self.is_logging_enabled(),
+            metric_labels.get("vm_public_ip"):pip,
             # metric_labels.get('vm_bck'): 0,
         }
 
         physical_server = self.get_physical_server()
         if physical_server is not None:
             data = physical_server.info().get("details")
-            disk = data.get("disk")
+            # simple_info
+            last_runstate = self.get_attribs(key="last_runstate")
+            state = data.get("state")
+            if last_runstate is None or last_runstate != state:
+                self.set_configs("last_runstate", state)
+
+            # disk = data.get("disk")
             memory = 0
             cpu = 0
             vm_power_on = 0
@@ -2156,8 +2269,14 @@ class ComputeInstance(ComputeProviderResource):
                     memory = data.get("ram")
                 cpu = data.get("cpu")
 
-                self.set_configs("quotas.compute.cores", cpu)
-                self.set_configs("quotas.compute.ram", memory)
+                # update data if it has changed
+                last_cores = self.get_attribs(key="quotas.compute.cores")
+                if last_cores is None or last_cores != cpu:
+                    self.set_configs("quotas.compute.cores", cpu)
+                
+                last_ram = self.get_attribs(key="quotas.compute.ram")
+                if last_ram is None or last_ram != memory:
+                    self.set_configs("quotas.compute.ram", memory)
 
             metrics = {
                 metric_labels.get("vm_power_on"): vm_power_on,
@@ -2171,6 +2290,7 @@ class ComputeInstance(ComputeProviderResource):
                 metric_labels.get("vm_monit"): self.is_monitoring_enabled(),
                 metric_labels.get("vm_log"): self.is_logging_enabled(),
                 # metric_labels.get('vm_bck'): self.is_backup_enabled(),
+                metric_labels.get("vm_public_ip"):pip,
             }
             metric_units = {metric_labels.get(k): v for k, v in metric_units.items()}
 
@@ -2184,7 +2304,7 @@ class ComputeInstance(ComputeProviderResource):
             "extraction_date": format_date(datetime.today()),
         }
 
-        self.logger.debug("Get compute instance %s metrics: %s" % (self.oid, res))
+        self.logger.debug("Get compute instance %s metrics: %s", self.oid, res)
         return res
 
     #
@@ -2214,7 +2334,7 @@ class ComputeInstance(ComputeProviderResource):
             ],
         }
         schedule_name = super().scheduled_action(
-            "%s.%s" % (action, self.oid),
+            f"{action}.{self.oid}",
             schedule,
             params=params,
             task_path="beehive_resource.plugins.provider.task_v2.",
@@ -2229,11 +2349,11 @@ class ComputeInstance(ComputeProviderResource):
     def set_ansible_ssh_common_args(self, data, username="root"):
         # ansible_ssh_common_args: '-o ProxyCommand="sshpass -p mypass ssh -o StrictHostKeyChecking=no -W %h:%p -q ' \
         #                          'root@84.1.2.3 -p 11100"'
-        from beehive_resource.plugins.provider.entity.bastion import ComputeBastion
-        from beehive_resource.plugins.provider.entity.zone import ComputeZone
+        # from beehive_resource.plugins.provider.entity.bastion import ComputeBastion
+        # from beehive_resource.plugins.provider.entity.zone import ComputeZone
 
-        computeZone: ComputeZone = self.get_parent()
-        bastion_host: ComputeBastion = computeZone.get_bastion_host()
+        compute_zone: ComputeZone = self.get_parent()
+        bastion_host: ComputeBastion = compute_zone.get_bastion_host()
         if bastion_host is None:
             return data
 
@@ -2245,23 +2365,25 @@ class ComputeInstance(ComputeProviderResource):
             "port": nat_ip_port,
         }
         ansible_ssh_common_args = (
-            "-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "
-            '-o ProxyCommand="sshpass -p {pwd} ssh -o UserKnownHostsFile=/dev/null '
-            "-o StrictHostKeyChecking=no -W %h:%p -q "
-            '{username}@{host} -p {port}"'.format(**params)
+            f"-vvv "
+            f"-o ConnectTimeout=60 "
+            f"-o ConnectionAttempts=3 "
+            f"-o UserKnownHostsFile=/dev/null "
+            f"-o StrictHostKeyChecking=no "
+            f'-o ProxyCommand="sshpass -p {params.get("pwd")} '
+            f"ssh -vvv "
+            f"-o PreferredAuthentications=password "
+            f"-o ConnectTimeout=60 "
+            f"-o ConnectionAttempts=3 "
+            f"-o UserKnownHostsFile=/dev/null "
+            f"-o StrictHostKeyChecking=no "
+            f"-W %h:%p "
+            f'{params.get("username")}@{params.get("host")} -p {params.get("port")}"'
         )
         data["ansible_ssh_common_args"] = ansible_ssh_common_args
 
         data["ansible_host"] = self.get_ip_address()
         data["ansible_connection"] = "ssh"
-
-        # set python3 path
-        # fv memo: potrebbe aver senso settare
-        # ansible_python_interpreter: /usr/libexec/platform-python
-        if self.is_image_py3() is True:
-            data["ansible_python_interpreter"] = "/usr/bin/python3"
-        else:
-            data["ansible_python_interpreter"] = "/usr/bin/python"
 
         return data
 
@@ -2321,13 +2443,13 @@ class ComputeInstance(ComputeProviderResource):
             "hypervisor": hypervisor,
             "hypervisor_tag": self.get_hypervisor_tag(),
             "steps": run_steps,
-            "alias": "%s.%s" % (self.__class__.__name__, name),
+            "alias": f"{self.__class__.__name__}.{name}",
             # 'sync': True
         }
         params.update(kvargs)
         params.update(self.get_user())
         res = prepare_or_run_task(self, self.action_task, params, sync=sync)
-        self.logger.info("%s compute instance %s using task" % (name, self.uuid))
+        self.logger.info("%s compute instance %s using task", name, self.uuid)
         return res
 
     def start(self, *rags, **kvargs):
@@ -2336,7 +2458,7 @@ class ComputeInstance(ComputeProviderResource):
         :return: kvargs
         """
         if self.is_running() is True:
-            raise ApiManagerError("Instance %s is already running" % self.uuid)
+            raise ApiManagerError(f"Instance {self.uuid} is already running")
 
         return {}
 
@@ -2346,7 +2468,7 @@ class ComputeInstance(ComputeProviderResource):
         :return: kvargs
         """
         if self.is_running() is False:
-            raise ApiManagerError("Instance %s is not running" % self.uuid)
+            raise ApiManagerError(f"Instance {self.uuid} is not running")
 
         return {}
 
@@ -2356,7 +2478,7 @@ class ComputeInstance(ComputeProviderResource):
         :return: kvargs
         """
         if self.is_running() is False:
-            raise ApiManagerError("Instance %s is not running" % self.uuid)
+            raise ApiManagerError(f"Instance {self.uuid} is not running")
 
         return {}
 
@@ -2369,9 +2491,9 @@ class ComputeInstance(ComputeProviderResource):
         res = self.container.get_resource(flavor, entity_class=ComputeFlavor, run_customize=False)
 
         # check flavor not already linked
-        links, total = self.get_linked_resources(link_type="flavor")
+        links, __ = self.get_linked_resources(link_type="flavor")
         if links[0].oid == res.oid:
-            raise ApiManagerError("Flavor %s already assigned to instance %s" % (res.uuid, self.uuid))
+            raise ApiManagerError(f"Flavor {res.uuid} already assigned to instance {self.uuid}")
 
         return {"flavor": res.oid}
 
@@ -2389,9 +2511,9 @@ class ComputeInstance(ComputeProviderResource):
                 pass
         res = self.container.get_resource(volume, entity_class=ComputeVolume)
         if res.is_allocated() is True:
-            raise ApiManagerError("Volume %s is already allocated" % res.uuid)
+            raise ApiManagerError(f"Volume {res.uuid} is already allocated")
         if res.get_hypervisor() != self.get_hypervisor():
-            raise ApiManagerError("Volume %s hypervisor mismatch with instance %s hypervisor" % (res.uuid, self.uuid))
+            raise ApiManagerError(f"Volume {res.uuid} hypervisor mismatch with instance {self.uuid} hypervisor")
 
         return {"volume": res.oid}
 
@@ -2403,7 +2525,7 @@ class ComputeInstance(ComputeProviderResource):
         """
         res = self.container.get_simple_resource(volume, entity_class=ComputeVolume)
         if self.has_volume(res.uuid) is False:
-            raise ApiManagerError("Volume %s is not attached to instance" % res.uuid)
+            raise ApiManagerError(f"Volume {res.uuid} is not attached to instance")
 
         return {"volume": res.oid}
 
@@ -2415,7 +2537,7 @@ class ComputeInstance(ComputeProviderResource):
         """
         res = self.container.get_simple_resource(volume, entity_class=ComputeVolume)
         if self.has_volume(res.uuid) is False:
-            raise ApiManagerError("Volume %s is not attached to instance" % res.uuid)
+            raise ApiManagerError(f"Volume {res.uuid} is not attached to instance")
         kvargs["volume"] = res.oid
         return kvargs
 
@@ -2427,7 +2549,7 @@ class ComputeInstance(ComputeProviderResource):
         """
         res = self.container.get_resource(security_group, entity_class=SecurityGroup)
         internal_steps = []
-        zone_instances, total = self.get_linked_resources(link_type_filter="relation%")
+        zone_instances, __ = self.get_linked_resources(link_type_filter="relation%")
         for zone_instance in zone_instances:
             internal_step = {
                 "step": ComputeInstance.task_path + "send_action_to_zone_instance_step",
@@ -2449,7 +2571,7 @@ class ComputeInstance(ComputeProviderResource):
         """
         res = self.container.get_simple_resource(security_group, entity_class=SecurityGroup)
         internal_steps = []
-        zone_instances, total = self.get_linked_resources(link_type_filter="relation%")
+        zone_instances, __ = self.get_linked_resources(link_type_filter="relation%")
         for zone_instance in zone_instances:
             internal_step = {
                 "step": ComputeInstance.task_path + "send_action_to_zone_instance_step",
@@ -2521,16 +2643,15 @@ class ComputeInstance(ComputeProviderResource):
         """
         hypervisor = self.get_hypervisor()
         if hypervisor not in ["openstack"]:
-            raise ApiManagerError("hypervisor %s is not supported" % hypervisor)
+            raise ApiManagerError(f"hypervisor {hypervisor} is not supported")
 
         if self.get_physical_server().has_backup_restore_point(restore_point) is False:
-            raise ApiManagerError("instance %s has no backup restore point %s associated" % (self.oid, restore_point))
+            raise ApiManagerError(f"instance {self.oid} has no backup restore point {restore_point} associated")
 
         zone_instance = self.get_main_zone_instance()
-        server_name = "%s-avz%s-%s-server" % (
-            instance_name,
-            zone_instance.get_parent().parent_id,
-            zone_instance.get_physical_server().container_id,
+        server_name = (
+            f"{instance_name}-avz{zone_instance.get_parent().parent_id}-"
+            f"{zone_instance.get_physical_server().container_id}-server"
         )
 
         internal_steps = [
@@ -2555,8 +2676,8 @@ class ComputeInstance(ComputeProviderResource):
     def manage_user_with_ssh_module(self, user, key, password):
         try:
             node = self.api_client.get_ssh_node(self.fqdn)
-        except BeehiveApiClientError as ex:
-            self.logger.error("Compute instance %s is not managed by ssh module" % self.uuid)
+        except BeehiveApiClientError:
+            self.logger.error("Compute instance %s is not managed by ssh module", self.uuid)
 
         # create ssh node user
         uuid = self.api_client.add_ssh_user(node, user, key, password=password)
@@ -2565,22 +2686,22 @@ class ComputeInstance(ComputeProviderResource):
     def unmanage_user_with_ssh_module(self, user):
         try:
             node = self.api_client.get_ssh_node(self.fqdn)
-        except BeehiveApiClientError as ex:
-            self.logger.error("Compute instance %s is not managed by ssh module" % self.uuid)
+        except BeehiveApiClientError:
+            self.logger.error("Compute instance %s is not managed by ssh module", self.uuid)
 
         # delete ssh node user
-        self.api_client.delete_ssh_user("%s-%s" % (node.get("name"), user))
-        self.logger.warn(user)
+        self.api_client.delete_ssh_user(f"{node.get('name')}-{user}")
+        self.logger.warning(user)
         return True
 
     def set_user_password_with_ssh_module(self, user, password):
         try:
             node = self.api_client.get_ssh_node(self.fqdn)
-        except BeehiveApiClientError as ex:
-            self.logger.error("Compute instance %s is not managed by ssh module" % self.uuid)
+        except BeehiveApiClientError:
+            self.logger.error("Compute instance %s is not managed by ssh module", self.uuid)
 
         # delete ssh node user
-        self.api_client.update_ssh_user("%s-%s" % (node.get("name"), user), password=password)
+        self.api_client.update_ssh_user(f"{node.get('name')}-{user}", password=password)
         return True
 
     def add_user(self, user_name=None, user_pwd=None, user_ssh_key=None, *args, **kvargs):
@@ -2657,7 +2778,7 @@ class ComputeInstance(ComputeProviderResource):
         :param user_pwd: user password
         :return: kvargs
         """
-        ansible_pwd = sha512_crypt.using(rounds=5000).hash(user_pwd)
+        ansible_pwd = sha512_crypt(user_pwd, rounds=5000)
 
         internal_steps = [
             {
@@ -2734,9 +2855,7 @@ class ComputeInstance(ComputeProviderResource):
 
     def pre_monitoring(self):
         # get vpc
-        vpcs, total = self.get_linked_resources(link_type="vpc", authorize=False, run_customize=False)
-        from beehive_resource.plugins.provider.entity.vpc_v2 import Vpc
-
+        vpcs, __ = self.get_linked_resources(link_type="vpc", authorize=False, run_customize=False)
         vpc: Vpc = vpcs[0]
         vpc.check_active()
 
@@ -2761,7 +2880,7 @@ class ComputeInstance(ComputeProviderResource):
 
         # get proxy
         all_proxies = vpc.get_proxies(site.oid)
-        proxy, set_proxy = all_proxies.get("http")
+        proxy, __ = all_proxies.get("http")
         zbx_proxy_ip, zbx_proxy_name = all_proxies.get("zabbix")
 
         return {
@@ -2801,7 +2920,7 @@ class ComputeInstance(ComputeProviderResource):
             host_groups = [self.get_parent().desc]
         if host_group is not None:
             host_groups.append(host_group)
-        self.logger.debug("+++++ enable_monitoring - host_groups: %s" % host_groups)
+        self.logger.debug("+++++ enable_monitoring - host_groups: %s", host_groups)
 
         # per Windows
         host_group = None
@@ -2846,7 +2965,7 @@ class ComputeInstance(ComputeProviderResource):
                 "p_target_host": self.fqdn,
             },
         }
-        self.logger.debug("+++++ enable_monitoring - res: %s" % res)
+        self.logger.debug("+++++ enable_monitoring - res: %s", res)
 
         # update res.extra_vars with extra_vars parameter passed in kvargs if exists
         extra_vars = kvargs.pop("extra_vars", None)
@@ -2862,25 +2981,25 @@ class ComputeInstance(ComputeProviderResource):
         """
         # self.logger.debug("+++++ disable_monitoring - args: %s - kvargs: %s" % (args, kvargs))
         deregister_only = kvargs.get("deregister_only")
-        if deregister_only is not None and deregister_only == True:
+        if deregister_only is not None and deregister_only is True:
             self.logger.debug("+++++ disable_monitoring - deregister_only - remove ZabbixHost")
             # viene solo deregistrato su zabbix
             # remove zabbix agent config from zabbix
             from beehive_resource.plugins.zabbix.entity.zbx_host import ZabbixHost
 
-            from beehive_resource.controller import ResourceController
+            # from beehive_resource.controller import ResourceController
 
-            resourceController: ResourceController = self.controller
-            self.logger.debug("+++++ disable_monitoring - self.fqdn: %s - %s" % (self.fqdn, self.fqdn.split(".")[0]))
+            resource_controller: ResourceController = self.controller
+            self.logger.debug("+++++ disable_monitoring - self.fqdn: %s - %s", self.fqdn, self.fqdn.split(".")[0])
 
             filter_name = self.fqdn
             if self.is_windows() is True:
                 filter_name = self.fqdn.split(".")[0] + "%"
 
-            res, total = resourceController.get_resources(type=ZabbixHost.objdef, name=filter_name)
-            self.logger.debug("+++++ disable_monitoring - res: %s, total: %s" % (res, total))
+            res, total = resource_controller.get_resources(type=ZabbixHost.objdef, name=filter_name)
+            self.logger.debug("+++++ disable_monitoring - res: %s, total: %s", res, total)
             if total == 0 or len(res) == 0:
-                self.logger.warn("+++++ disable_monitoring - ZabbixHost not found for %s" % self.fqdn)
+                self.logger.warn("+++++ disable_monitoring - ZabbixHost not found for %s", self.fqdn)
 
                 self.logger.debug("+++++ disable_monitoring - deregister_only not uninstall zabbix agent")
                 params_monitoring = self.pre_monitoring()
@@ -2917,8 +3036,8 @@ class ComputeInstance(ComputeProviderResource):
                 }
 
             else:
-                zabbixHost: ZabbixHost = res[0]
-                zabbixHost.expunge2({}, sync=True)
+                zabbix_host: ZabbixHost = res[0]
+                zabbix_host.expunge2({}, sync=True)
                 res = {"internal_steps": []}
 
         else:
@@ -2978,15 +3097,15 @@ class ComputeInstance(ComputeProviderResource):
         )
         customization: LocalProviderResource = compute_customization.get_local_resource(site_id)
         awx_project: AwxProject = customization.get_physical_resource(AwxProject.objdef)
-        self.logger.debug("+++++ get_orchestrator_tag - awx_project: %s" % awx_project)
+        self.logger.debug("+++++ get_orchestrator_tag - awx_project: %s", awx_project)
 
         # get orchestrator by container_id of AWX project
         orchestrator_id = awx_project.container_id
-        self.logger.debug("+++++ get_orchestrator_tag - orchestrator_id: %s" % orchestrator_id)
+        self.logger.debug("+++++ get_orchestrator_tag - orchestrator_id: %s", orchestrator_id)
         orchestrator = site.get_orchestrator_by_id(orchestrator_id, select_types=["awx"])
-        self.logger.debug("+++++ get_orchestrator_tag - orchestrator: %s" % orchestrator)
+        self.logger.debug("+++++ get_orchestrator_tag - orchestrator: %s", orchestrator)
         orchestrator_tag = dict_get(orchestrator, "tag", default="default")
-        self.logger.debug("+++++ get_orchestrator_tag - orchestrator_tag: %s" % orchestrator_tag)
+        self.logger.debug("+++++ get_orchestrator_tag - orchestrator_tag: %s", orchestrator_tag)
 
         return orchestrator_tag
 
@@ -2997,10 +3116,9 @@ class ComputeInstance(ComputeProviderResource):
         :param dict kvargs: custom params
         :return: kvargs
         """
-        self.logger.info("+++++ enable_log_module - args: {}".format(args))
-        self.logger.info("+++++ enable_log_module - kvargs: {}".format(kvargs))
+        self.logger.info("+++++ enable_log_module - args: %s", args)
+        self.logger.info("+++++ enable_log_module - kvargs: %s", kvargs)
 
-        module = kvargs.get("module", None)
         # potrebbero arrivare già giusti dalla definition
         module_params = kvargs.get("module_params", None)
 
@@ -3023,6 +3141,7 @@ class ComputeInstance(ComputeProviderResource):
             "internal_steps": internal_steps,
             "customization": "filebeat",
             "playbook": "modules_start.yml",
+            "job_tags": ["module"],
             "orchestrator_tag": orchestrator_tag,
             "extra_vars": {"p_module": module_params},
         }
@@ -3035,10 +3154,9 @@ class ComputeInstance(ComputeProviderResource):
         :param dict kvargs: custom params
         :return: kvargs
         """
-        self.logger.info("+++++ disable_log_module - args: {}".format(args))
-        self.logger.info("+++++ disable_log_module - kvargs: {}".format(kvargs))
+        self.logger.info("+++++ enable_log_module - args: %s", args)
+        self.logger.info("+++++ enable_log_module - kvargs: %s", kvargs)
 
-        module = kvargs.get("module", None)
         # potrebbero arrivare già giusti dalla definition
         module_params = kvargs.get("module_params", None)
 
@@ -3053,6 +3171,7 @@ class ComputeInstance(ComputeProviderResource):
             "internal_steps": internal_steps,
             "customization": "filebeat",
             "playbook": "modules_stop.yml",
+            "job_tags": ["module"],
             "orchestrator_tag": orchestrator_tag,
             "extra_vars": {"p_module": module_params},
         }
@@ -3065,9 +3184,23 @@ class ComputeInstance(ComputeProviderResource):
         :param dict kvargs: custom params
         :return: kvargs
         """
-        self.logger.info("+++++ disable_logging - args: {}".format(args))
-        self.logger.info("+++++ disable_logging - kvargs: {}".format(kvargs))
+        self.logger.info("+++++ disable_logging - args: %s", args)
+        self.logger.info("+++++ disable_logging - kvargs: %s", kvargs)
         orchestrator_tag = self.get_orchestrator_tag()
+
+        # get vpc
+        vpcs, __ = self.get_linked_resources(link_type="vpc", authorize=False, run_customize=False)
+        vpc = vpcs[0]
+        vpc.check_active()
+
+        # get site
+        site_id = self.get_attribs().get("availability_zone")
+        site: Site = self.controller.get_resource(site_id)
+        ip_repository = site.get_attribs().get("repo")
+
+        # get proxy
+        all_proxies = vpc.get_proxies(site_id)
+        proxy, __ = all_proxies.get("http")
 
         # set tasks
         internal_steps = [
@@ -3080,7 +3213,11 @@ class ComputeInstance(ComputeProviderResource):
             "customization": "filebeat",
             "playbook": "uninstall.yml",
             "orchestrator_tag": orchestrator_tag,
-            "extra_vars": {},
+            "extra_vars": {
+                "p_ip_repository": ip_repository,
+                "p_proxy_server": proxy,
+                "p_no_proxy": "localhost,10.0.0.0/8",
+            },
         }
         return res
 
@@ -3092,7 +3229,7 @@ class ComputeInstance(ComputeProviderResource):
         :return: kvargs
         """
         # get vpc
-        vpcs, total = self.get_linked_resources(link_type="vpc", authorize=False, run_customize=False)
+        vpcs, __ = self.get_linked_resources(link_type="vpc", authorize=False, run_customize=False)
         vpc = vpcs[0]
         vpc.check_active()
 
@@ -3104,7 +3241,7 @@ class ComputeInstance(ComputeProviderResource):
 
         # get proxy
         all_proxies = vpc.get_proxies(site_id)
-        proxy, set_proxy = all_proxies.get("http")
+        proxy, __ = all_proxies.get("http")
 
         logstash_proxy = all_proxies.get("socks")
         logstash_server = site.get_logstash()
@@ -3127,15 +3264,15 @@ class ComputeInstance(ComputeProviderResource):
         )
         customization: LocalProviderResource = compute_customization.get_local_resource(site_id)
         awx_project: AwxProject = customization.get_physical_resource(AwxProject.objdef)
-        self.logger.debug("+++++ enable_logging - awx_project: %s" % awx_project)
+        self.logger.debug("+++++ enable_logging - awx_project: %s", awx_project)
 
         # get orchestrator by container_id of AWX project
         orchestrator_id = awx_project.container_id
-        self.logger.debug("+++++ enable_logging - orchestrator_id: %s" % orchestrator_id)
+        self.logger.debug("+++++ enable_logging - orchestrator_id: %s", orchestrator_id)
         orchestrator = site.get_orchestrator_by_id(orchestrator_id, select_types=["awx"])
-        self.logger.debug("+++++ enable_logging - orchestrator: %s" % orchestrator)
+        self.logger.debug("+++++ enable_logging - orchestrator: %s", orchestrator)
         orchestrator_tag = dict_get(orchestrator, "tag", default="default")
-        self.logger.debug("+++++ enable_logging - orchestrator_tag: %s" % orchestrator_tag)
+        self.logger.debug("+++++ enable_logging - orchestrator_tag: %s", orchestrator_tag)
 
         # get awx container
         # orchestrator_tag = "default"
@@ -3145,12 +3282,12 @@ class ComputeInstance(ComputeProviderResource):
         # get awx inventory
         inventories = dict_get(orchestrator, "config.inventories", default=[])
         if len(inventories) < 1:
-            raise ApiManagerError("no awx inventory configured for orchestrator %s" % orchestrator["id"])
+            raise ApiManagerError(f"no awx inventory configured for orchestrator {orchestrator['id']}")
         inventory = inventories[0]
         inventory_id = inventory.get("id")
         ssh_cred_id = inventory.get("credential")
 
-        template_name = "filebeat-%s-create-cert-%s" % (index_name, id_gen(8))
+        template_name = f"filebeat-{index_name}-create-cert-{id_gen(8)}"
         job_template_args = [
             {
                 "name": template_name,
@@ -3160,7 +3297,7 @@ class ComputeInstance(ComputeProviderResource):
                 "playbook": "certificate.yml",
                 "verbosity": 0,
                 "ssh_cred_id": ssh_cred_id,
-                "extra_vars": "p_cert_dns:%s" % p_cert_dns,
+                "extra_vars": f"p_cert_dns:{p_cert_dns}",
             },
             orchestrator,
         ]
@@ -3215,7 +3352,7 @@ class ComputeInstance(ComputeProviderResource):
         orchestrator = next(iter(orchestrators.values()))
 
         # set awx_job_template params
-        name = "%s-ad-hoc-cmd-%s" % (self.name, id_gen())
+        name = f"{self.name}-ad-hoc-cmd-{id_gen()}"
 
         credential = self.get_credential()
         pwd = credential.get("password")
@@ -3303,14 +3440,14 @@ class ComputeInstance(ComputeProviderResource):
         params.update(kvargs)
         params.update(self.get_user())
         res = prepare_or_run_task(self, self.action_task, params, sync=sync)
-        self.logger.info("Apply customization %s on compute instance %s using task - res: %s" % (name, self.uuid, res))
+        self.logger.info("Apply customization %s on compute instance %s using task - res: %s", name, self.uuid, res)
         return res
 
     #
     # console
     #
     @trace(op="use")
-    def get_console(self):
+    def get_console(self) -> Dict[str,Any]:
         """Get console.
 
         :raise ApiManagerError:
@@ -3325,8 +3462,8 @@ class ComputeInstance(ComputeProviderResource):
             url_path = "/vnc_auto2.html"
 
         # get console endpoint from site
-        site = self.controller.get_simple_resource(self.get_attribs(key="availability_zone"))
-        endpoint = site.get_attribs(key="config.console_base_uri", default="")
+        site = self.get_main_availability_zone(raise_exc=True)
+        endpoint = site.get_console_baseuri(raise_exc=True)
 
         physical_server = self.main_zone_instance.get_physical_server()
         res = physical_server.get_vnc_console(endpoint)
@@ -3334,13 +3471,15 @@ class ComputeInstance(ComputeProviderResource):
         if url is not None:
             url_parsed = urlparse(url)
             endpoint = endpoint.split("://")
+            if not endpoint or len(endpoint)<2:
+                raise ApiManagerError("invalid vnc console url")
             url_parsed = url_parsed._replace(scheme=endpoint[0])
             url_parsed = url_parsed._replace(netloc=endpoint[1])
             url_parsed = url_parsed._replace(path=url_path)
             new_url = url_parsed.geturl()
             res["url"] = new_url
 
-        self.logger.debug("Get server %s console: %s" % (self.name, res))
+        self.logger.debug("Get server %s console: %s", self.name, res)
         return res
 
 
@@ -3371,7 +3510,7 @@ class Instance(AvailabilityZoneChildResource):
             nets.append(link.get_end_resource())
         return nets
 
-    def get_physical_server(self):
+    def get_physical_server(self) -> None | 'VsphereServer' | 'OpenstackServer':
         """Get remote physical server from orchestrator
 
         :return:
@@ -3381,6 +3520,8 @@ class Instance(AvailabilityZoneChildResource):
             objdef = VsphereServer.objdef
         elif inst_type == "openstack":
             objdef = OpenstackServer.objdef
+        else:
+            return None
         try:
             server = self.get_physical_resource(objdef)
         except:
@@ -3425,7 +3566,7 @@ class Instance(AvailabilityZoneChildResource):
 
         # select main available orchestrators
         available_main_orchestrators = []
-        for k, v in orchestrator_idx.items():
+        for v in orchestrator_idx.values():
             if orchestrator_type == v["type"]:
                 available_main_orchestrators.append(v)
 
@@ -3511,7 +3652,7 @@ class Instance(AvailabilityZoneChildResource):
         # get zone volumes
         compute_instance = container.get_simple_resource(kvargs.get("compute_instance"))
 
-        compute_volumes, tot = compute_instance.get_linked_resources(
+        compute_volumes, __ = compute_instance.get_linked_resources(
             link_type_filter="volume%",
             entity_class=ComputeVolume,
             objdef=ComputeVolume.objdef,
@@ -3525,8 +3666,8 @@ class Instance(AvailabilityZoneChildResource):
 
         if main is True:
             for compute_volume in compute_volumes:
-                volumes, tot = compute_volume.get_linked_resources(
-                    link_type_filter="relation.%s" % site_id,
+                volumes, __ = compute_volume.get_linked_resources(
+                    link_type_filter=f"relation.{site_id}",
                     entity_class=Volume,
                     objdef=Volume.objdef,
                     run_customize=False,
@@ -3539,12 +3680,11 @@ class Instance(AvailabilityZoneChildResource):
                     zone_other_volumes.append(volume.oid)
 
         # select remote orchestrators
-        # orchestrator_idx = availability_zone.get_orchestrators_by_tag(orchestrator_tag, select_types=orchestrator_select_types)
         orchestrator_idx = availability_zone.get_hypervisors_by_tag(orchestrator_tag)
 
         # select main available orchestrators
         available_main_orchestrators = []
-        for k, v in orchestrator_idx.items():
+        for v in orchestrator_idx.values():
             if orchestrator_type == v["type"]:
                 available_main_orchestrators.append(v)
 
@@ -3635,7 +3775,8 @@ class Instance(AvailabilityZoneChildResource):
 
         # select main available orchestrators
         available_main_orchestrators = []
-        for k, v in orchestrator_idx.items():
+
+        for v in orchestrator_idx.values():
             if orchestrator_type == v["type"]:
                 available_main_orchestrators.append(v)
 
@@ -3714,14 +3855,14 @@ class Instance(AvailabilityZoneChildResource):
                 "ext_id": self.ext_id,
                 "action_name": name,
                 "steps": run_steps,
-                "alias": "%s.%s" % (self.__class__.__name__, name),
+                "alias": f"{self.__class__.__name__}.{name}",
                 # 'alias': '%s.%s' % (self.name, name)
             }
         )
         params.update(self.get_user())
 
         res = prepare_or_run_task(self, self.action_task, params, sync=True)
-        self.logger.info("%s zone instance %s using task" % (name, self.uuid))
+        self.logger.info("%s zone instance %s using task", name, self.uuid)
         return res
 
     def set_flavor(self, flavor=None, *args, **kvargs):
@@ -3732,7 +3873,7 @@ class Instance(AvailabilityZoneChildResource):
         """
         site = self.get_site()
         compute_flavor = self.container.get_resource(flavor)
-        flavors, total = compute_flavor.get_linked_resources(link_type_filter="relation.%s" % site.oid)
+        flavors, __ = compute_flavor.get_linked_resources(link_type_filter=f"relation.{site.oid}")
         return {"flavor": flavors[0].oid}
 
     def add_volume(self, volume=None, *args, **kvargs):
@@ -3743,7 +3884,7 @@ class Instance(AvailabilityZoneChildResource):
         """
         site = self.get_site()
         compute_volume = self.container.get_resource(volume)
-        volumes, total = compute_volume.get_linked_resources(link_type_filter="relation.%s" % site.oid)
+        volumes, __ = compute_volume.get_linked_resources(link_type_filter=f"relation.{site.oid}")
         return {"volume": volumes[0].oid}
 
     def del_volume(self, volume=None, *args, **kvargs):
@@ -3754,7 +3895,7 @@ class Instance(AvailabilityZoneChildResource):
         """
         site = self.get_site()
         compute_volume = self.container.get_resource(volume)
-        volumes, total = compute_volume.get_linked_resources(link_type_filter="relation.%s" % site.oid)
+        volumes, __ = compute_volume.get_linked_resources(link_type_filter=f"relation.{site.oid}")
         return {"volume": volumes[0].oid}
 
     def add_security_group(self, security_group=None, *args, **kvargs):
@@ -3765,7 +3906,7 @@ class Instance(AvailabilityZoneChildResource):
         """
         site = self.get_site()
         compute_sg = self.container.get_resource(security_group)
-        sgs, total = compute_sg.get_linked_resources(link_type_filter="relation.%s" % site.oid)
+        sgs, __ = compute_sg.get_linked_resources(link_type_filter=f"relation.{site.oid}")
         res = {
             "internal_step": "instance_security_group_action_step",
             "security_group": sgs[0].oid,
@@ -3780,7 +3921,7 @@ class Instance(AvailabilityZoneChildResource):
         """
         site = self.get_site()
         compute_sg = self.container.get_simple_resource(security_group)
-        sgs, total = compute_sg.get_linked_resources(link_type_filter="relation.%s" % site.oid)
+        sgs, __ = compute_sg.get_linked_resources(link_type_filter=f"relation.{site.oid}")
         res = {
             "internal_step": "instance_security_group_action_step",
             "security_group": sgs[0].oid,

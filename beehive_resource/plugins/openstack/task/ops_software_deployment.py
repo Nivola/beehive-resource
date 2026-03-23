@@ -1,28 +1,20 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import ujson as json
 from celery.utils.log import get_task_logger
 from beehive_resource.tasks import (
     ResourceJobTask,
     ResourceJob,
-    create_resource_pre,
-    create_resource_post,
-    expunge_resource_pre,
-    expunge_resource_post,
-    update_resource_pre,
-    update_resource_post,
 )
-from beehive.common.task.manager import task_manager
-from beehive.common.task.job import job_task, job, task_local, Job, JobError
+from beehive.common.task.manager import get_task_manager
+from beehive.common.task.job import job_task, job, Job
 from beehive.common.task.util import end_task, start_task
-import gevent
-from beehive.common.apimanager import ApiManagerError
 from beehive_resource.plugins.openstack.entity.ops_heat import OpenstackHeatStack
 
 logger = get_task_logger(__name__)
-
+task_manager = get_task_manager()
 
 def get_client(task, cid, project_id):
     task.get_session()

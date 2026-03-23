@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from datetime import datetime
 
@@ -57,6 +57,10 @@ class ComputeStack(ComputeProviderResource):
             if remote_stack is not None:
                 runstate.append(remote_stack.get_status().lower())
         return ",".join(runstate)
+    
+    def simple_info(self, data_info):
+        self.logger.debug(f"fv - simple_info - ComputeStack")
+        return super().simple_info(data_info)
 
     def info(self):
         """Get infos.
@@ -128,6 +132,7 @@ class ComputeStack(ComputeProviderResource):
         resource_ids = [self.oid]
         zone_stacks_all = get_resources(resource_ids, link_type="relation%", run_customize=False)
         self.zone_stacks = zone_stacks_all.get(self.oid, [])
+        # self.logger.info(f"fv - post_get - self.zone_stacks: {self.zone_stacks}")
 
         # index zone stacks
         zone_stacks_idx = {}
@@ -447,6 +452,7 @@ class ComputeStack(ComputeProviderResource):
             "%sgbram" % prefix: 0,
             "%sgbdisk_low" % prefix: 0,
             "%sgbdisk_hi" % prefix: 0,
+            "%spublic_ip" % prefix: 0,
         }
 
         metric_units = {
@@ -454,8 +460,16 @@ class ComputeStack(ComputeProviderResource):
             "%sgbram" % prefix: "GB",
             "%sgbdisk_low" % prefix: "GB",
             "%sgbdisk_hi" % prefix: "GB",
+            "%spublic_ip" % prefix: "#",
         }
 
+
+        # simple_info
+        last_runstate = self.get_attribs(key="last_runstate")
+        state = self.get_runstate()
+        if last_runstate is None or last_runstate != state:
+            self.set_configs("last_runstate", state)
+        
         for zone_stack in self.zone_stacks:
             for resource in zone_stack.resources():
                 if isinstance(resource, OpenstackVolume):
@@ -806,6 +820,7 @@ class Stack(AvailabilityZoneChildResource):
 
     def get_remote_stack(self):
         """Get remote stack"""
+        self.logger.info(f"fv - get_remote_stack - self.physical_stack: {self.physical_stack}")
         return self.physical_stack
 
     def set_remote_stack(self, remote_stack):

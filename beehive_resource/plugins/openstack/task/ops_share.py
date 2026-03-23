@@ -1,11 +1,9 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import gevent
 from celery.utils.log import get_task_logger
-from celery import chain, chord, group, signature
-from beecell.simple import get_value, import_class
 from beehive_resource.tasks import (
     ResourceJobTask,
     ResourceJob,
@@ -16,14 +14,13 @@ from beehive_resource.tasks import (
     update_resource_post,
     update_resource_pre,
 )
-from beehive.common.task.manager import task_manager
+from beehive.common.task.manager import get_task_manager
 from beehive.common.task.job import job_task, job, task_local, Job
 from beehive.common.task.util import end_task, start_task
 from beehive_resource.plugins.openstack.entity.ops_share import OpenstackShare
-from beedrones.openstack.client import OpenstackNotFound
 
 logger = get_task_logger(__name__)
-
+task_manager = get_task_manager()
 
 @task_manager.task(bind=True, base=ResourceJobTask)
 @job_task()

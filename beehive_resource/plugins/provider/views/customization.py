@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
@@ -10,22 +10,28 @@ from beehive.common.apimanager import (
     CrudApiObjectTaskResponseSchema,
     CrudApiObjectJobResponseSchema,
 )
+
 from beehive_resource.plugins.provider.entity.customization import ComputeCustomization
+
 from beehive_resource.plugins.provider.entity.applied_customization import (
     AppliedComputeCustomization,
 )
+
 from beehive_resource.plugins.provider.entity.zone import ComputeZone
+
 from beehive_resource.plugins.provider.views import (
     ProviderAPI,
     LocalProviderApiView,
     CreateProviderResourceRequestSchema,
     UpdateProviderResourceRequestSchema,
 )
+
 from beehive_resource.view import (
     ListResourcesRequestSchema,
     ResourceResponseSchema,
     ResourceSmallResponseSchema,
 )
+
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
 
@@ -39,21 +45,30 @@ class ProviderCustomization(LocalProviderApiView):
 
 
 class ListCustomizationsRequestSchema(ListResourcesRequestSchema):
-    instance = fields.String(context="query", description="instance id, uuid or name")
+    instance = fields.String(
+        context="query",
+        metadata={
+            "description": 'instance id, uuid or name',
+        },
+    )
 
 
 class ListCustomizationsResponseSchema(PaginatedResponseSchema):
-    customizations = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
+    customizations = fields.Nested(
+        ResourceResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListCustomizations(ProviderCustomization):
     summary = "List customizations"
     description = "List customizations"
-    definitions = {
-        "ListCustomizationsResponseSchema": ListCustomizationsResponseSchema,
-    }
+    definitions = {"ListCustomizationsResponseSchema": ListCustomizationsResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListCustomizationsRequestSchema)
     parameters_schema = ListCustomizationsRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": ListCustomizationsResponseSchema}}
     )
@@ -66,19 +81,26 @@ class ListCustomizations(ProviderCustomization):
 
 
 class GetCustomizationParamsResponseSchema(ResourceResponseSchema):
-    applied = fields.Nested(ResourceSmallResponseSchema, required=True, many=False, allow_none=True)
+    applied = fields.Nested(
+        ResourceSmallResponseSchema,
+        required=True,
+        many=False,
+        allow_none=True,
+    )
 
 
 class GetCustomizationResponseSchema(Schema):
-    customization = fields.Nested(GetCustomizationParamsResponseSchema, required=True, allow_none=True)
+    customization = fields.Nested(
+        GetCustomizationParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetCustomization(ProviderCustomization):
     summary = "Get customization"
     description = "Get customization"
-    definitions = {
-        "GetCustomizationResponseSchema": GetCustomizationResponseSchema,
-    }
+    definitions = {"GetCustomizationResponseSchema": GetCustomizationResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetCustomizationResponseSchema}})
 
@@ -87,56 +109,89 @@ class GetCustomization(ProviderCustomization):
 
 
 class CreateCustomizationAwxProjectRequestSchema(Schema):
-    # container = fields.String(required=True, example='12', description='Container id, uuid or name')
-    # name = fields.String(required=True, example='test-project', default='', description='awx project name')
-    # desc = fields.String(example='test-project', default='', description='awx project description')
     scm_type = fields.String(
         required=True,
-        example="git",
-        default="git",
-        description="The source control system used to store the project",
+        metadata={
+            "example": 'git',
+            "description": 'The source control system used to store the project',
+        },
     )
+
     scm_url = fields.String(
         required=True,
-        example="https://github.com/awx_projects/nginx",
-        default="",
-        description="The location where the project is stored",
+        metadata={
+            "example": 'https://github.com/awx_projects/nginx',
+            "description": 'The location where the project is stored',
+        },
     )
+
     scm_branch = fields.String(
-        example="1.6.0",
-        default="master",
-        description="Specific branch to checkout",
+        metadata={
+            "example": '1.6.0',
+            "description": 'Specific branch to checkout',
+        },
     )
 
 
 class CreateCustomizationParamRequestSchema(CreateProviderResourceRequestSchema):
-    name = fields.String(required=True, example="test", description="customization name")
-    desc = fields.String(required=True, example="test", description="customization description")
-    compute_zone = fields.String(required=True, example="1", description="parent compute zone id or uuid")
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'customization name',
+        },
+    )
+
+    desc = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'customization description',
+        },
+    )
+
+    compute_zone = fields.String(
+        required=True,
+        metadata={
+            "example": '1',
+            "description": 'parent compute zone id or uuid',
+        },
+    )
+
     awx_project = fields.Nested(
         CreateCustomizationAwxProjectRequestSchema,
         required=True,
-        description="awx project parameters",
+        metadata={
+            "description": 'awx project parameters',
+        },
     )
 
 
 class CreateCustomizationRequestSchema(Schema):
-    customization = fields.Nested(CreateCustomizationParamRequestSchema)
+    customization = fields.Nested(
+        CreateCustomizationParamRequestSchema,
+    )
 
 
 class CreateCustomizationBodyRequestSchema(Schema):
-    body = fields.Nested(CreateCustomizationRequestSchema, context="body")
+    body = fields.Nested(
+        CreateCustomizationRequestSchema,
+        context="body",
+    )
 
 
 class CreateCustomization(ProviderCustomization):
     summary = "Create customization"
     description = "Create customization"
+
     definitions = {
         "CreateCustomizationRequestSchema": CreateCustomizationRequestSchema,
         "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateCustomizationBodyRequestSchema)
     parameters_schema = CreateCustomizationRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
@@ -148,20 +203,25 @@ class CreateCustomization(ProviderCustomization):
 class UpdateCustomizationTemplateRequestSchema(Schema):
     scm_type = fields.String(
         required=True,
-        example="git",
-        default="git",
-        description="The source control system used to store the project",
+        metadata={
+            "example": 'git',
+            "description": 'The source control system used to store the project',
+        },
     )
+
     scm_url = fields.String(
         required=True,
-        example="https://github.com/awx_projects/nginx",
-        default="",
-        description="The location where the project is stored",
+        metadata={
+            "example": 'https://github.com/awx_projects/nginx',
+            "description": 'The location where the project is stored',
+        },
     )
+
     scm_branch = fields.String(
-        example="1.6.0",
-        default="master",
-        description="Specific branch to checkout",
+        metadata={
+            "example": '1.6.0',
+            "description": 'Specific branch to checkout',
+        },
     )
 
 
@@ -169,8 +229,10 @@ class UpdateCustomizationParamRequestSchema(UpdateProviderResourceRequestSchema)
     awx_project = fields.Nested(
         UpdateCustomizationTemplateRequestSchema,
         required=False,
-        description="list of orchestrator templates to link",
         allow_none=True,
+        metadata={
+            "description": 'list of orchestrator templates to link',
+        },
     )
 
 
@@ -179,7 +241,10 @@ class UpdateCustomizationRequestSchema(Schema):
 
 
 class UpdateCustomizationBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateCustomizationRequestSchema, context="body")
+    body = fields.Nested(
+        UpdateCustomizationRequestSchema,
+        context="body",
+    )
 
 
 class UpdateCustomization(ProviderCustomization):
@@ -187,13 +252,13 @@ class UpdateCustomization(ProviderCustomization):
         "UpdateCustomizationRequestSchema": UpdateCustomizationRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateCustomizationBodyRequestSchema)
     parameters_schema = UpdateCustomizationRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def put(self, controller, data, oid, *args, **kwargs):
         """
-        Update image
         Update image
         """
         return self.update_resource(controller, oid, data)
@@ -204,6 +269,7 @@ class DeleteCustomization(ProviderCustomization):
     description = "Delete customization"
     definitions = {"CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
@@ -221,21 +287,42 @@ class ProviderAppliedCustomization(LocalProviderApiView):
 
 
 class GetAppliedCustomizationsRequestSchema(ListResourcesRequestSchema):
-    instance = fields.String(context="query", description="instance id, uuid or name")
-    oid = fields.String(description="customization id")
-    acid = fields.String(context="query", description="applied customization id", missing=None)
+    instance = fields.String(
+        context="query",
+        metadata={
+            "description": 'instance id, uuid or name',
+        },
+    )
+
+    oid = fields.String(
+        context="query",
+        metadata={
+            "description": 'customization id',
+        },
+    )
+
+    acid = fields.String(
+        context="query",
+        load_default=None,
+        metadata={
+            "description": 'applied customization id',
+        },
+    )
 
 
 class GetAppliedCustomizationsResponseSchema(PaginatedResponseSchema):
-    applied_customizations = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
+    applied_customizations = fields.Nested(
+        ResourceResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetAppliedCustomizations(ProviderAppliedCustomization):
     summary = "Get applied customizations"
     description = "Get applied customizations"
-    definitions = {
-        "GetCustomizationResponseSchema": GetCustomizationResponseSchema,
-    }
+    definitions = {"GetCustomizationResponseSchema": GetCustomizationResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetAppliedCustomizationsRequestSchema)
     parameters_schema = GetAppliedCustomizationsRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetCustomizationResponseSchema}})
@@ -253,25 +340,34 @@ class GetAppliedCustomizationParamsResponseSchema(ResourceResponseSchema):
 
 
 class GetAppliedCustomizationResponseSchema(Schema):
-    applied_customization = fields.Nested(GetAppliedCustomizationParamsResponseSchema, required=True, allow_none=True)
+    applied_customization = fields.Nested(
+        GetAppliedCustomizationParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetAppliedCustomizationRequestSchema(GetApiObjectRequestSchema):
     acid = fields.String(
         required=True,
-        description="applied customization id, uuid or name",
         context="path",
+        metadata={
+            "description": 'applied customization id, uuid or name',
+        },
     )
 
 
 class GetAppliedCustomization(ProviderAppliedCustomization):
     summary = "Get applied customization"
     description = "Get applied customization"
+
     definitions = {
         "GetAppliedCustomizationResponseSchema": GetAppliedCustomizationResponseSchema,
         "GetAppliedCustomizationRequestSchema": GetAppliedCustomizationRequestSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(GetAppliedCustomizationRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {
             200: {
@@ -286,59 +382,123 @@ class GetAppliedCustomization(ProviderAppliedCustomization):
 
 
 class AwxJobTemplateHostRequestSchema(Schema):
-    id = fields.String(required=True, example="123", default="", description="instance id or uuid")
+    id = fields.String(
+        required=True,
+        metadata={
+            "example": '123',
+            "description": 'instance id or uuid',
+        },
+    )
+
     extra_vars = fields.Dict(
-        example='{"ansible_user":"root", "ansible_connection":"ssh"}',
-        missing={},
-        description='host variables. Ex: {"ansible_user":"root"}',
+        load_default={},
+        metadata={
+            "example": '{"ansible_user":"root", "ansible_connection":"ssh"}',
+            "description": 'host variables. Ex: {"ansible_user":"root"}',
+        },
     )
 
 
 class CreateAppliedCustomizationParamRequestSchema(CreateProviderResourceRequestSchema):
-    compute_zone = fields.String(required=True, example="1", description="parent compute zone id or uuid")
-    name = fields.String(required=True, example="test", description="applied customization name")
-    desc = fields.String(required=True, example="test", description="applied customization description")
-    customization = fields.String(required=True, example="test", description="id of the parent customization")
+    compute_zone = fields.String(
+        required=True,
+        metadata={
+            "example": '1',
+            "description": 'parent compute zone id or uuid',
+        },
+    )
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'applied customization name',
+        },
+    )
+
+    desc = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'applied customization description',
+        },
+    )
+
+    customization = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'id of the parent customization',
+        },
+    )
+
     instances = fields.Nested(
         AwxJobTemplateHostRequestSchema,
         required=True,
         many=True,
         allow_none=True,
-        description="compute instances where run customization",
+        metadata={
+            "description": 'compute instances where run customization',
+        },
     )
+
     extra_vars = fields.Dict(
-        description='Variables used when applying customization. Ex: {"k1":"v1", "k2":"v2"}',
-        missing=None,
-        example='{"host_groups2:["awx_group_prova", "awx_group_test"],'
-        '"host_templates":"[Template OS Linux]", "zabbix_server":"10.138.218.292,'
-        '"zabbix_server_proxy":"10.138.200.15"',
+        load_default=None,
+        metadata={
+            "example": (
+                '{"host_groups2:["awx_group_prova", "awx_group_test"],"host_templates":"[Template OS Linux]",'
+                '"zabbix_server":"10.138.218.292,"zabbix_server_proxy":"10.138.200.15"'
+            ),
+            "description": 'Variables used when applying customization. Ex: {"k1":"v1", "k2":"v2"}',
+        },
     )
-    playbook = fields.String(required=False, example="main.yml", missing="main.yml", description="Playbook")
+
+    playbook = fields.String(
+        required=False,
+        load_default="main.yml",
+        metadata={
+            "example": 'main.yml',
+            "description": 'Playbook',
+        },
+    )
+
     verbosity = fields.Integer(
-        example=1,
-        missing=0,
-        description="Verbosity: 0 (Normal) (default), 1 (Verbose), "
-        "2 (More Verbose), 3 (Debug), 4 (Connection Debug), 5 (WinRM Debug)",
+        load_default=0,
+        metadata={
+            "example": 1,
+            "description": (
+                'Verbosity: 0 (Normal) (default), 1 (Verbose), 2 (More Verbose), 3 (Debug), 4 (Connection Debug), 5'
+                '(WinRM Debug)'
+            ),
+        },
     )
 
 
 class CreateAppliedCustomizationRequestSchema(Schema):
-    applied_customization = fields.Nested(CreateAppliedCustomizationParamRequestSchema)
+    applied_customization = fields.Nested(
+        CreateAppliedCustomizationParamRequestSchema,
+    )
 
 
 class CreateAppliedCustomizationBodyRequestSchema(Schema):
-    body = fields.Nested(CreateAppliedCustomizationRequestSchema, context="body")
+    body = fields.Nested(
+        CreateAppliedCustomizationRequestSchema,
+        context="body",
+    )
 
 
 class CreateAppliedCustomization(ProviderAppliedCustomization):
     summary = "Create applied customization"
     description = "Create applied customization"
+
     definitions = {
         "CreateAppliedCustomizationRequestSchema": CreateAppliedCustomizationRequestSchema,
         "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateAppliedCustomizationBodyRequestSchema)
     parameters_schema = CreateAppliedCustomizationRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
@@ -352,6 +512,7 @@ class DeleteAppliedCustomization(ProviderAppliedCustomization):
     description = "Delete applied customization"
     definitions = {"CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
@@ -366,34 +527,54 @@ class DeleteAppliedCustomization(ProviderAppliedCustomization):
 class GetAppliedCustomizations2RequestSchema(Schema):
     instance = fields.String(
         context="query",
-        example="b0f55ace-0c02-4852-b9e8-384cd857603f",
-        description="instance id, uuid or name",
+        metadata={
+            "example": 'b0f55ace-0c02-4852-b9e8-384cd857603f',
+            "description": 'instance id, uuid or name',
+        },
     )
+
     customization = fields.String(
         context="query",
-        example="b0f55ace-0c02-4852-b9e8-384cd857603f",
-        description="customization id",
+        metadata={
+            "example": 'b0f55ace-0c02-4852-b9e8-384cd857603f',
+            "description": 'customization id',
+        },
     )
+
     uuids = fields.String(
         context="query",
-        description="comma separated list of applied customization uuid",
+        metadata={
+            "description": 'comma separated list of applied customization uuid',
+        },
     )
-    compute_zones = fields.String(context="query", description="comma separated list of compute zone uuid")
+
+    compute_zones = fields.String(
+        context="query",
+        metadata={
+            "description": 'comma separated list of compute zone uuid',
+        },
+    )
 
 
 class GetAppliedCustomizations2ResponseSchema(PaginatedResponseSchema):
-    applied_customizations = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
+    applied_customizations = fields.Nested(
+        ResourceResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetAppliedCustomizations2(ProviderAppliedCustomization):
     summary = "Get applied customizations"
     description = "Get applied customizations"
-    definitions = {
-        "GetCustomizationResponseSchema": GetCustomizationResponseSchema,
-    }
+    definitions = {"GetCustomizationResponseSchema": GetCustomizationResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetAppliedCustomizationsRequestSchema)
     parameters_schema = GetAppliedCustomizationsRequestSchema
-    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetCustomizationResponseSchema}})
+
+    responses = SwaggerApiView.setResponses({
+        200: {"description": "success", "schema": GetCustomizationResponseSchema}
+    })
 
     def get(self, controller, data, *args, **kwargs):
         instance_id = data.get("instance", None)
@@ -409,11 +590,14 @@ class GetAppliedCustomizations2(ProviderAppliedCustomization):
 class GetAppliedCustomization2(ProviderAppliedCustomization):
     summary = "Get applied customization"
     description = "Get applied customization"
+
     definitions = {
         "GetAppliedCustomizationResponseSchema": GetAppliedCustomizationResponseSchema,
         "GetAppliedCustomizationRequestSchema": GetAppliedCustomizationRequestSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(GetAppliedCustomizationRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {
             200: {
@@ -430,12 +614,15 @@ class GetAppliedCustomization2(ProviderAppliedCustomization):
 class CreateAppliedCustomization2(ProviderAppliedCustomization):
     summary = "Create applied customization"
     description = "Create applied customization"
+
     definitions = {
         "CreateAppliedCustomizationRequestSchema": CreateAppliedCustomizationRequestSchema,
         "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateAppliedCustomizationBodyRequestSchema)
     parameters_schema = CreateAppliedCustomizationRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
@@ -449,6 +636,7 @@ class DeleteAppliedCustomization2(ProviderAppliedCustomization):
     description = "Delete applied customization"
     definitions = {"CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )

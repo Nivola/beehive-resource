@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2018-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 """
 To enable module:
@@ -23,9 +23,9 @@ beehive auth objects add-type resource Dns.DnsZone.DnsRecordA
 beehive auth objects add-type resource Dns.DnsZone.DnsRecordCname
 beehive auth objects add container Dns "*" "Dns"
 beehive auth objects add resource Dns "*" "Dns"
-beehive auth objects add resource Dns.DnsZone "*\/\/*" "Dns Zone"
-beehive auth objects add resource Dns.DnsZone.DnsRecordA "*\/\/*\/\/*" "Dns Record A"
-beehive auth objects add resource Dns.DnsZone.DnsRecordCname "*\/\/*\/\/*" "Dns Record Cname"
+beehive auth objects add resource Dns.DnsZone "*//*" "Dns Zone"
+beehive auth objects add resource Dns.DnsZone.DnsRecordA "*//*//*" "Dns Record A"
+beehive auth objects add resource Dns.DnsZone.DnsRecordCname "*//*//*" "Dns Record Cname"
 beehive auth objects perms subsystem=resource type=Dns*
 
 For each permissions with action *:

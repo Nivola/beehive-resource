@@ -1,16 +1,18 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_resource.plugins.vsphere.views import VsphereAPI, VsphereApiView
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
+
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
     GetApiObjectRequestSchema,
     CrudApiObjectJobResponseSchema,
 )
+
 from beehive_resource.view import ResourceResponseSchema, ListResourcesRequestSchema
 from beehive_resource.plugins.vsphere.entity.nsx_manager import NsxManager
 from beehive_resource.plugins.vsphere.entity.nsx_dlr import NsxDlr
@@ -35,16 +37,13 @@ class ListNsxDlrsResponseSchema(PaginatedResponseSchema):
 
 
 class ListNsxDlrs(VsphereNsxDlrApiView):
-    definitions = {
-        "ListNsxDlrsResponseSchema": ListNsxDlrsResponseSchema,
-    }
+    definitions = {"ListNsxDlrsResponseSchema": ListNsxDlrsResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListNsxDlrsRequestSchema)
     parameters_schema = ListNsxDlrsRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListNsxDlrsResponseSchema}})
 
     def get(self, controller, data, *args, **kwargs):
         """
-        List nsx_dlr
         List nsx_dlr
         """
         return self.get_resources(controller, **data)
@@ -55,25 +54,47 @@ class GetNsxDlrResponseSchema(Schema):
 
 
 class GetNsxDlr(VsphereNsxDlrApiView):
-    definitions = {
-        "GetNsxDlrResponseSchema": GetNsxDlrResponseSchema,
-    }
+    definitions = {"GetNsxDlrResponseSchema": GetNsxDlrResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetNsxDlrResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
         Get nsx_dlr
-        Get nsx_dlr
         """
         return self.get_resource(controller, oid)
 
 
 class CreateNsxDlrParamRequestSchema(Schema):
-    container = fields.String(required=True, example="12", description="container id, uuid or name")
-    name = fields.String(required=True, example="test")
-    desc = fields.String(required=True, example="test")
-    cidr = fields.String(required=True, example="10.102.34.90/32", description="ip set cidr")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'container id, uuid or name',
+        },
+    )
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+        },
+    )
+
+    desc = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+        },
+    )
+
+    cidr = fields.String(
+        required=True,
+        metadata={
+            "example": '10.102.34.90/32',
+            "description": 'ip set cidr',
+        },
+    )
 
 
 class CreateNsxDlrRequestSchema(Schema):
@@ -81,7 +102,10 @@ class CreateNsxDlrRequestSchema(Schema):
 
 
 class CreateNsxDlrBodyRequestSchema(Schema):
-    body = fields.Nested(CreateNsxDlrRequestSchema, context="body")
+    body = fields.Nested(
+        CreateNsxDlrRequestSchema,
+        context="body",
+    )
 
 
 class CreateNsxDlr(VsphereNsxDlrApiView):
@@ -89,6 +113,7 @@ class CreateNsxDlr(VsphereNsxDlrApiView):
         "CreateNsxDlrRequestSchema": CreateNsxDlrRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateNsxDlrBodyRequestSchema)
     parameters_schema = CreateNsxDlrRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
@@ -96,15 +121,14 @@ class CreateNsxDlr(VsphereNsxDlrApiView):
     def post(self, controller, data, oid, *args, **kwargs):
         """
         Create nsx_dlr
-        Create nsx_dlr
         """
         return self.create_resource(controller, oid, data)
 
 
 class UpdateNsxDlrParamRequestSchema(Schema):
-    name = fields.String(default="test")
-    desc = fields.String(default="test")
-    enabled = fields.Boolean(default=True)
+    name = fields.String(load_default="test")
+    desc = fields.String(load_default="test")
+    enabled = fields.Boolean(load_default=True)
 
 
 class UpdateNsxDlrRequestSchema(Schema):
@@ -120,6 +144,7 @@ class UpdateNsxDlr(VsphereNsxDlrApiView):
         "UpdateNsxDlrRequestSchema": UpdateNsxDlrRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateNsxDlrBodyRequestSchema)
     parameters_schema = UpdateNsxDlrRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
@@ -127,9 +152,8 @@ class UpdateNsxDlr(VsphereNsxDlrApiView):
     def put(self, controller, data, oid, *args, **kwargs):
         """
         Update nsx_dlr
-        Update nsx_dlr
         """
-        return self.update_resource(controller, data)
+        return self.update_resource(controller, oid, data)
 
 
 class DeleteNsxDlr(VsphereNsxDlrApiView):
@@ -139,7 +163,6 @@ class DeleteNsxDlr(VsphereNsxDlrApiView):
 
     def delete(self, controller, data, oid, *args, **kwargs):
         """
-        Delete nsx_dlr
         Delete nsx_dlr
         """
         return self.expunge_resource(controller, oid)

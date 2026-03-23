@@ -1,29 +1,20 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
-import ujson as json
 from celery.utils.log import get_task_logger
 from beehive_resource.tasks import (
     ResourceJobTask,
-    ResourceJob,
-    create_resource_pre,
-    create_resource_post,
-    expunge_resource_pre,
-    expunge_resource_post,
-    update_resource_pre,
-    update_resource_post,
 )
-from beehive.common.task.manager import task_manager
-from beehive.common.task.job import job_task, job, task_local, Job, JobError
-from beehive.common.task.util import end_task, start_task
+from beehive.common.task.manager import get_task_manager
+from beehive.common.task.job import job_task, task_local
 import gevent
-from beehive.common.apimanager import ApiManagerError
 from beehive_resource.plugins.openstack.entity.ops_heat import OpenstackHeatStack
 from beecell.simple import truncate
 from beehive.common.task.canvas import signature
 
 logger = get_task_logger(__name__)
+task_manager = get_task_manager()
 
 stack_entity_type_mapping = {
     "AWS::AutoScaling::AutoScalingGroup": None,

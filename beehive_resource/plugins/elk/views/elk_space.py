@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
@@ -10,17 +10,21 @@ from beehive.common.apimanager import (
     CrudApiObjectJobResponseSchema,
     ApiView,
 )
+
 from beehive_resource.plugins.elk.entity.elk_space import ElkSpace
+
 from beehive_resource.plugins.provider.views import (
     ResourceApiView,
     CreateProviderResourceRequestSchema,
     UpdateProviderResourceRequestSchema,
 )
+
 from beehive_resource.view import (
     ListResourcesRequestSchema,
     ResourceResponseSchema,
     ResourceSmallResponseSchema,
 )
+
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
 from beehive_resource.plugins.elk.views import ElkAPI, ElkApiView
@@ -41,15 +45,22 @@ class ListElkSpacesParamsResponseSchema(ResourceResponseSchema):
 
 
 class ListElkSpacesResponseSchema(PaginatedResponseSchema):
-    spaces = fields.Nested(ListElkSpacesParamsResponseSchema, many=True, required=True, allow_none=True)
+    spaces = fields.Nested(
+        ListElkSpacesParamsResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListElkSpaces(ElkSpaceView):
     summary = "List spaces"
     description = "List spaces"
+
     definitions = {
         "ListElkSpacesResponseSchema": ListElkSpacesResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(ListElkSpacesRequestSchema)
     parameters_schema = ListElkSpacesRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListElkSpacesResponseSchema}})
@@ -60,19 +71,30 @@ class ListElkSpaces(ElkSpaceView):
 
 
 class GetElkSpaceParamsResponseSchema(ResourceResponseSchema):
-    spaces = fields.Nested(ResourceSmallResponseSchema, required=True, many=True, allow_none=True)
+    spaces = fields.Nested(
+        ResourceSmallResponseSchema,
+        required=True,
+        many=True,
+        allow_none=True,
+    )
 
 
 class GetElkSpaceResponseSchema(Schema):
-    space = fields.Nested(GetElkSpaceParamsResponseSchema, required=True, allow_none=True)
+    space = fields.Nested(
+        GetElkSpaceParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetElkSpace(ElkSpaceView):
     summary = "Get space"
     description = "Get space"
+
     definitions = {
         "GetElkSpaceResponseSchema": GetElkSpaceResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetElkSpaceResponseSchema}})
 
@@ -82,32 +104,79 @@ class GetElkSpace(ElkSpaceView):
 
 
 class CreateElkSpaceParamRequestSchema(CreateProviderResourceRequestSchema):
-    container = fields.String(required=True, example="12", description="Container id, uuid or name")
-    space_id = fields.String(required=True, example="test-space", default="", description="Space id")
-    name = fields.String(required=True, example="Test space", default="", description="Space name")
-    desc = fields.String(example="This is the test space", default="", description="Space description")
-    color = fields.String(example="Color test", default="", description="Space color")
-    initials = fields.String(example="Initials test", default="", description="Space initials")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'Container id, uuid or name',
+        },
+    )
+
+    space_id = fields.String(
+        required=True,
+        metadata={
+            "example": 'test-space',
+            "description": 'Space id',
+        },
+    )
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'Test space',
+            "description": 'Space name',
+        },
+    )
+
+    desc = fields.String(
+        metadata={
+            "example": 'This is the test space',
+            "description": 'Space description',
+        },
+    )
+
+    color = fields.String(
+        metadata={
+            "example": 'Color test',
+            "description": 'Space color',
+        },
+    )
+
+    initials = fields.String(
+        metadata={
+            "example": 'Initials test',
+            "description": 'Space initials',
+        },
+    )
 
 
 class CreateElkSpaceRequestSchema(Schema):
-    space = fields.Nested(CreateElkSpaceParamRequestSchema)
+    space = fields.Nested(
+        CreateElkSpaceParamRequestSchema,
+    )
 
 
 class CreateElkSpaceBodyRequestSchema(Schema):
-    body = fields.Nested(CreateElkSpaceRequestSchema, context="body")
+    body = fields.Nested(
+        CreateElkSpaceRequestSchema,
+        context="body",
+    )
 
 
 class CreateElkSpace(ElkSpaceView):
     summary = "Create space"
     description = "Create space"
+
     definitions = {
         "CreateElkSpaceRequestSchema": CreateElkSpaceRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateElkSpaceBodyRequestSchema)
     parameters_schema = CreateElkSpaceRequestSchema
-    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
+    responses = SwaggerApiView.setResponses({
+        202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}
+    })
 
     def post(self, controller, data, *args, **kwargs):
         """Add new space to Elk"""
@@ -115,8 +184,20 @@ class CreateElkSpace(ElkSpaceView):
 
 
 class UpdateElkSpaceTemplateRequestSchema(Schema):
-    name = fields.String(required=True, example="Test space", default="", description="Space name")
-    desc = fields.String(example="This is the test space", default="", description="Space description")
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'Test space',
+            "description": 'Space name',
+        },
+    )
+
+    desc = fields.String(
+        metadata={
+            "example": 'This is the test space',
+            "description": 'Space description',
+        },
+    )
 
 
 class UpdateElkSpaceParamRequestSchema(UpdateProviderResourceRequestSchema):
@@ -124,29 +205,40 @@ class UpdateElkSpaceParamRequestSchema(UpdateProviderResourceRequestSchema):
         UpdateElkSpaceTemplateRequestSchema,
         required=False,
         many=True,
-        description="list of orchestrator spaces to link",
         allow_none=True,
+        metadata={
+            "description": 'list of orchestrator spaces to link',
+        },
     )
 
 
 class UpdateElkSpaceRequestSchema(Schema):
-    space = fields.Nested(UpdateElkSpaceParamRequestSchema)
+    space = fields.Nested(
+        UpdateElkSpaceParamRequestSchema,
+    )
 
 
 class UpdateElkSpaceBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateElkSpaceRequestSchema, context="body")
+    body = fields.Nested(
+        UpdateElkSpaceRequestSchema,
+        context="body",
+    )
 
 
 class UpdateElkSpace(ElkSpaceView):
     summary = "Update space"
     description = "Update space"
+
     definitions = {
         "UpdateElkSpaceRequestSchema": UpdateElkSpaceRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateElkSpaceBodyRequestSchema)
     parameters_schema = UpdateElkSpaceRequestSchema
-    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
+    responses = SwaggerApiView.setResponses({
+        202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}
+    })
 
     def put(self, controller, data, oid, *args, **kwargs):
         """Update Elk space"""

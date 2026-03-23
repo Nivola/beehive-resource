@@ -1,28 +1,46 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
-import logging
-import datetime
+from __future__ import annotations
 from datetime import datetime
+import logging
+from typing import TYPE_CHECKING, List, Type, Tuple
 from uuid import uuid4
-
-from sqlalchemy import Column, Integer, String, Boolean, Text, Table, ForeignKey, DateTime, create_engine, exc
-from sqlalchemy.orm import relationship, backref
+import ujson as json
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Boolean,
+    Text,
+    Table,
+    ForeignKey,
+    DateTime,
+    create_engine,
+    exc as sqlalchemy_exc,
+)
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship, backref
 from sqlalchemy.sql import text
-from sqlalchemy.sql.expression import desc
-
+from sqlalchemy.sql.expression import desc as sqlalchemy_desc
+from beecell.db import ModelError
 from beecell.simple import (
     truncate,
     get_timestamp_from_date,
     get_date_from_timestamp,
     format_date,
+    jsonDumps
 )
-from beecell.db import ModelError
-from beecell.simple import jsonDumps
 from beehive.common.data import query, transaction, cache_query
 from beehive.common.model import Base, AbstractDbManager, BaseEntity
+if TYPE_CHECKING:
+    from sqlalchemy.engine import RowProxy # RowProxy is the legacy version of Row.
+    from beehive.common.model import ENTITY
+    from beehive_resource.typing_extras.common.sqlalchemy_row_queries import (
+        ResourceDbManager_DirectedLinkedResourcesInternal_Return,
+        ResourceDbManager_LinkedResourcesInternal_Return
+    )
 
 Base = declarative_base()
 
@@ -80,6 +98,13 @@ class ResourceTagCount(declarative_base()):
     count = Column(Integer)
 
 
+class TagResourcesCount(declarative_base()):
+    __tablename__ = "tags_resources"
+
+    tag_id = Column(Integer, primary_key=True)
+    count = Column(Integer)
+
+
 class ResourceTagOccurrences(declarative_base()):
     __tablename__ = "resource_tag"
 
@@ -131,14 +156,14 @@ class ContainerType(Base):
         self.objclass = objclass
 
     def __repr__(self):
-        return "<ResourceType id=%s, category=%s, value=%s>" % (
-            self.id,
-            self.category,
-            self.value,
+        return (
+            f"<ResourceType id={self.id}, "
+            f"category={self.category}, "
+            f"value={self.value}>"
         )
 
 
-class ContainerState(object):
+class ContainerState():
     PENDING = 0
     BUILDING = 1
     ACTIVE = 2
@@ -197,14 +222,9 @@ class Container(Base, BaseEntity):
         self.state = ContainerState.PENDING
 
     def __repr__(self):
-        return "<%s id=%s, uuid=%s, obid=%s, name=%s, type=%s, category=%s>" % (
-            self.__class__.__name__,
-            self.id,
-            self.uuid,
-            self.objid,
-            self.name,
-            self.type.category,
-            self.type.value,
+        return (
+            f"<{self.__class__.__name__} id={self.id}, uuid={self.uuid}, obid={self.objid}, "
+            f"name={self.name}, type={self.type.category}, category={self.type.value}>"
         )
 
 
@@ -225,10 +245,10 @@ class ResourceType(Base):
         self.objclass = objclass
 
     def __repr__(self):
-        return "<ResourceType id=%s, value=%s>" % (self.id, self.value)
+        return f"<ResourceType id={self.id}, value={self.value}>"
 
 
-class ResourceState(object):
+class ResourceState():
     PENDING = 0
     BUILDING = 1
     ACTIVE = 2
@@ -312,14 +332,9 @@ class Resource(Base, BaseEntity):
         self.last_error = ""
 
     def __repr__(self):
-        return "<%s id=%s, uuid=%s, obid=%s, name=%s, type=%s, container=%s>" % (
-            self.__class__.__name__,
-            self.id,
-            self.uuid,
-            self.objid,
-            self.name,
-            self.type.value,
-            self.container_id,
+        return (
+            f"<{self.__class__.__name__} id={self.id}, uuid={self.uuid}, obid={self.objid}, "
+            f"name={self.name}, type={self.type.value}, container={self.container_id}>"
         )
 
     @staticmethod
@@ -448,18 +463,16 @@ class ResourceJob(Base, BaseEntity):
     creation_date = Column(DateTime())
     resource_id = Column(Integer())
     container_id = Column(Integer())
-    # resource_id = Column(Integer(), ForeignKey('resource.id'))
-    # resource = relationship('Resource')
-    # container_id = Column(Integer(), ForeignKey('container.id'))
-    # container = relationship('Container')
 
-    def __init__(self, job, name, resource_id=None, container_id=None, params={}):
+    def __init__(self, job, name, resource_id=None, container_id=None, params=None):
         """
         :param job: resource job id.
         :param name: resource job name.
         :param resource_id: id of the resource associated.
         :param params: resource job params.
         """
+        params = params or {}
+
         self.job = job
         self.name = name
         self.resource_id = resource_id
@@ -468,7 +481,7 @@ class ResourceJob(Base, BaseEntity):
         self.creation_date = datetime.today()
 
     def __repr__(self):
-        return "<ResourceJob id=%s, job=%s, name=%s>" % (self.id, self.job, self.name)
+        return f"<ResourceJob id={self.id}, job={self.job}, name={self.name}>"
 
 
 class ResourceLink(Base, BaseEntity):
@@ -495,15 +508,10 @@ class ResourceLink(Base, BaseEntity):
         self.attributes = attributes
 
     def __repr__(self):
-        return "<%s id=%s, uuid=%s, obid=%s, name=%s, type=%s, start=%s, end=%s>" % (
-            self.__class__.__name__,
-            self.id,
-            self.uuid,
-            self.objid,
-            self.name,
-            self.type,
-            self.start_resource_id,
-            self.end_resource_id,
+        return (
+            f"<{self.__class__.__name__} id={self.id}, uuid={self.uuid}, obid={self.objid}, "
+            f"name={self.name}, type={self.type}, start={self.start_resource_id}, "
+            f"end={self.end_resource_id}>"
         )
 
     @staticmethod
@@ -541,32 +549,49 @@ class ResourceLink(Base, BaseEntity):
 
 class ResourceDbManager(AbstractDbManager):
     """ """
+    _zabbix_type_id = None
 
-    from typing import List, Type, Tuple, Any, Union, Dict, TypeVar
+    @classmethod
+    def _get_cached_zabbix_type_id(cls, session):
+        """
+        Helper: retrieves Zabbix Type ID using the provided session.
+        Caches the result in the class variable.
+        """
+        if cls._zabbix_type_id is None:
+            # Execute query using the passed session.
+            sql = text("SELECT id FROM resource_type WHERE value = :v LIMIT 1")
+            cls._zabbix_type_id = session.execute(sql, {"v": "Zabbix.Host"}).scalar()
 
-    ENTITY = TypeVar("ENTITY")
+        return cls._zabbix_type_id
 
     @query
     def get_paginated_entities(
         self,
-        entityclass: Type[ENTITY],
-        tags: List[str] = [],
-        page=0,
-        size=10,
+        entityclass: Type["ENTITY"],
+        tags: List[str] | None = None,
+        page: int = 0,
+        size: int = 10,
         order: str = "DESC",
         field: str = "t3.id",
-        filters: List[str] = [],
-        tables: List[Tuple[str, str]] = [],
-        joins: List[Tuple[str, str, str, bool, bool]] = [],
-        select_fields: List[str] = [],
-        custom_select: str = None,
+        filters: List[str] | None = None,
+        tables: List[Tuple[str, str]] | None = None,
+        joins: List[Tuple[str, str, str, bool, bool]] | None = None,
+        select_fields: List[str] | None = None,
+        custom_select: str | None = None,
         with_perm_tag: bool = True,
         *args,
         **kvargs,
-    ) -> List[ENTITY]:
+    ) -> Tuple[List["ENTITY"], int]:
         """Method override to simplify queries.
         Perm_tags are no longer written in register_object
         """
+        # Initialize mutable default arguments to avoid shared references
+        tags = tags or []
+        filters = filters or []
+        tables = tables or []
+        joins = joins or []
+        select_fields = select_fields or []
+
         # set with_perm_tag
         # with_perm_tag = False
         kvargs["with_perm_tag"] = False
@@ -597,10 +622,10 @@ class ResourceDbManager(AbstractDbManager):
             engine = create_engine(db_uri)
             engine.execute("SET FOREIGN_KEY_CHECKS=1;")
             Base.metadata.create_all(engine)
-            logger.info("Create tables on : %s" % db_uri)
+            logger.info("Create tables on : %s", db_uri)
             del engine
-        except exc.DBAPIError as e:
-            raise Exception(e)
+        except sqlalchemy_exc.DBAPIError as exc:
+            raise Exception(exc) from exc
 
     @staticmethod
     def remove_table(db_uri):
@@ -611,10 +636,10 @@ class ResourceDbManager(AbstractDbManager):
             engine = create_engine(db_uri)
             engine.execute("SET FOREIGN_KEY_CHECKS=0;")
             Base.metadata.drop_all(engine)
-            logger.info("Remove tables from : %s" % db_uri)
+            logger.info("Remove tables from : %s", db_uri)
             del engine
-        except exc.DBAPIError as e:
-            raise Exception(e)
+        except sqlalchemy_exc.DBAPIError as exc:
+            raise Exception(exc) from exc
 
     def order_query_resourcetags(self, kvargs):
         """Order resource tags by name
@@ -628,6 +653,26 @@ class ResourceDbManager(AbstractDbManager):
         kvargs["resourcetag_list"] = tags
         kvargs["resourcetags"] = ",".join(tags)
         return kvargs
+
+    def is_monitoring_enabled(self, filter_name):
+        """
+        Checks if monitoring resource exists.
+        Delegates ID retrieval to helper method.
+        """
+        session = self.get_session()
+
+        # Get ID using helper (pass current session)
+        zabbix_id = self._get_cached_zabbix_type_id(session)
+
+        # Return 0 if: name is too short OR zabbix Type is missing in DB configuration
+        if (not filter_name or len(filter_name) < 2) or zabbix_id is None:
+            return 0
+
+        operator = "LIKE" if "%" in filter_name else "="
+        sql = "SELECT 1 FROM resource WHERE type_id = :tid AND name " + operator + " :name LIMIT 1"
+        params = {"tid": zabbix_id, "name": filter_name}
+        res = session.execute(text(sql), params).scalar()
+        return 1 if res else 0
 
     #
     # tags
@@ -657,8 +702,11 @@ class ResourceDbManager(AbstractDbManager):
 
         tags, total = self.get_paginated_entities(ResourceTag, filters=filters, *args, **kvargs)
         resources = self.get_tags_resource_occurrences(*args, **kvargs)
-        containers = self.get_tags_container_occurrences(*args, **kvargs)
-        links = self.get_tags_link_occurrences(*args, **kvargs)
+        containers = {}
+        links = {}
+        # TODO if they were needed, they should be corrected
+        # containers = self.get_tags_container_occurrences(*args, **kvargs)
+        # links = self.get_tags_link_occurrences(*args, **kvargs)
 
         res = []
         for tag in tags:
@@ -684,20 +732,19 @@ class ResourceDbManager(AbstractDbManager):
         :return: list of tags with occurrences
         :raises QueryError: raise :class:`QueryError`
         """
-        tables = [("tags_resources", "t4")]
-        select_fields = ["count(t4.resource_id) as count"]
-        filters = ["AND t4.tag_id=t3.id"]
-        if "value" in kvargs and kvargs.get("value") is not None:
-            filters.append("AND name like :value")
-        res, total = self.get_paginated_entities(
-            ResourceTagCount,
+        tables = []
+        select_fields = ["count(t3.tag_id) as count"]
+        filters = ["GROUP BY tag_id"]
+
+        res, __ = self.get_paginated_entities(
+            TagResourcesCount,
             tables=tables,
             select_fields=select_fields,
             filters=filters,
-            *args,
-            **kvargs,
+            page=0,
+            size=-1,
         )
-        return {i.id: i.count for i in res}
+        return {i.tag_id: i.count for i in res}
 
     def get_tags_container_occurrences(self, *args, **kvargs):
         """Get tags occurrences for containers.
@@ -715,7 +762,7 @@ class ResourceDbManager(AbstractDbManager):
         filters = ["AND t4.tag_id=t3.id"]
         if "value" in kvargs and kvargs.get("value") is not None:
             filters.append("AND name like :value")
-        res, total = self.get_paginated_entities(
+        res, __ = self.get_paginated_entities(
             ResourceTagCount,
             tables=tables,
             select_fields=select_fields,
@@ -741,7 +788,7 @@ class ResourceDbManager(AbstractDbManager):
         filters = ["AND t4.tag_id=t3.id"]
         if "value" in kvargs and kvargs.get("value") is not None:
             filters.append("AND name like :value")
-        res, total = self.get_paginated_entities(
+        res, __ = self.get_paginated_entities(
             ResourceTagCount,
             tables=tables,
             select_fields=select_fields,
@@ -810,7 +857,7 @@ class ResourceDbManager(AbstractDbManager):
             self.logger.error("No container types found")
             raise ModelError("No container types found", code=404)
 
-        self.logger.debug2("Get container types: %s" % truncate(res))
+        self.logger.debug2("Get container types: %s", truncate(res))
         return res
 
     @transaction
@@ -828,7 +875,7 @@ class ResourceDbManager(AbstractDbManager):
         record = ContainerType(category, value, objclass)
         session.add(record)
         session.flush()
-        self.logger.debug2("Add container type: %s" % record)
+        self.logger.debug2("Add container type: %s", record)
         return record
 
     @transaction
@@ -843,7 +890,7 @@ class ResourceDbManager(AbstractDbManager):
         """
         session = self.get_session()
         if oid is not None:
-            res = session.query(ContainerType).filter_by(id=oid).firt()
+            res = session.query(ContainerType).filter_by(id=oid).first()
         elif value is not None:
             res = session.query(ContainerType).filter(ContainerType.value.like("%" + value + "%")).first()
         else:
@@ -855,7 +902,7 @@ class ResourceDbManager(AbstractDbManager):
         else:
             self.logger.error("No container types found")
             raise ModelError("No container type found", code=404)
-        self.logger.debug2("Remove container type: %s" % res)
+        self.logger.debug2("Remove container type: %s", res)
         return True
 
     #
@@ -989,51 +1036,9 @@ class ResourceDbManager(AbstractDbManager):
         params = {}
 
         smtp = text(" ".join(sql))
-        query = session.query(Container).from_statement(smtp).params(**params)
-
-        query = query.all()
-        res = {}
-        for item in query:
-            res[item.id] = item
-
-        self.logger.debug2("Get containers index: %s" % (truncate(res)))
-        return res
-
-    @query
-    def get_containers_by_type(self, type=None, types=None):
-        """Get containers by type.
-
-        :param types: resource type list. [OPTIONAL]
-                Ex. ['vsphere.dc.folder','vsphere.dc.folder.server']
-        :param type: resource type complete or partial value. [OPTIONAL]
-                Ex. 'vsphere.dc.folder'
-                Ex. '%folder'
-        :return: dictionary of Container instances
-        :rtype: dict
-        :raises QueryError: raise :class:`QueryError`
-        """
-        session = self.get_session()
-        sql = [
-            "SELECT t1.*",
-            "FROM container t1, container_type t2",
-            "WHERE t1.type_id=t2.id",
-        ]
-
-        params = {}
-
-        if type is not None:
-            sql.append("AND t2.value like :type")
-            params["type"] = type
-        elif types is not None:
-            sql.append("AND t2.value in :types")
-            params["types"] = types
-
-        smtp = text(" ".join(sql))
-        query = session.query(Container).from_statement(smtp).params(**params)
-
-        res = query.all()
-
-        self.logger.debug2("Get Container by type: %s" % (truncate(res)))
+        l_query = session.query(Container).from_statement(smtp).params(**params)
+        res = {item.id: item for item in l_query.all()}
+        self.logger.debug2("Get containers index: %s", res)
         return res
 
     @transaction
@@ -1046,11 +1051,10 @@ class ResourceDbManager(AbstractDbManager):
         :rtype: bool
         :raises TransactionError: raise :class:`TransactionError`
         """
-        session = self.get_session()
         tags = container.tag
         if tag not in tags:
             tags.append(tag)
-        self.logger.debug2("Add tag %s to container: %s" % (tag, container))
+        self.logger.debug2("Add tag %s to container: %s", tag, container)
         return True
 
     @transaction
@@ -1063,11 +1067,10 @@ class ResourceDbManager(AbstractDbManager):
         :rtype: bool
         :raises TransactionError: raise :class:`TransactionError`
         """
-        session = self.get_session()
         tags = container.tag
         if tag in tags:
             tags.remove(tag)
-        self.logger.debug2("Remove tag %s from container: %s" % (tag, container))
+        self.logger.debug2("Remove tag %s from container: %s", tag, container)
         return True
 
     def update_container(self, *args, **kvargs):
@@ -1136,21 +1139,21 @@ class ResourceDbManager(AbstractDbManager):
         :raises QueryError: raise :class:`QueryError`
         """
         session = self.get_session()
-        query = session.query(ResourceType)
+        l_query = session.query(ResourceType)
         if oid is not None:
-            query = query.filter_by(id=oid)
+            l_query = l_query.filter_by(id=oid)
         elif value is not None:
-            query = query.filter_by(value=value)
+            l_query = l_query.filter_by(value=value)
         elif filter is not None:
-            query = query.filter(ResourceType.value.like(filter))
+            l_query = l_query.filter(ResourceType.value.like(filter))
 
-        res = query.all()
+        res = l_query.all()
 
         if len(res) == 0:
             self.logger.error("No resource types found")
             raise ModelError("No resource types found", code=404)
 
-        self.logger.debug2("Get resource types: %s" % truncate(res))
+        self.logger.debug2("Get resource types: %s", res)
         return res
 
     @transaction
@@ -1167,7 +1170,7 @@ class ResourceDbManager(AbstractDbManager):
         record = ResourceType(value, objclass)
         session.add(record)
         session.flush()
-        self.logger.debug2("Add resource type: %s" % record)
+        self.logger.debug2("Add resource type: %s", record)
         return record
 
     @transaction
@@ -1195,7 +1198,7 @@ class ResourceDbManager(AbstractDbManager):
         else:
             self.logger.error("No resource types found")
             raise ModelError("No resource type found", code=404)
-        self.logger.debug2("Remove resource type: %s" % res_type)
+        self.logger.debug2("Remove resource type: %s", res_type)
         return True
 
     #
@@ -1221,11 +1224,11 @@ class ResourceDbManager(AbstractDbManager):
             res = res.filter(Resource.parent_id == parent_id)
         res = res.count()
 
-        self.logger.debug2("Get resources count: %s" % res)
+        self.logger.debug2("Get resources count: %s", res)
         return res
 
     @query
-    def get_resource_by_extid(self, ext_id, container=None):
+    def get_resource_by_extid(self, ext_id, container=None) -> 'Resource':
         """Get single resource by id in remote platform.
 
         :param ext_id: entity remote platform id
@@ -1234,19 +1237,21 @@ class ResourceDbManager(AbstractDbManager):
         :raises QueryError: raise :class:`QueryError`
         """
         session = self.get_session()
-        res = session.query(Resource).filter(Resource.ext_id == ext_id)
+        res = session.query(Resource)
         if container is not None:
             res = res.filter(Resource.container_id == container)
 
+        res = res.filter(Resource.ext_id == ext_id)
+
         try:
             res = res.one()
-        except:
-            raise ModelError("No resource found for ext_id %s in container %s" % (ext_id, container))
+        except Exception as exc:
+            raise ModelError(f"No resource found for ext_id {ext_id} in container {container}") from exc
 
-        self.logger.debug2("Get resource by ext_id %s: %s" % (ext_id, truncate(res)))
+        self.logger.debug2("Get resource by ext_id %s: %s", ext_id, truncate(res))
         return res
 
-    def get_resources(self, *args, **kvargs):
+    def get_resources(self, *args, **kvargs) -> Tuple[List['Resource'],int]:
         """Get resources.
 
         :param with_perm_tag: if False disable control of permission tags [default=True]
@@ -1275,7 +1280,7 @@ class ResourceDbManager(AbstractDbManager):
         :rtype: list of :class:`Resource`
         :raises QueryError: raise :class:`QueryError`
         """
-        self.logger.debug2("Get resources params: %s" % truncate(kvargs))
+        self.logger.debug2("Get resources params: %s", truncate(kvargs))
         filters = []
         kvargs.update(filter_expiry_date=datetime.today())
         custom_select = None
@@ -1302,11 +1307,11 @@ class ResourceDbManager(AbstractDbManager):
             attribute = kvargs.pop("json_attribute_contain", None)
             if attribute is not None and isinstance(attribute, dict):
                 filters.append(
-                    "AND JSON_CONTAINS(`attribute`, '%s', '$.%s')=1" % (attribute.get("value"), attribute.get("field"))
+                    f"AND JSON_CONTAINS(`attribute`, '{attribute.get('value')}', '$.{attribute.get('field')}')=1"
                 )
             elif attribute is not None and isinstance(attribute, list):
                 for a in attribute:
-                    filters.append("AND JSON_CONTAINS(`attribute`, '%s', '$.%s')=1" % (a.get("value"), a.get("field")))
+                    filters.append(f"AND JSON_CONTAINS(`attribute`, '{a.get('value')}', '$.{a.get('field')}')=1")
 
         attributes = kvargs.get("attribute", None)
         if attributes is not None and len(attributes) > 0:
@@ -1317,9 +1322,9 @@ class ResourceDbManager(AbstractDbManager):
                 filters.append("attribute like :attribute_0")
                 if len_attributes > 1:
                     for index in range(1, len_attributes):
-                        key = "attribute_%s" % index
+                        key = f"attribute_{index}"
                         kvargs[key] = attributes[index]
-                        filters.append("OR attribute like :attribute_%s" % index)
+                        filters.append(f"OR attribute like :attribute_{index}")
                         index += 1
                 filters.append(")")
             else:
@@ -1357,7 +1362,7 @@ class ResourceDbManager(AbstractDbManager):
         return res, total
 
     @query
-    def get_resources_by_type(self, type=None, types=None, container=None):
+    def get_resources_by_type(self, type=None, types=None, container=None) -> List['Resource']:
         """Get resources by type.
 
         :param int container: container id. [OPTIONAL]
@@ -1385,11 +1390,9 @@ class ResourceDbManager(AbstractDbManager):
             params["types"] = types
 
         smtp = text(" ".join(sql))
-        query = session.query(Resource).from_statement(smtp).params(**params)
-
-        res = query.all()
-
-        self.logger.debug2("Get resources by type: %s" % (truncate(res)))
+        l_query = session.query(Resource).from_statement(smtp).params(**params)
+        res = l_query.all()
+        self.logger.debug2("Get resources by type: %s", res)
         return res
 
     def get_resource_links_internal(self, resource):
@@ -1406,7 +1409,7 @@ class ResourceDbManager(AbstractDbManager):
             .filter((ResourceLink.start_resource_id == resource) | (ResourceLink.end_resource_id == resource))
             .all()
         )
-        self.logger.debug2("Get resource %s links: %s" % (resource, truncate(res)))
+        self.logger.debug2("Get resource %s links: %s", resource, res)
         return res
 
     def get_link_among_resources_internal(self, start, end):
@@ -1423,7 +1426,7 @@ class ResourceDbManager(AbstractDbManager):
             .filter((ResourceLink.start_resource_id == start) & (ResourceLink.end_resource_id == end))
             .one()
         )
-        self.logger.debug2("Get link among resource %s and %s: %s" % (start, end, truncate(res)))
+        self.logger.debug2("Get link among resource %s and %s: %s", start, end, truncate(res))
         return res
 
     def get_linked_resources(
@@ -1435,7 +1438,7 @@ class ResourceDbManager(AbstractDbManager):
         types=None,
         *args,
         **kvargs,
-    ):
+    ) -> Tuple[List['Resource'],int]:
         """Get linked resources.
 
         :param resource: resource id
@@ -1452,9 +1455,10 @@ class ResourceDbManager(AbstractDbManager):
         """
         tables = [("resource_link", "t4")]
         filters = [
-            "AND (t4.start_resource_id=:resource OR t4.end_resource_id=:resource)",
-            "AND (t4.start_resource_id=t3.id OR t4.end_resource_id=t3.id)",
-            "AND t3.id!=:resource",
+            "AND ( ",
+            "  (t4.start_resource_id = :resource AND t4.end_resource_id = t3.id) ",
+            "  OR (t4.end_resource_id = :resource AND t4.start_resource_id = t3.id) ",
+            ")"
         ]
         if link_type is not None:
             filters.append("AND t4.type=:link_type")
@@ -1477,11 +1481,18 @@ class ResourceDbManager(AbstractDbManager):
             *args,
             **kvargs,
         )
-        self.logger.debug2("Get linked resources: %s" % truncate(res))
+        self.logger.debug2("Get linked resources: %s", truncate(res))
         return res, total
 
     @cache_query("list")
-    def get_linked_resources_with_cache(self, entity_class, resource, link_type=None, *args, **kvargs):
+    def get_linked_resources_with_cache(
+        self,
+        entity_class,
+        resource,
+        link_type=None,
+        *args,
+        **kvargs
+    ) -> List['ResourceWithLink']:
         """Get linked resources using also cache info. Permissions are not verified. Use this method for internal
         usage
 
@@ -1493,7 +1504,7 @@ class ResourceDbManager(AbstractDbManager):
         filters = ["AND (end_resource_id=:resource or start_resource_id=:resource)"]
         kvargs["filters"] = filters
         kvargs["resource"] = resource
-        links, tot = self.get_paginated_entities(ResourceLink, size=-1, with_perm_tag=False, *args, **kvargs)
+        links, __ = self.get_paginated_entities(ResourceLink, size=-1, with_perm_tag=False, *args, **kvargs)
 
         res = []
         for link in links:
@@ -1504,14 +1515,17 @@ class ResourceDbManager(AbstractDbManager):
                 resource_id = link.start_resource_id
             elif link.end_resource_id != resource:
                 resource_id = link.end_resource_id
-
+            else:
+                self.logger.error("detected cycle. start_resource_id=end_resource_id=%s", resource)
+                # avoid graph cycles i.e. start=end
+                continue
             entity = self.get_entity(Resource, resource_id)
             entity.link_attr = link.attributes
             entity.link_type = link.type
             entity.link_creation = format_date(link.creation_date)
             res.append(entity)
 
-        self.logger.debug2("get resource %s linked resources: %s" % (resource, truncate(res)))
+        self.logger.debug2("get resource %s linked resources: %s", resource, truncate(res))
         return res
 
     def get_directed_linked_resources(
@@ -1523,7 +1537,7 @@ class ResourceDbManager(AbstractDbManager):
         types=None,
         *args,
         **kvargs,
-    ):
+    ) -> Tuple[List['Resource'], int]:
         """Get resources direct linked to a list of resources.
 
         :param resources: resource ids list
@@ -1565,11 +1579,13 @@ class ResourceDbManager(AbstractDbManager):
             *args,
             **kvargs,
         )
-        self.logger.debug2("Get direct linked resources: %s" % truncate(res))
+        self.logger.debug2("Get direct linked resources: %s", truncate(res))
         return res, total
 
     @query
-    def get_linked_resources_internal(self, resource, link_type=None, container_id=None, objdef=None):
+    def get_linked_resources_internal(
+        self, resource, link_type=None, container_id=None, objdef=None
+    ) -> List['ResourceDbManager_LinkedResourcesInternal_Return']: #-> List['RowProxy']:
         """Get linked resources. Use this method for internal query without authorization.
 
         :param resource: resource id
@@ -1627,17 +1643,17 @@ class ResourceDbManager(AbstractDbManager):
                 "link_attr",
             ]
         )
-        query = session.query(*fields).from_statement(smtp).params(**params)
+        l_query = session.query(*fields).from_statement(smtp).params(**params)
 
-        res = query.all()
+        res = l_query.all()
 
-        self.logger.debug2("Get linked resources: %s" % (truncate(res)))
+        self.logger.debug2("Get linked resources: %s", truncate(res))
         return res
 
     @query
     def get_directed_linked_resources_internal(
-        self, resources, link_type=None, container_id=None, objdef=None, objdefs=None
-    ):
+        self, resources: List[int], link_type=None, container_id=None, objdef=None, objdefs=None
+    ) -> List[ResourceDbManager_DirectedLinkedResourcesInternal_Return]: #-> List['RowProxy']:
         """Get direct linked resources. Use this method for internal query without authorization.
 
         :param resources: start resource id list
@@ -1650,7 +1666,7 @@ class ResourceDbManager(AbstractDbManager):
         """
         session = self.get_session()
         sql = [
-            "SELECT t2.start_resource_id as resource," "t1.id, t1.uuid, t1.objid, t1.name, t1.ext_id,",
+            "SELECT t2.start_resource_id as resource, t1.id, t1.uuid, t1.objid, t1.name, t1.ext_id,",
             "t1.desc, t1.active, t1.parent_id, t1.container_id,",
             "t1.attribute, t1.state, t3.objclass, t3.value as objdef,",
             "t1.creation_date, t1.modification_date, t1.expiry_date,",
@@ -1702,13 +1718,15 @@ class ResourceDbManager(AbstractDbManager):
                 "link_creation",
             ]
         )
-        query = session.query(*fields).from_statement(smtp).params(**params)
-        res = query.all()
-        self.logger.debug2("Get direct linked resources: %s" % truncate(res))
+        l_query = session.query(*fields).from_statement(smtp).params(**params)
+        res = l_query.all()
+        self.logger.debug2("Get direct linked resources: %s", res)
         return res
 
     @query
-    def get_aggregated_resource_from_physical_resource(self, resource_id, parent_id=None):
+    def get_aggregated_resource_from_physical_resource(
+        self, resource_id, parent_id=None
+    ) -> Resource:
         """
         Get aggregated resource from physical resource
 
@@ -1734,7 +1752,7 @@ WHERE rl1.type LIKE 'relation%'
         return session.query(Resource).from_statement(text(sql)).params(**params).first()
 
     @query
-    def get_main_zone_instance(self, oid):
+    def get_main_zone_instance(self, oid) -> Resource:
         """
         Get main availability zone instance
 
@@ -1754,8 +1772,8 @@ WHERE  rl.start_resource_id = :oid
 
     @query
     def get_indirected_linked_resources_internal(
-        self, resources, link_type=None, container_id=None, objdef=None, objdefs=None
-    ):
+        self, resources: List[int], link_type=None, container_id=None, objdef=None, objdefs=None
+    ) -> List['RowProxy']:
         """Get indirect linked resources. Use this method for internal query without authorization.
 
         :param resources: end resource id list
@@ -1768,7 +1786,7 @@ WHERE  rl.start_resource_id = :oid
         """
         session = self.get_session()
         sql = [
-            "SELECT t2.end_resource_id as resource," "t1.id, t1.uuid, t1.objid, t1.name, t1.ext_id,",
+            "SELECT t2.end_resource_id as resource, t1.id, t1.uuid, t1.objid, t1.name, t1.ext_id,",
             "t1.desc, t1.active, t1.parent_id, t1.container_id,",
             "t1.attribute, t1.state, t3.objclass, t3.value as objdef,",
             "t1.creation_date, t1.modification_date, t1.expiry_date,",
@@ -1820,9 +1838,9 @@ WHERE  rl.start_resource_id = :oid
                 "link_creation",
             ]
         )
-        query = session.query(*fields).from_statement(smtp).params(**params)
-        res = query.all()
-        self.logger.debug2("Get indirect linked resources: %s" % truncate(res))
+        l_query = session.query(*fields).from_statement(smtp).params(**params)
+        res = l_query.all()
+        self.logger.debug2("Get indirect linked resources: %s", res)
         return res
 
     def add_resource(
@@ -1898,11 +1916,10 @@ WHERE  rl.start_resource_id = :oid
         :rtype: bool
         :raises TransactionError: raise :class:`TransactionError`
         """
-        session = self.get_session()
         tags = resource.tag
         if tag not in tags:
             resource.tag.append(tag)
-        self.logger.debug2("Add tag %s to resource: %s" % (tag, resource))
+        self.logger.debug2("Add tag %s to resource: %s", tag, resource)
         return True
 
     @transaction
@@ -1915,11 +1932,10 @@ WHERE  rl.start_resource_id = :oid
         :rtype: bool
         :raises TransactionError: raise :class:`TransactionError`
         """
-        session = self.get_session()
         tags = resource.tag
         if tag in tags:
             tags.remove(tag)
-        self.logger.debug2("Remove tag %s from resource: %s" % (tag, resource))
+        self.logger.debug2("Remove tag %s from resource: %s", tag, resource)
         return True
 
     def update_resource(self, *args, **kvargs):
@@ -1937,9 +1953,16 @@ WHERE  rl.start_resource_id = :oid
         :raises TransactionError: raise :class:`TransactionError`
         """
         attribute = kvargs.pop("attribute", None)
-        if isinstance(attribute, dict) or isinstance(attribute, list):
+        if isinstance(attribute, (dict, list)):
             # if attribute is not None and isinstance(attribute, dict):
             kvargs["attribute"] = jsonDumps(attribute)
+        elif isinstance(attribute,str):
+            # check that the string corresponds to a valid json
+            try:
+                json.loads(attribute)
+                kvargs["attribute"] = attribute
+            except ValueError as err:
+                raise Exception("the provided 'attribute' is not a valid json") from err
         res = self.update_entity(Resource, *args, **kvargs)
         return res
 
@@ -1994,7 +2017,7 @@ WHERE  rl.start_resource_id = :oid
         resources=None,
         from_date=None,
         size=10,
-    ):
+    ) -> Tuple[List['ResourceJob'], int]:
         """Get jobs
 
         :param job: job id. [optional]
@@ -2025,12 +2048,12 @@ WHERE  rl.start_resource_id = :oid
             rec = session.query(ResourceJob)
 
         count = rec.count()
-        res = rec.order_by(desc(ResourceJob.creation_date)).limit(size).all()
+        res = rec.order_by(sqlalchemy_desc(ResourceJob.creation_date)).limit(size).all()
 
-        self.logger.debug2("Get resource job: %s" % truncate(res))
+        self.logger.debug2("Get resource job: %s", truncate(res))
         return res, count
 
-    def add_job(self, job, name, resource_id=None, container_id=None, params={}):
+    def add_job(self, job, name, resource_id=None, container_id=None, params=None):
         """Add job.
 
         :param job: resource job id.
@@ -2041,6 +2064,7 @@ WHERE  rl.start_resource_id = :oid
         :return: :class:`ResourceTag`
         :raises TransactionError: raise :class:`TransactionError`
         """
+        params = params or {}
         res = self.add_entity(ResourceJob, job, name, resource_id, container_id, params=params)
         return res
 
@@ -2059,10 +2083,11 @@ WHERE  rl.start_resource_id = :oid
             rec = session.query(ResourceJob).filter_by(resource_id=resource_id).all()
         elif container_id is not None:
             rec = session.query(ResourceJob).filter_by(container_id=container_id).all()
-
+        else:
+            rec = []
         for item in rec:
             session.delete(item)
-        self.logger.debug2("Remove resource %s jobs" % resource_id)
+        self.logger.debug2("Remove resource %s jobs", resource_id)
         return True
 
     #
@@ -2077,12 +2102,12 @@ WHERE  rl.start_resource_id = :oid
         return self.count_entities(ResourceLink)
 
     @query
-    def is_linked(self, start_resource, end_resource):
-        """Verifiy if two resources are linked
+    def is_linked(self, start_resource, end_resource) -> bool:
+        """Verify if two resources are linked
 
         :param start_resource: start resource id
         :param end_resource: end resource id
-        :return: list of :class:`ResourceLink`
+        :return: True if links found, otherwise False
         :raises TransactionError: raise :class:`TransactionError`
         """
         session = self.get_session()
@@ -2097,10 +2122,10 @@ WHERE  rl.start_resource_id = :oid
             resp = False
         else:
             resp = True
-        self.logger.warning("Check resource %s is linked to resource %s: %s" % (start_resource, end_resource, resp))
+        self.logger.warning("Check resource %s is linked to resource %s: %s", start_resource, end_resource, resp)
         return resp
 
-    def get_links(self, *args, **kvargs):
+    def get_links(self, *args, **kvargs) -> Tuple[List['ResourceLink'],int]:
         """Get links.
 
         :param start_resources: start resource ids [optional]
@@ -2149,7 +2174,7 @@ WHERE  rl.start_resource_id = :oid
         )
         return res, total
 
-    def get_links_with_cache(self, resource, link_type, *args, **kvargs):
+    def get_links_with_cache(self, resource, link_type, *args, **kvargs) -> List['ResourceLink']:
         """Get links with cache
 
         :param resource: start or end resource id [optional]
@@ -2170,7 +2195,7 @@ WHERE  rl.start_resource_id = :oid
 
         return res
 
-    def get_links_from_tags(self, *args, **kvargs):
+    def get_links_from_tags(self, *args, **kvargs) -> Tuple[List['ResourceLink'], int]:
         """Get Links with all the of tags specified.
 
         :param resource_tags: list of tags that links must have
@@ -2202,7 +2227,7 @@ WHERE  rl.start_resource_id = :oid
         start_resource=None,
         end_resource=None,
         attributes="",
-    ):
+    ) -> 'ResourceLink':
         """Add link.
 
         :param objid:  link objid
@@ -2250,7 +2275,7 @@ WHERE  rl.start_resource_id = :oid
         res = self.remove_entity(ResourceLink, *args, **kvargs)
         return res
 
-    def get_link_tags(self, link, *args, **kvargs):
+    def get_link_tags(self, link, *args, **kvargs) -> Tuple[List['ResourceTag'],int]:
         """Get link tags.
 
         :param link: link id
@@ -2278,11 +2303,10 @@ WHERE  rl.start_resource_id = :oid
         :rtype: bool
         :raises TransactionError: raise :class:`TransactionError`
         """
-        session = self.get_session()
         tags = link.tag
         if tag not in tags:
             tags.append(tag)
-        self.logger.debug2("Add tag %s to link: %s" % (tag, link))
+        self.logger.debug2("Add tag %s to link: %s", tag, link)
         return True
 
     @transaction
@@ -2295,9 +2319,8 @@ WHERE  rl.start_resource_id = :oid
         :rtype: bool
         :raises TransactionError: raise :class:`TransactionError`
         """
-        session = self.get_session()
         tags = link.tag
         if tag in tags:
             tags.remove(tag)
-        self.logger.debug2("Remove tag %s from link: %s" % (tag, link))
+        self.logger.debug2("Remove tag %s from link: %s", tag, link)
         return True

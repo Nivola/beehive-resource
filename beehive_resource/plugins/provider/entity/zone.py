@@ -1,18 +1,21 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from datetime import datetime
+from os import getenv
+from typing import List, Dict, TYPE_CHECKING
 from beecell.db import QueryError
-from beecell.types.type_string import truncate
+from beecell.types.type_string import str2bool, truncate
 from beecell.types.type_dict import dict_get
-from beecell.types.type_date import format_date
-from beedrones.openstack.project import OpenstackProject
+#from beecell.types.type_date import format_date
+#from beedrones.openstack.project import OpenstackProject
 from beehive.common.apiclient import BeehiveApiClientError
 from beehive.common.apimanager import ApiManagerError
 from beehive.common.data import trace, operation
 from beehive_resource.container import Resource
+from beehive_resource.controller import ResourceController
 from beehive_resource.model import Resource as ModelResource
 from beehive_resource.plugins.provider.entity.aggregate import (
     ComputeProviderResource,
@@ -20,8 +23,10 @@ from beehive_resource.plugins.provider.entity.aggregate import (
 )
 from beehive_resource.plugins.provider.entity.region import Region
 from beehive_resource.plugins.provider.entity.site import OrchestratorError, Site, SiteChildResource
-from typing import List
-
+if TYPE_CHECKING:
+    from beehive_resource.controller import ResourceController
+    from beehive_resource.container import ResourceContainer
+    from beehive_resource.typing_extras.share.helper import StaasConfig
 
 class ComputeZone(ComputeProviderResource):
     """Compute zone"""
@@ -49,6 +54,7 @@ class ComputeZone(ComputeProviderResource):
         # from beehive_resource.plugins.provider.entity.stack import ComputeStack
         from beehive_resource.plugins.provider.entity.stack_v2 import ComputeStackV2
         from beehive_resource.plugins.provider.entity.share import ComputeFileShare
+        from beehive_resource.plugins.provider.entity.share_v2 import ComputeFileShareV2
         from beehive_resource.plugins.provider.entity.flavor import ComputeFlavor
         from beehive_resource.plugins.provider.entity.image import ComputeImage
         from beehive_resource.plugins.provider.entity.instance import ComputeInstance
@@ -95,6 +101,7 @@ class ComputeZone(ComputeProviderResource):
             # ComputeStack,
             ComputeStackV2,
             ComputeFileShare,
+            ComputeFileShareV2,
             ComputeCustomization,
             ComputeGateway,
             ComputeBastion,
@@ -103,6 +110,8 @@ class ComputeZone(ComputeProviderResource):
             ComputeMonitoringThreshold,
             ComputeLoadBalancer,
         ]
+
+        self._staas_conf: Dict = None
 
     def get_availability_zones(self):
         """Get child availability zones"""
@@ -124,6 +133,65 @@ class ComputeZone(ComputeProviderResource):
         if len(zone) > 0:
             return zone[0]
         return None
+
+    @staticmethod
+    def __normalize_staas_conf(raw_staas_conf: Dict) -> 'StaasConfig':
+        """use until all configs are already normalized
+
+        :param raw_staas_conf: _description_
+        :type raw_staas_conf: Dict
+        :raises Exception: _description_
+        :return: _description_
+        :rtype: _type_
+        """
+        try:
+            raw_sites: Dict = raw_staas_conf["sites"]
+            raw_relationships: Dict = raw_staas_conf["relationships"]
+
+            normalized_sites = {}
+            for site_name, site in raw_sites.items():
+                svm_list = list(site["svm"].values())
+                for svm in svm_list:
+                    # protocols as list
+                    if isinstance(svm["protocol"], dict):
+                        svm["protocol"] = list(svm["protocol"].values())
+                normalized_sites[site_name] = {
+                    "compliance_site": site["compliance_site"],
+                    "cluster": site["cluster"],
+                    "svm": svm_list
+                }
+
+            normalized_relationships = []
+            for rel in raw_relationships.values():
+                tmp_peers = list(rel["peers"].values())
+                peers = {}
+                for peer in tmp_peers:
+                    if isinstance(peer, dict):
+                        peers[peer.get("site")] = peer.get("peer_svm")
+                normalized_relationships.append({
+                    "source_site": rel["source_site"],
+                    "source_svm": rel["source_svm"],
+                    "peers": peers
+                })
+        except Exception as ex:
+            raise Exception("Error normalizing staas configuration") from ex
+
+        return {
+            "sites": normalized_sites,
+            "relationships": normalized_relationships
+        }
+
+    @property
+    def staas_conf(self) -> 'StaasConfig':
+        if self._staas_conf is None:
+            tmp = self.get_attribs("staas")
+            if tmp is None:
+                raise ApiManagerError("storage configuration missing")
+            # try to normalize configuration
+            tmp = self.__normalize_staas_conf(tmp)
+            #
+            self._staas_conf = tmp
+        return self._staas_conf
 
     def info(self):
         """Get infos.
@@ -147,7 +215,9 @@ class ComputeZone(ComputeProviderResource):
         :raises ApiManagerError: raise :class:`.ApiManagerError`
         """
         info = Resource.detail(self)
-        info.pop("attributes")
+        attribs = info.pop("attributes")
+        attribs.pop("quota")
+        info["attributes"] = attribs
         zones = self.get_availability_zones()
         info["availability_zones"] = [self.site_idx.get(z.parent_id).name for z in zones]
         # availability_zones = []
@@ -158,8 +228,26 @@ class ComputeZone(ComputeProviderResource):
         # info['availability_zones'] = availability_zones
         return info
 
+    def check_get_storage_conf(self, orchestrator_type="ontap"):
+        """
+        checks and returns compute zone storage configuration
+
+        :returns: a dictionary containing the configuration
+        :raises: Exception if any check fails
+        """
+        if orchestrator_type != "ontap":
+            raise Exception("Storage configuration for %s orchestrators is not supported" % orchestrator_type)
+
+        from beehive_resource.plugins.provider.helper.share import ShareHelperFactory
+
+        helper_class = ShareHelperFactory.get_backend_helper_class(backend_name=orchestrator_type)
+        helper = helper_class(self.controller, self)
+
+        site_names = [zone.get_parent().name for zone in self.get_availability_zones()]
+        return helper.config_parser.check_storage_configuration(self, site_names)
+
     @staticmethod
-    def customize_list(controller, entities, *args, **kvargs):
+    def customize_list(controller: 'ResourceController', entities: List['ComputeZone'], *args, **kvargs):
         """Post list function. Extend this function to execute some operation after entity was created. Used only for
         synchronous creation.
 
@@ -201,7 +289,7 @@ class ComputeZone(ComputeProviderResource):
         self.availability_zones = zones
 
     @staticmethod
-    def pre_create(controller, container, *args, **kvargs):
+    def pre_create(controller: 'ResourceController', container: 'ResourceContainer', *args, **kvargs):
         """Check input params before resource creation. This function is used
         in container resource_factory method.
 
@@ -238,13 +326,27 @@ class ComputeZone(ComputeProviderResource):
         :raise ApiManagerError:
         """
         quota = kvargs.get("quota")
-        params = {"attribute": {"quota": quota, "configs": {}}}
+
+        rules_optimization = False
+        if str2bool(getenv("CMP_RULES_OPTIMIZATION", "")):
+            rules_optimization = True
+        controller.logger.info("rules_optimization: %s" % rules_optimization)
+
+        params = {
+                    "attribute": {
+                        "quota": quota,
+                        "configs": {},
+                        "netaas": {
+                            "rules_optimization": rules_optimization
+                        }
+                    }
+                }
         kvargs.update(params)
 
         return kvargs
 
     @staticmethod
-    def post_create(controller, *args, **kvargs):
+    def post_create(controller: 'ResourceController', *args, **kvargs):
         """Post create function. This function is used in object_factory method.
         Used only for synchronous creation. Extend this function to execute some operation after entity was created.
 
@@ -289,9 +391,9 @@ class ComputeZone(ComputeProviderResource):
                     try:
                         controller.api_client.set_ssh_group_authorization(group_uuid, "master", user=user, group=group)
                     except BeehiveApiClientError as ex:
-                        controller.logger.warn("Could not set ssh group authorization for user/group %s" % user)
+                        controller.logger.warning("Could not set ssh group authorization for user/group %s" % user)
                     except Exception as ex:
-                        controller.logger.warn("Could not set ssh group authorization for user/group %s" % user)
+                        controller.logger.warning("Could not set ssh group authorization for user/group %s" % user)
 
                 controller.logger.debug("Compute zone %s is now managed by ssh group %s" % (uuid, group_uuid))
 
@@ -737,10 +839,11 @@ class ComputeZone(ComputeProviderResource):
         from beehive_resource.plugins.provider.entity.instance import ComputeInstance
         from beehive_resource.plugins.provider.entity.volume import ComputeVolume
         from beehive_resource.plugins.provider.entity.vpc_v2 import Vpc
-        from beehive_resource.plugins.provider.entity.security_group import (
-            SecurityGroup,
-        )
+        #from beehive_resource.plugins.provider.entity.security_group import (
+        #    SecurityGroup,
+        #)
         from beehive_resource.plugins.provider.entity.share import ComputeFileShare
+        from beehive_resource.plugins.provider.entity.share_v2 import ComputeFileShareV2
         from beehive_resource.plugins.provider.entity.logging_space import (
             ComputeLoggingSpace,
         )
@@ -755,18 +858,17 @@ class ComputeZone(ComputeProviderResource):
         # verify permissions
         self.verify_permisssions("use")
 
-        quotas = {}
-        for key in list(self.quotas.classes.keys()):
-            quotas[key] = 0
+        quotas = ComputeQuotas.zero_quotas()
 
         entity_classes = [
             (ComputeInstance, True),
-            (Vpc, False),
+            (Vpc, False), # includes network and security group quotas
             (ComputeImage, False),
             (ComputeVolume, True),
             (ComputeStack, True),
             (ComputeStackV2, False),
             (ComputeFileShare, False),
+            (ComputeFileShareV2, False),
             (ComputeLoggingSpace, False),
             (ComputeMonitoringFolder, False),
             (ComputeMonitoringThreshold, False),
@@ -783,53 +885,12 @@ class ComputeZone(ComputeProviderResource):
             for item in childs:
                 # if resource quotas must not be calculated bypass resource
                 computeProviderResource: ComputeProviderResource = item
-                if computeProviderResource.has_quotas() is False:
+                if not computeProviderResource.has_quotas():
                     continue
                 item_quotas = computeProviderResource.get_quotas()
 
-                if isinstance(item, ComputeInstance):
-                    computeInstance: ComputeInstance = item
-                    if computeInstance.is_monitoring_enabled():
-                        quotas["monitoring.instances"] += 1
-
-                    if computeInstance.is_logging_enabled():
-                        # self.logger.debug('logging.instance enabled: %s' % computeInstance.oid)
-                        quotas["logging.instances"] += 1
-
-                    quotas["compute.volumes"] += item_quotas.get("compute.volumes")
-                    quotas["compute.blocks"] += item_quotas.get("compute.blocks")
-                    quotas["compute.instances"] += item_quotas.get("compute.instances")
-                    quotas["compute.cores"] += item_quotas.get("compute.cores")
-                    quotas["compute.ram"] += item_quotas.get("compute.ram")
-
-                elif isinstance(item, Vpc):
-                    quotas["compute.networks"] += 1
-
-                    # append child security_group
-                    sgs, total = self.container.get_resources(
-                        parent_id=item.oid,
-                        authorize=False,
-                        size=-1,
-                        run_customize=False,
-                        type=SecurityGroup.objdef,
-                    )
-                    quotas["compute.security_groups"] += total
-
-                elif isinstance(item, ComputeImage):
-                    quotas["compute.images"] += 1
-
-                elif isinstance(item, ComputeVolume):
-                    quotas["compute.volumes"] += item_quotas.get("compute.volumes")
-                    quotas["compute.snapshots"] += item_quotas.get("compute.snapshots")
-                    quotas["compute.blocks"] += item_quotas.get("compute.blocks")
-
-                elif isinstance(item, ComputeStackV2):
-                    stack_type = item.get_attribs(key="stack_type")
-                    if stack_type == "sql_stack":
-                        for k, v in item_quotas.items():
-                            quotas["database.%s" % k] += v
-
-                elif isinstance(item, ComputeStack):
+                # custom logic
+                if isinstance(item, ComputeStack):
                     stack_type = item.get_attribs(key="stack_type")
                     if stack_type == "sql_stack":
                         for k, v in item_quotas.items():
@@ -837,40 +898,31 @@ class ComputeZone(ComputeProviderResource):
                     elif stack_type == "app_engine":
                         for k, v in item_quotas.items():
                             quotas["appengine.%s" % k] += v
-
+                elif isinstance(item, ComputeStackV2):
+                    stack_type = item.get_attribs(key="stack_type")
+                    if stack_type == "sql_stack":
+                        for k, v in item_quotas.items():
+                            quotas["database.%s" % k] += v
                 elif isinstance(item, ComputeFileShare):
                     for k, v in item_quotas.items():
                         quotas["share.%s" % k] += v
+                else:
+                    # for everything else
+                    for key, value in item_quotas.items():
+                        try:
+                            quotas[key] += float(value)
+                        except Exception as e:
+                            self.logger.error(e, exc_info=True)
+                            self.logger.debug("get_quotas_allocated - item: %s - key %s, value %s" % (item, key, value))
 
-                elif isinstance(item, ComputeLoggingSpace):
-                    quotas["logging.spaces"] += item_quotas.get("logging.spaces")
-
-                elif isinstance(item, ComputeMonitoringFolder):
-                    quotas["monitoring.folders"] += item_quotas.get("monitoring.folders")
-
-                elif isinstance(item, ComputeMonitoringThreshold):
-                    quotas["monitoring.alerts"] += item_quotas.get("monitoring.alerts")
-
-                elif isinstance(item, ComputeLoadBalancer):
-                    quotas["network.loadbalancers"] += item_quotas.get("network.loadbalancers")
+                # handle separately from other compute instance quotas
+                if isinstance(item, ComputeInstance):
+                    if item.is_monitoring_enabled():
+                        quotas["monitoring.instances"] += 1
+                    if item.is_logging_enabled():
+                        quotas["logging.instances"] += 1
 
         quotas["compute.ram"] = float(quotas["compute.ram"]) / 1024
-
-        #     elif isinstance(item, ComputeVolume):
-        #         quotas['compute.volumes'] += item_quotas.get('compute.volumes')
-        #         quotas['compute.snapshots'] += item_quotas.get('compute.snapshots')
-        #         quotas['compute.blocks'] += item_quotas.get('compute.blocks')
-        #     elif isinstance(item, ComputeStack):
-        #         stack_type = item.get_attribs(key='stack_type')
-        #         if stack_type == 'sql_stack':
-        #             for k, v in item_quotas.items():
-        #                 quotas['database.%s' % k] += v
-        #         elif stack_type == 'app_engine':
-        #             for k, v in item_quotas.items():
-        #                 quotas['appengine.%s' % k] += v
-        #     # todo: count share
-        #
-        # quotas['compute.ram'] = float(quotas['compute.ram']) / 1024
 
         self.logger.debug("Get quotas allocated: %s" % quotas)
         return quotas
@@ -1051,6 +1103,8 @@ class ComputeZone(ComputeProviderResource):
 
         hypervisor, site_id, job_id = self.split_job_id(job_id)
 
+        from beehive_resource.plugins.provider.controller import LocalProvider
+        localProvider: LocalProvider = self.container
         job = None
         avzs = self.get_availability_zones()
         for avz in avzs:
@@ -1063,7 +1117,9 @@ class ComputeZone(ComputeProviderResource):
                     from beehive_resource.plugins.openstack.entity.ops_project import (
                         OpenstackProject,
                     )
+                    from beehive_resource.plugins.openstack.controller import OpenstackContainer
 
+                    openstackContainer: OpenstackContainer = availabilityZone.get_openstack_container(hypervisor_tag)
                     project: OpenstackProject = avz.get_openstack_project(hypervisor_tag)
                     for workload in project.get_backup_jobs():
                         if workload["id"] == job_id:
@@ -1074,7 +1130,7 @@ class ComputeZone(ComputeProviderResource):
                             for wrkl_instance in workload.get("instances"):
                                 objectId = wrkl_instance["id"]
                                 self.logger.debug("+++++ AAA - get_backup_job - get vm objectId: %s" % objectId)
-                                entity = self.controller.get_resource_by_extid(objectId)
+                                entity = self.controller.get_resource_by_extid(objectId, openstackContainer.oid)
                                 if entity is None:
                                     self.logger.warning(
                                         "workload instance not found - job_id: %s - id: %s" % (job_id, objectId)
@@ -1083,7 +1139,7 @@ class ComputeZone(ComputeProviderResource):
                                     resource_id = entity.oid
                                     try:
                                         instance: Resource = (
-                                            self.container.get_aggregated_resource_from_physical_resource(resource_id)
+                                            localProvider.get_aggregated_resource_from_physical_resource(resource_id)
                                         )
                                         instances.append(instance.small_info())
                                     except ApiManagerError as apiError:
@@ -1103,6 +1159,7 @@ class ComputeZone(ComputeProviderResource):
                     from beedrones.veeam.client_veeam import VeeamError
 
                     veeamContainer: VeeamContainer = availabilityZone.get_veeam_container(hypervisor_tag)
+                    vsphereContainer: VeeamContainer = availabilityZone.get_vsphere_container(hypervisor_tag)
                     try:
                         veeam_job = veeamContainer.conn_veeam.job.get(job_id)
                         if "data" in veeam_job:
@@ -1112,6 +1169,7 @@ class ComputeZone(ComputeProviderResource):
 
                         # load vm instances
                         instances = []
+
                         virtualMachines = veeam_job.get("virtualMachines")
                         includes = dict_get(virtualMachines, "includes")
                         if includes is not None:
@@ -1122,7 +1180,7 @@ class ComputeZone(ComputeProviderResource):
                                     self.logger.debug(
                                         "+++++ AAA - get_backup_job - get VirtualMachine objectId: %s" % objectId
                                     )
-                                    entity = self.controller.get_resource_by_extid(objectId)
+                                    entity = self.controller.get_resource_by_extid(objectId, vsphereContainer.oid)
                                     if entity is None:
                                         self.logger.warning(
                                             "workload instance not found - job_id: %s - id: %s" % (job_id, objectId)
@@ -1130,13 +1188,28 @@ class ComputeZone(ComputeProviderResource):
                                     else:
                                         resource_id = entity.oid
                                         try:
-                                            # TODO capire errore -l'uuid della risorsa aggregata serve per recuperare in service l'instance
-                                            instance: Resource = (
-                                                self.container.get_aggregated_resource_from_physical_resource(
+                                            from beehive_resource.plugins.provider.entity.instance import ComputeInstance
+                                            computeinstance: ComputeInstance = (
+                                                localProvider.get_aggregated_resource_from_physical_resource(
                                                     resource_id
                                                 )
                                             )
-                                            instances.append(instance.small_info())
+
+                                            from beehive_resource.plugins.provider.entity.stack_v2 import ComputeStackV2
+                                            computeStacks, tot = computeinstance.get_linked_resources(
+                                                link_type_filter="resource.%",
+                                                # objdef=ComputeStackV2.objdef,
+                                                run_customize=False,
+                                            )
+                                            bStack = False
+                                            for computeStack in computeStacks:
+                                                self.logger.debug("+++++ AAA - get_backup_job - computeStack: %s" % type(computeStack))
+                                                # if type(computeStack) == ComputeStackV2:
+                                                instances.append(computeStack.small_info())
+                                                bStack = True
+
+                                            if not bStack:
+                                                instances.append(computeinstance.small_info())
                                         except ApiManagerError as apiError:
                                             self.logger.warning(
                                                 "workload aggregated_resource error: %s - job_id: %s - id: %s"
@@ -1194,14 +1267,16 @@ class ComputeZone(ComputeProviderResource):
         # status
         status = "available"
         enabled = True
-        if veeam_job.get("isDisabled"):
-            self.logger.debug("+++++ AAA - veeam_job_to_job - isDisabled: %s" % veeam_job.get("isDisabled"))
+        isDisabled = veeam_job.get("isDisabled")
+        self.logger.debug("+++++ AAA - veeam_job_to_job - isDisabled: %s" % isDisabled)
+        if isDisabled is not None and isDisabled == True:
             status = "disabled"
             enabled = False
 
         # API jobs/state
-        if veeam_job.get("lastResult") != "Success":
-            self.logger.debug("+++++ AAA - veeam_job_to_job - lastResult: %s" % veeam_job.get("lastResult"))
+        lastResult = veeam_job.get("lastResult")
+        self.logger.debug("+++++ AAA - veeam_job_to_job - lastResult: %s" % lastResult)
+        if lastResult is not None and lastResult != "Success":
             status = "disabled"
             enabled = False
 
@@ -1554,10 +1629,19 @@ class ComputeZone(ComputeProviderResource):
                     from beedrones.veeam.restore_point import VeeamRestorePoint
 
                     veeamRestorePoint: VeeamRestorePoint = veeamManager.restorepoint
-                    veeam_restore_point = veeamRestorePoint.list(backup_id, page_size=size, page=page)
+                    self.logger.debug("+++++ AAA - get_backup_restore_points - size: %s" % size)
+                    self.logger.debug("+++++ AAA - get_backup_restore_points - page: %s" % page)
+                    # Attention: fix Veeam API - set page_size to return data, pagination data after call API!
+                    # veeam_restore_point = veeamRestorePoint.list(backup_id, page_size=size, page=page)
+                    veeam_restore_point = veeamRestorePoint.list(backup_id, page_size=100000, page=0)
+                    self.logger.debug("+++++ AAA - get_backup_restore_points - veeam_restore_point: %s" % veeam_restore_point)
                     veeam_restore_point_data = veeam_restore_point["data"]
-                    veeam_restore_point_pagination = veeam_restore_point["pagination"]
-                    restore_point_total = veeam_restore_point_pagination["total"]
+
+                    restore_point_total = len(veeam_restore_point_data)
+                    skip: int = (int(page) - 1) * int(size)
+                    veeam_restore_point_data_page = veeam_restore_point_data[skip:skip + size]
+                    # veeam_restore_point_pagination = veeam_restore_point["pagination"]
+                    # restore_point_total = veeam_restore_point_pagination["total"]
 
                     restore_points = [
                         {
@@ -1571,7 +1655,7 @@ class ComputeZone(ComputeProviderResource):
                             "site": site.name,
                             "resource_type": resource_type,
                         }
-                        for restore_point in veeam_restore_point_data
+                        for restore_point in veeam_restore_point_data_page
                     ]
 
         if hypervisor == "openstack":
@@ -1729,12 +1813,14 @@ class ComputeZone(ComputeProviderResource):
         from .stack import ComputeStack
         from .stack_v2 import ComputeStackV2
         from .share import ComputeFileShare
+        from .share_v2 import ComputeFileShareV2
         from .volume import ComputeVolume
 
         # from .elasticip import ComputeElasticIp
         entity_classes = [
             (ComputeInstance, True),
             (ComputeFileShare, False),
+            (ComputeFileShareV2, False),
             (ComputeStack, True),
             (ComputeStackV2, False),
             (ComputeVolume, False),
@@ -1762,16 +1848,12 @@ class ComputeZone(ComputeProviderResource):
                     continue
 
                 # get item metrics
-                from beehive_resource.model import ResourceState
-
+                #from beehive_resource.model import ResourceState
                 # if item.state == ResourceState.ACTIVE or item.state == ResourceState.UPDATING:
                 if item.state == 2 or item.state == 3:
                     internalkey = "metrics.%s" % item.oid
 
-                    from beehive_resource.controller import ResourceController
-
-                    resourceController: ResourceController = self.controller
-                    metrics = resourceController.cache.get(internalkey)
+                    metrics = self.controller.cache.get(internalkey)
                     # self.logger.debug('+++++ get_metrics - metrics {}'.format(metrics))
                     # operation.cache = False   # scommentare per test da cli
                     if operation.cache is False or metrics is None or metrics == {} or metrics == []:
@@ -1781,15 +1863,15 @@ class ComputeZone(ComputeProviderResource):
                             item.post_get()
                         metrics = item.get_metrics()
                         # save data in cache
-                        resourceController.cache.set(internalkey, metrics, ttl=ttl)
+                        self.controller.cache.set(internalkey, metrics, ttl=ttl)
                     else:
                         # extend key time
                         # self.logger.debug('+++++ get_metrics - extend key time')
-                        resourceController.cache.expire(internalkey, ttl)
+                        self.controller.cache.expire(internalkey, ttl)
 
                     if metrics is not None and metrics != {}:
                         res.append(metrics)
-                        self.logger.warn(metrics)
+                        self.logger.warning(metrics)
 
                 # if isinstance(item, ComputeInstance):
                 #     backup_status = item.get_physical_backup()
@@ -1819,23 +1901,25 @@ class ComputeZone(ComputeProviderResource):
         # }
         # res.append(zone_metric_data)
 
-        self.logger.debug("Get compute zone %s metrics: %s" % (self.uuid, truncate(res)))
+        # self.logger.debug("Get compute zone %s metrics: %s" % (self.uuid, truncate(res)))
+        self.logger.debug("Get compute zone %s metrics: %s" % (self.uuid, res))
         return res
 
     def delete_metrics_cache(self):
         # verify permissions
         self.verify_permisssions("use")
 
-        res = []
         from .instance import ComputeInstance
         from .stack import ComputeStack
         from .stack_v2 import ComputeStackV2
         from .share import ComputeFileShare
+        from .share_v2 import ComputeFileShareV2
         from .volume import ComputeVolume
 
         entity_classes = [
             (ComputeInstance, True),
             (ComputeFileShare, False),
+            (ComputeFileShareV2, False),
             (ComputeStack, True),
             (ComputeStackV2, False),
             (ComputeVolume, False),
@@ -1851,8 +1935,6 @@ class ComputeZone(ComputeProviderResource):
             )
 
             for item in childs:
-                from beehive_resource.container import Resource
-
                 resource: Resource = item
                 internalkey = "metrics.%s" % item.oid
                 self.controller.cache.delete(internalkey)
@@ -1898,6 +1980,7 @@ class AvailabilityZone(SiteChildResource):
         from beehive_resource.plugins.provider.entity.rule import Rule
         from beehive_resource.plugins.provider.entity.security_group import RuleGroup
         from beehive_resource.plugins.provider.entity.share import FileShare
+        from beehive_resource.plugins.provider.entity.share_v2 import FileShareV2
         from beehive_resource.plugins.provider.entity.stack import Stack
         from beehive_resource.plugins.provider.entity.vpc_v2 import PrivateNetwork
         from beehive_resource.plugins.provider.entity.volume import Volume
@@ -1927,6 +2010,7 @@ class AvailabilityZone(SiteChildResource):
             Image,
             Stack,
             FileShare,
+            FileShareV2,
             Gateway,
             Customization,
             AppliedCustomization,
@@ -2014,7 +2098,7 @@ class AvailabilityZone(SiteChildResource):
         return res
 
     @staticmethod
-    def pre_create(controller, container, *args, **kvargs):
+    def pre_create(controller: 'ResourceController', container: 'ResourceContainer', *args, **kvargs):
         """Check input params before resource creation. This function is used
         in container resource_factory method.
 
@@ -2126,7 +2210,7 @@ class AvailabilityZone(SiteChildResource):
         appcusts, tot = self.get_resources(entity_class=AppliedCustomization)
         kvargs["child_num"] -= tot
 
-        self.logger.warn(kvargs["child_num"])
+        self.logger.warning(kvargs["child_num"])
 
         # select physical orchestrators
         orchestrator_idx = self.get_orchestrators()
@@ -2144,7 +2228,7 @@ class AvailabilityZone(SiteChildResource):
             raise ApiManagerError("%s %s not found or name is not unique" % ("Site", oid), code=400)
 
         if entity is None:
-            self.logger.warn("%s %s not found" % ("Site", oid))
+            self.logger.warning("%s %s not found" % ("Site", oid))
             raise ApiManagerError("%s %s not found" % ("Site", oid), code=404)
 
         res = Site(
@@ -2170,12 +2254,40 @@ class AvailabilityZone(SiteChildResource):
         res = self.get_physical_resource_from_container(list(orchestrator_idx.keys())[0], OpenstackProject.objdef)
         return res
 
+    def get_openstack_container(self, orchestrator_tag):
+        orchestrator_idx_openstack = self.get_orchestrators_by_tag(orchestrator_tag, select_types=["openstack"])
+        self.logger.debug("+++++ AAA - get_openstack_container - orchestrator_idx_openstack: %s" % orchestrator_idx_openstack)
+        openstack_id_container = list(orchestrator_idx_openstack.keys())[0]
+        self.logger.debug("+++++ AAA - get_openstack_container - openstack_id_container: %s" % openstack_id_container)
+
+        from beehive_resource.controller import ResourceController
+        from beehive_resource.plugins.openstack.controller import OpenstackContainer
+
+        resourceController: ResourceController = self.controller
+        openstackContainer: OpenstackContainer = resourceController.get_container(openstack_id_container)
+        # vsphereContainer.get_connection()
+        return openstackContainer
+
     def get_vsphere_folder(self, orchestrator_tag):
         from beehive_resource.plugins.vsphere.entity.vs_folder import VsphereFolder
 
         orchestrator_idx = self.get_orchestrators_by_tag(orchestrator_tag, select_types=["vsphere"])
         res = self.get_physical_resource_from_container(list(orchestrator_idx.keys())[0], VsphereFolder.objdef)
         return res
+
+    def get_vsphere_container(self, orchestrator_tag):
+        orchestrator_idx_vsphere = self.get_orchestrators_by_tag(orchestrator_tag, select_types=["vsphere"])
+        self.logger.debug("+++++ AAA - get_vsphere_container - orchestrator_idx_vsphere: %s" % orchestrator_idx_vsphere)
+        vsphere_id_container = list(orchestrator_idx_vsphere.keys())[0]
+        self.logger.debug("+++++ AAA - get_vsphere_container - vsphere_id_container: %s" % vsphere_id_container)
+
+        from beehive_resource.controller import ResourceController
+        from beehive_resource.plugins.vsphere.controller import VsphereContainer
+
+        resourceController: ResourceController = self.controller
+        vsphereContainer: VsphereContainer = resourceController.get_container(vsphere_id_container)
+        # vsphereContainer.get_connection()
+        return vsphereContainer
 
     def get_veeam_container(self, orchestrator_tag):
         orchestrator_idx_veeam = self.get_orchestrators_by_tag(orchestrator_tag, select_types=["veeam"])
@@ -2218,7 +2330,7 @@ class AvailabilityZoneChildResource(SiteChildResource):
             )
 
         if entity is None:
-            self.logger.warn("%s %s not found" % ("AvailabilityZone", oid))
+            self.logger.warning("%s %s not found" % ("AvailabilityZone", oid))
             raise ApiManagerError("%s %s not found" % ("AvailabilityZone", oid), code=404)
 
         res = AvailabilityZone(

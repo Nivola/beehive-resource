@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beecell.simple import random_password, id_gen, bool2str
-from beehive.common.apimanager import ApiManagerError
+from beehive.common.apimanager import ApiManagerError, ApiObject
 from beehive_resource.plugins.openstack.entity.ops_heat import OpenstackHeatStack
-from beehive_resource.plugins.provider.entity.stack import ComputeStack
+from beehive_resource.plugins.provider.entity.stack import ComputeStack, Stack
 
 
 class SqlComputeStack(ComputeStack):
@@ -32,6 +32,44 @@ class SqlComputeStack(ComputeStack):
             for v1 in v:
                 res.append({"engine": k, "version": v1})
         return res
+    
+    def simple_info(self, data_info):
+        self.logger.debug(f"fv - simple_info - SqlComputeStack")
+        from beehive_resource.plugins.provider.entity.aggregate import ComputeProviderResource
+        # info = ComputeProviderResource.info(self)
+        info = ApiObject.info(self)
+        info["state"] = self.get_extended_state()
+        info["attributes"] = self.attribs
+
+        info["stacks"] = []
+        self.logger.info(f"fv - simple_info - 01 zone_stacks: {self.zone_stacks}")
+
+        if self.zone_stacks is None or len(self.zone_stacks) == 0:
+            super().post_get()
+
+        self.logger.info(f"fv - simple_info - 02 zone_stacks: {self.zone_stacks}")
+        for zone_stack in self.zone_stacks:
+            
+            stack: Stack = zone_stack
+            stack.get_remote_stack()
+
+            listener = stack.output("MasterDatabaseURL")
+            self.logger.info(f"fv - simple_info - listener: {listener}")
+            if stack.has_remote_stack() is True:
+                zone = {
+                    "availability_zone": zone_stack.get_site().name,
+                    "status_reason": zone_stack.status_reason(),
+                    "listener": listener,
+                }
+                info["stacks"].append(zone)
+
+        last_runstate = self.get_attribs(key="last_runstate")
+        if last_runstate is None:
+            last_runstate = self.get_runstate()
+            # add and save in attribs to
+            self.set_configs("last_runstate", last_runstate)
+        
+        return info
 
     def info(self):
         """Get infos.

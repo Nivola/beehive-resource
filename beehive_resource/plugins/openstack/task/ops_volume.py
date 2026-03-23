@@ -1,18 +1,18 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from celery.utils.log import get_task_logger
 from beehive_resource.plugins.openstack.entity.ops_volume import OpenstackVolume
 from beehive_resource.tasks import ResourceJobTask
-from beehive.common.task.manager import task_manager
-from beehive.common.task.job import job_task, job, task_local
+from beehive.common.task.manager import get_task_manager
+from beehive.common.task.job import job_task, task_local
 from beehive_resource.model import ResourceState
 import gevent
 
 
 logger = get_task_logger(__name__)
-
+task_manager = get_task_manager()
 
 @task_manager.task(bind=True, base=ResourceJobTask)
 @job_task()
@@ -169,7 +169,8 @@ def task_delete_volume(self, options):
     # get server resource
     self.get_session()
     container = self.get_container(cid, projectid=parent_id)
-    conn = container.conn
+    from beedrones.openstack.client import OpenstackManager
+    conn: OpenstackManager = container.conn
 
     if self.is_ext_id_valid(ext_id) is True:
         res = container.get_resource_by_extid(ext_id)

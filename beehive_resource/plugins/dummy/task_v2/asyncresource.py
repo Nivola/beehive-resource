@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from logging import getLogger
 from gevent import sleep
-from beehive.common.task_v2.manager import task_manager
+from beehive.common.task_v2.manager import get_task_manager
 from beehive.common.task_v2 import task_step
 from beehive_resource.plugins.dummy.controller import DummyAsyncResource
 from beehive_resource.task_v2.core import AbstractResourceTask
@@ -106,6 +106,7 @@ class AsyncResourceExpungeTask(AsyncResourceTask):
         ]
 
 
-task_manager.tasks.register(AsyncResourceAddTask())
-task_manager.tasks.register(AsyncResourceUpdateTask())
-task_manager.tasks.register(AsyncResourceExpungeTask())
+task_manager = get_task_manager()
+task_manager.register_task(AsyncResourceAddTask())
+task_manager.register_task(AsyncResourceUpdateTask())
+task_manager.register_task(AsyncResourceExpungeTask())

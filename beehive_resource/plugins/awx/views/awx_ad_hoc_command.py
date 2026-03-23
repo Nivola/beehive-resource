@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
@@ -50,11 +50,14 @@ class ListAwxAdHocCommandsResponseSchema(PaginatedResponseSchema):
 class ListAwxAdHocCommands(AwxAdHocCommandView):
     summary = "List ad_hoc_command"
     description = "List ad_hoc_command"
+
     definitions = {
         "ListAwxAdHocCommandsResponseSchema": ListAwxAdHocCommandsResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(ListAwxAdHocCommandsRequestSchema)
     parameters_schema = ListAwxAdHocCommandsRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": ListAwxAdHocCommandsResponseSchema}}
     )
@@ -65,20 +68,32 @@ class ListAwxAdHocCommands(AwxAdHocCommandView):
 
 
 class GetAwxAdHocCommandParamsResponseSchema(ResourceResponseSchema):
-    ad_hoc_command = fields.Nested(ResourceSmallResponseSchema, required=True, many=True, allow_none=True)
+    ad_hoc_command = fields.Nested(
+        ResourceSmallResponseSchema,
+        required=True,
+        many=True,
+        allow_none=True,
+    )
 
 
 class GetAwxAdHocCommandResponseSchema(Schema):
-    job_template = fields.Nested(GetAwxAdHocCommandParamsResponseSchema, required=True, allow_none=True)
+    job_template = fields.Nested(
+        GetAwxAdHocCommandParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetAwxAdHocCommand(AwxAdHocCommandView):
     summary = "Get job_template"
     description = "Get job_template"
+
     definitions = {
         "GetAwxAdHocCommandResponseSchema": GetAwxAdHocCommandResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": GetAwxAdHocCommandResponseSchema}}
     )
@@ -91,77 +106,168 @@ class GetAwxAdHocCommand(AwxAdHocCommandView):
 class AwxAdHocCommandHostRequestSchema(Schema):
     name = fields.String(
         required=True,
-        example="test.nivolapiemonte.it",
-        default="",
-        description="Host IP or FQDN",
+        metadata={
+            "example": 'test.nivolapiemonte.it',
+            "description": 'Host IP or FQDN',
+        },
     )
+
     extra_vars = fields.String(
-        description="host variables. Ex: k1:v1;k2:v2",
-        default="",
-        example="ansible_user:root;ansible_connection:ssh",
+        load_default="",
+        metadata={
+            "example": 'ansible_user:root;ansible_connection:ssh',
+            "description": 'host variables. Ex: k1:v1;k2:v2',
+        },
     )
 
 
 class AwxAdHocCommandHostSshCredsRequestSchema(Schema):
-    username = fields.String(required=True, example="test", description="Username")
-    password = fields.String(required=True, example="test1234", description="Password")
+    username = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'Username',
+        },
+    )
+
+    password = fields.String(
+        required=True,
+        metadata={
+            "example": 'test1234',
+            "description": 'Password',
+        },
+    )
 
 
 class CreateAwxAdHocCommandParamRequestSchema(CreateProviderResourceRequestSchema):
-    container = fields.String(required=True, example="12", description="Container id, uuid or name")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'Container id, uuid or name',
+        },
+    )
+
     name = fields.String(
         required=True,
-        example="test-job-template",
-        default="",
-        description="Job template name",
+        metadata={
+            "example": 'test-job-template',
+            "description": 'Job template name',
+        },
     )
-    desc = fields.String(example="test-job-template", default="", description="Job template description")
+
+    desc = fields.String(
+        load_default="",
+        metadata={
+            "example": 'test-job-template',
+            "description": 'Job template description',
+        },
+    )
+
     ssh_creds = fields.Nested(
         AwxAdHocCommandHostSshCredsRequestSchema,
         required=False,
-        description="Ssh credentials",
+        metadata={
+            "description": 'Ssh credentials',
+        },
     )
-    ssh_cred_id = fields.String(required=False, description="Ssh credential id")
+
+    ssh_cred_id = fields.String(
+        required=False,
+        metadata={
+            "description": 'Ssh credential id',
+        },
+    )
+
     extra_vars = fields.String(
-        description="Variables used when launching job template. Ex: k1:v1;k2:v2",
-        default="",
-        example="host_groups:[awx_group_prova, awx_group_test];"
-        "host_templates:[Template OS Linux];zabbix_server:10.138.218.29",
+        load_default="",
+        metadata={
+            "example": (
+                'host_groups:[awx_group_prova, awx_group_test]; '
+                'host_templates:[Template OS Linux]; '
+                'zabbix_server:10.138.218.29'
+            ),
+            "description": 'Variables used when launching job template. Ex: k1:v1;k2:v2',
+        },
     )
-    organization = fields.String(required=True, example="1", default="", description="Organization id")
+
+    organization = fields.String(
+        required=True,
+        load_default="",
+        metadata={
+            "example": '1',
+            "description": 'Organization id',
+        },
+    )
+
     hosts = fields.Nested(
         AwxAdHocCommandHostRequestSchema,
         required=False,
         many=True,
         allow_none=True,
-        description="Hosts to add to inventory",
+        metadata={
+            "description": 'Hosts to add to inventory',
+        },
     )
+
     verbosity = fields.Integer(
-        example=1,
-        default=0,
-        description="Verbosity: 0 (Normal) (default), 1 (Verbose), "
-        "2 (More Verbose), 3 (Debug), 4 (Connection Debug), 5 (WinRM Debug)",
+        load_default=0,
+        metadata={
+            "example": 1,
+            "description": (
+                'Verbosity: 0 (Normal) (default), 1 (Verbose), 2 (More Verbose), 3 (Debug), 4 (Connection Debug), 5'
+                '(WinRM Debug)'
+            ),
+        },
     )
-    inventory = fields.String(required=False, example="12", default="", description="inventory id")
-    module_name = fields.String(required=False, example="12", missing="shell", description="module name")
-    module_args = fields.String(required=False, example="12", default="", description="module args")
+
+    inventory = fields.String(
+        required=False,
+        metadata={
+            "example": '12',
+            "description": 'inventory id',
+        },
+    )
+
+    module_name = fields.String(
+        required=False,
+        metadata={
+            "example": 'shell',
+            "description": 'module name',
+        },
+    )
+
+    module_args = fields.String(
+        required=False,
+        metadata={
+            "example": '12',
+            "description": 'module args',
+        },
+    )
 
 
 class CreateAwxAdHocCommandRequestSchema(Schema):
-    job_template = fields.Nested(CreateAwxAdHocCommandParamRequestSchema)
+    job_template = fields.Nested(
+        CreateAwxAdHocCommandParamRequestSchema,
+    )
 
 
 class CreateAwxAdHocCommandBodyRequestSchema(Schema):
-    body = fields.Nested(CreateAwxAdHocCommandRequestSchema, context="body")
+    body = fields.Nested(
+        CreateAwxAdHocCommandRequestSchema,
+        context="body",
+    )
 
 
 class CreateAwxAdHocCommand(AwxAdHocCommandView):
     summary = "Create job_template"
     description = "Create job_template"
+
     definitions = {
         "CreateAwxAdHocCommandRequestSchema": CreateAwxAdHocCommandRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateAwxAdHocCommandBodyRequestSchema)
     parameters_schema = CreateAwxAdHocCommandRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
@@ -173,11 +279,19 @@ class CreateAwxAdHocCommand(AwxAdHocCommandView):
 class UpdateAwxAdHocCommandTemplateRequestSchema(Schema):
     name = fields.String(
         required=True,
-        example="test-job_template",
-        default="",
-        description="Job_template name",
+        metadata={
+            "example": 'test-job_template',
+            "description": 'Job_template name',
+        },
     )
-    desc = fields.String(example="test-job_template", default="", description="Job_template description")
+
+    desc = fields.String(
+        load_default="",
+        metadata={
+            "example": 'test-job_template',
+            "description": 'Job_template description',
+        },
+    )
 
 
 class UpdateAwxAdHocCommandParamRequestSchema(UpdateProviderResourceRequestSchema):
@@ -185,26 +299,35 @@ class UpdateAwxAdHocCommandParamRequestSchema(UpdateProviderResourceRequestSchem
         UpdateAwxAdHocCommandTemplateRequestSchema,
         required=False,
         many=True,
-        description="list of orchestrator ad_hoc_command to link",
         allow_none=True,
+        metadata={
+            "description": 'list of orchestrator ad_hoc_command to link',
+        },
     )
 
 
 class UpdateAwxAdHocCommandRequestSchema(Schema):
-    job_template = fields.Nested(UpdateAwxAdHocCommandParamRequestSchema)
+    job_template = fields.Nested(
+        UpdateAwxAdHocCommandParamRequestSchema,
+    )
 
 
 class UpdateAwxAdHocCommandBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateAwxAdHocCommandRequestSchema, context="body")
+    body = fields.Nested(
+        UpdateAwxAdHocCommandRequestSchema,
+        context="body",
+    )
 
 
 class UpdateAwxAdHocCommand(AwxAdHocCommandView):
     summary = "Update job_template"
     description = "Update job_template"
+
     definitions = {
         "UpdateAwxAdHocCommandRequestSchema": UpdateAwxAdHocCommandRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateAwxAdHocCommandBodyRequestSchema)
     parameters_schema = UpdateAwxAdHocCommandRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})

@@ -1,13 +1,15 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_resource.plugins.openstack.views import OpenstackAPI, OpenstackApiView
+
 from beehive.common.apimanager import (
     ApiManagerError,
     SwaggerApiView,
     GetApiObjectRequestSchema,
 )
+
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
 
@@ -27,15 +29,12 @@ class SystemTreeResponseSchema(Schema):
 
 class SystemTree(OpenstackApiView):
     tags = ["openstack"]
-    definitions = {
-        "SystemTreeResponseSchema": SystemTreeResponseSchema,
-    }
+    definitions = {"SystemTreeResponseSchema": SystemTreeResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": SystemTreeResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
-        Get container resource tree.
         Get container resource tree.
         """
         container = self.get_container(controller, oid)
@@ -49,15 +48,12 @@ class SystemServicesResponseSchema(Schema):
 
 class SystemServices(OpenstackApiView):
     tags = ["openstack"]
-    definitions = {
-        "SystemServicesResponseSchema": SystemServicesResponseSchema,
-    }
+    definitions = {"SystemServicesResponseSchema": SystemServicesResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": SystemServicesResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
-        Get container services.
         Get container services.
         """
         container = self.get_container(controller, oid)
@@ -71,15 +67,12 @@ class SystemEndpointsResponseSchema(Schema):
 
 class SystemEndpoints(OpenstackApiView):
     tags = ["openstack"]
-    definitions = {
-        "SystemEndpointsResponseSchema": SystemEndpointsResponseSchema,
-    }
+    definitions = {"SystemEndpointsResponseSchema": SystemEndpointsResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": SystemEndpointsResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
-        Get container endpoints.
         Get container endpoints.
         """
         container = self.get_container(controller, oid)
@@ -88,7 +81,13 @@ class SystemEndpoints(OpenstackApiView):
 
 
 class SystemComputeRequestSchema(GetApiObjectRequestSchema):
-    entity = fields.String(required=True, description="entity name", context="path")
+    entity = fields.String(
+        required=True,
+        context="path",
+        metadata={
+            "description": 'entity name',
+        },
+    )
 
 
 class SystemComputeResponseSchema(Schema):
@@ -104,17 +103,17 @@ class SystemComputeResponseSchema(Schema):
 
 class SystemCompute(OpenstackApiView):
     tags = ["openstack"]
+
     definitions = {
         "SystemComputeRequestSchema": SystemComputeRequestSchema,
         "SystemComputeResponseSchema": SystemComputeResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(SystemComputeRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": SystemComputeResponseSchema}})
 
     def get(self, controller, data, oid, entity, *args, **kwargs):
         """
-        Get compute services, zones, hosts, hostaggrs, servergroups,
-        hypervisors, hypervisors_stats, agents.
         Get compute services, zones, hosts, hostaggrs, servergroups,
         hypervisors, hypervisors_stats, agents.
         """
@@ -159,7 +158,13 @@ class SystemCompute(OpenstackApiView):
 
 
 class SystemStorageRequestSchema(GetApiObjectRequestSchema):
-    entity = fields.String(required=True, description="entity name", context="path")
+    entity = fields.String(
+        required=True,
+        context="path",
+        metadata={
+            "description": 'entity name',
+        },
+    )
 
 
 class SystemStorageResponseSchema(Schema):
@@ -168,16 +173,17 @@ class SystemStorageResponseSchema(Schema):
 
 class SystemStorage(OpenstackApiView):
     tags = ["openstack"]
+
     definitions = {
         "SystemStorageRequestSchema": SystemStorageRequestSchema,
         "SystemStorageResponseSchema": SystemStorageResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(SystemStorageRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": SystemStorageResponseSchema}})
 
     def get(self, controller, data, oid, entity, *args, **kwargs):
         """
-        Get storage services
         Get storage services
         """
         container = self.get_container(controller, oid)
@@ -191,7 +197,13 @@ class SystemStorage(OpenstackApiView):
 
 
 class SystemNetworkRequestSchema(GetApiObjectRequestSchema):
-    entity = fields.String(required=True, description="entity name", context="path")
+    entity = fields.String(
+        required=True,
+        context="path",
+        metadata={
+            "description": 'entity name',
+        },
+    )
 
 
 class SystemNetworkResponseSchema(Schema):
@@ -201,16 +213,17 @@ class SystemNetworkResponseSchema(Schema):
 
 class SystemNetwork(OpenstackApiView):
     tags = ["openstack"]
+
     definitions = {
         "SystemNetworkRequestSchema": SystemNetworkRequestSchema,
         "SystemNetworkResponseSchema": SystemNetworkResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(SystemNetworkRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": SystemNetworkResponseSchema}})
 
     def get(self, controller, data, oid, entity, *args, **kwargs):
         """
-        Get network agents or service_providers
         Get network agents or service_providers
         """
         container = self.get_container(controller, oid)
@@ -226,7 +239,13 @@ class SystemNetwork(OpenstackApiView):
 
 
 class SystemHeatRequestSchema(GetApiObjectRequestSchema):
-    entity = fields.String(required=True, description="entity name", context="path")
+    entity = fields.String(
+        required=True,
+        context="path",
+        metadata={
+            "description": 'entity name',
+        },
+    )
 
 
 class SystemHeatResponseSchema(Schema):
@@ -235,16 +254,17 @@ class SystemHeatResponseSchema(Schema):
 
 class SystemHeat(OpenstackApiView):
     tags = ["openstack"]
+
     definitions = {
         "SystemHeatRequestSchema": SystemHeatRequestSchema,
         "SystemHeatResponseSchema": SystemHeatResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(SystemHeatRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": SystemHeatResponseSchema}})
 
     def get(self, controller, data, oid, entity, *args, **kwargs):
         """
-        Get heat services
         Get heat services
         """
         container = self.get_container(controller, oid)
@@ -265,6 +285,7 @@ class GetProjectDefaultQuotas(OpenstackApiView):
     tags = ["openstack"]
     definitions = {"GetProjectDefaultQuotasResponseSchema": GetProjectDefaultQuotasResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {
             200: {
@@ -276,7 +297,6 @@ class GetProjectDefaultQuotas(OpenstackApiView):
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
-        Get heat services
         Get heat services
         """
         container = self.get_container(controller, oid)

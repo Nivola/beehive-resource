@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
+from typing import TYPE_CHECKING
 from beehive_resource.plugins.provider.views.logging_role import ComputeLoggingRoleAPI
 from beehive_resource.plugins.provider.views.logging_role_mapping import (
     ComputeLoggingRoleMappingAPI,
@@ -29,24 +30,31 @@ from .views.security_group import SecurityGroupProviderAPI
 from .views.security_group_acl import SecurityGroupAclProviderAPI
 from .views.rule import RuleProviderAPI
 from .views.instance import InstanceProviderAPI
-from .views.stack import StackProviderAPI
-from .views.stacks.sql import SqlStackProviderAPI
 from .views.share import ShareProviderAPI
 from .views.share_v2 import ShareV2ProviderAPI
 from .views.volume import VolumeProviderAPI
-from .views.stacks.app_engine import AppStackProviderAPI
 from .views.volumeflavor import VolumeFlavorAPI
-from .views.stack_v2 import StackV2ProviderAPI
 from .views.customization import ComputeCustomizationAPI
 from .views.gateway import GatewayProviderAPI
 from .views.load_balancer import LoadBalancerProviderAPI
-from .views.stacks_v2.sql import SqlStackV2ProviderAPI
 from .views.logging_space import ComputeLoggingSpaceAPI
 from .views.ssh_gateway_wrapper import SshGatewayProviderAPI
 
+from .views.stacks.app_engine import AppStackProviderAPI
+from .views.stack import StackProviderAPI
+from .views.stacks.sql import SqlStackProviderAPI
+
+from .views.stack_v2 import StackV2ProviderAPI
+from .views.stacks_v2.sql import SqlStackV2ProviderAPI
+from .views.stacks_v2.paas  import PaasProviderAPI
+
+if TYPE_CHECKING:
+    from beehive_resource.mod import ResourceModule
 
 class LocalProviderPlugin(object):
-    def __init__(self, module):
+    module: 'ResourceModule'
+
+    def __init__(self, module: 'ResourceModule'):
         self.module = module
 
     def init(self):
@@ -86,6 +94,7 @@ class LocalProviderPlugin(object):
             ComputeMonitoringAlertAPI,
             ComputeMonitoringThresholdAPI,
             SshGatewayProviderAPI,
+            PaasProviderAPI,
         ]
         self.module.set_apis(apis)
 

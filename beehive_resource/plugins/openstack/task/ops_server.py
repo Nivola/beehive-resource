@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import time
 from celery.utils.log import get_task_logger
 from beecell.simple import id_gen, truncate
 from beehive_resource.plugins.openstack.entity.ops_port import OpenstackPort
 from beehive_resource.tasks import ResourceJobTask
-from beehive.common.task.manager import task_manager
+from beehive.common.task.manager import get_task_manager
 from beehive.common.task.job import job_task, task_local
 from beehive_resource.model import ResourceState
 from beehive_resource.plugins.openstack.entity.ops_volume import OpenstackVolume
@@ -15,7 +15,7 @@ from beehive.common.apimanager import ApiManagerError
 from beehive_resource.plugins.openstack.entity.ops_server import OpenstackServer
 
 logger = get_task_logger(__name__)
-
+task_manager = get_task_manager()
 
 class ServerHelper(object):
     def __init__(self, task, container):
@@ -215,6 +215,8 @@ class ServerHelper(object):
         return True
 
     def delete_physical_volume(self, volume_ext_id):
+        self.task.progress("Delete volume %s - Begin" % volume_ext_id)
+
         # check volume exists
         try:
             OpenstackVolume.get_remote_volume(self.container.controller, volume_ext_id, self.container, volume_ext_id)
@@ -222,20 +224,26 @@ class ServerHelper(object):
             self.task.progress("Volume %s does not exist anymore" % volume_ext_id)
             return False
 
+        from beedrones.openstack.client import OpenstackManager
+        conn: OpenstackManager = self.conn
+
         # remote server snapshots
-        snapshots = self.conn.volume.snapshot.list(volume_id=volume_ext_id)
+        snapshots = conn.volume.snapshot.list(volume_id=volume_ext_id)
         for snapshot in snapshots:
-            self.conn.volume.snapshot.delete(snapshot["id"])
+            snapshot_id = snapshot["id"]
+            self.task.progress("Delete volume snapshot %s" % snapshot_id)
+            conn.volume.snapshot.delete(snapshot_id)
             while True:
                 try:
-                    self.conn.volume.snapshot.get(snapshot["id"])
+                    conn.volume.snapshot.get(snapshot_id)
                     time.sleep(2)
                 except:
                     self.task.progress("Volume %s snapshot %s deleted" % (volume_ext_id, snapshot["id"]))
                     break
 
         # delete openstack volume
-        self.conn.volume.delete(volume_ext_id)
+        self.task.progress("Delete volume %s - Before starting" % volume_ext_id)
+        conn.volume.delete(volume_ext_id)
         self.task.progress("Delete volume %s - Starting" % volume_ext_id)
 
         # loop until entity is not deleted or get error
@@ -561,8 +569,8 @@ def task_delete_volumes(self, options):
             resource.expunge_internal()
             self.progress("Delete volume %s resource" % volume_id)
         except ApiManagerError as ex:
+            logger.error(ex, exc_info=True)
             self.progress(ex)
-            logger.warn(ex)
 
 
 #

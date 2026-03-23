@@ -1,15 +1,18 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
+from celery import signature
 from logging import getLogger
-from beehive.common.task_v2 import task_step, TaskError
+from beecell.types.type_string import truncate
+from beehive.common.task_v2 import task_step
 from beehive_resource.plugins.vsphere.entity.vs_orchestrator import VsphereStack
 from beehive_resource.plugins.vsphere.task_v2.util import VsphereServerHelper
 from beehive_resource.task_v2 import AbstractResourceTask
+from beehive.common.task_v2.manager import get_task_manager
 
 logger = getLogger(__name__)
-
+task_manager = get_task_manager()
 
 stack_entity_type_mapping = {
     "VS::Vsphere::Server": "Vsphere.DataCenter.Folder.Server",
@@ -24,7 +27,7 @@ class StackTask(AbstractResourceTask):
 
     @staticmethod
     @task_step()
-    def stack_create_step(task, step_id, params, *args, **kvargs):
+    def stack_create_step(task: 'AbstractResourceTask', step_id, params, *args, **kvargs):
         """Create vsphere server
 
         :param task: parent celery task
@@ -33,7 +36,7 @@ class StackTask(AbstractResourceTask):
         :return: oid, params
         """
         # get params from shared data
-        params = self.get_shared_data()
+        params = task.get_shared_data()
 
         # validate input params
         cid = params.get("cid")
@@ -46,17 +49,17 @@ class StackTask(AbstractResourceTask):
         files = params.get("files", None)
         tags = params.get("tags", "")
         stack_owner = params.get("owner")
-        self.update("PROGRESS", msg="Get configuration params")
+        task.update("PROGRESS", msg="Get configuration params")
 
         # get orchestrator
-        self.get_session()
-        orchestrator = self.get_container(cid)
-        self.update("PROGRESS", msg="Get orchestrator %s" % cid)
+        task.get_session()
+        orchestrator = task.get_container(cid)
+        task.update("PROGRESS", msg="Get orchestrator %s" % cid)
 
         # validate template
         orch = orchestrator.get_orchestrator_resource()
         template = orch.validate_template(template_uri)
-        self.update("PROGRESS", msg="Validate template %s" % template_uri)
+        task.update("PROGRESS", msg="Validate template %s" % template_uri)
 
         # parse template
         outputs = template.get("outputs")
@@ -109,7 +112,7 @@ class StackTask(AbstractResourceTask):
                 pass
 
         # create all servers
-        helper = VsphereServerHelper(self, orchestrator, params)
+        helper = VsphereServerHelper(task, orchestrator, params)
         for server in servers:
             node = helper.create_server(**server)
 
@@ -118,11 +121,11 @@ class StackTask(AbstractResourceTask):
         stack_id = stack["id"]
 
         # stack_id = stack['id']
-        # self.update('PROGRESS', msg='Create stack %s - Starting' % stack_id)
+        # task.update('PROGRESS', msg='Create stack %s - Starting' % stack_id)
         #
         # # set ext_id
         # container.update_resource(oid, ext_id=stack_id)
-        # self.update('PROGRESS', msg='Set stack remote openstack id %s' % stack_id)
+        # task.update('PROGRESS', msg='Set stack remote openstack id %s' % stack_id)
 
         # # loop until entity is not stopped or get error
         # while True:
@@ -132,26 +135,26 @@ class StackTask(AbstractResourceTask):
         #         break
         #     elif status == 'CREATE_FAILED':
         #         reason = inst['stack_status_reason']
-        #         self.update('PROGRESS', msg='Create stack %s - Error: %s' % (stack_id, reason))
+        #         task.update('PROGRESS', msg='Create stack %s - Error: %s' % (stack_id, reason))
         #         raise Exception('Can not create stack %s: %s' % (stack_id, reason))
         #
-        #     self.update('PROGRESS')
+        #     task.update('PROGRESS')
         #     gevent.sleep(task_local.delta)
 
-        self.update("PROGRESS", msg="Create stack %s - Completed" % stack_id)
+        task.update("PROGRESS", msg="Create stack %s - Completed" % stack_id)
 
         # save current data in shared area
         params["ext_id"] = stack_id
         params["result"] = stack_id
         # params['attrib'] = {'volume':{'boot':volume.id}}
-        self.set_shared_data(params)
-        self.update("PROGRESS", msg="Update shared area")
+        task.set_shared_data(params)
+        task.update("PROGRESS", msg="Update shared area")
 
         return stack_id, params
 
     @staticmethod
     @task_step()
-    def stack_register_child_step(task, step_id, params, *args, **kvargs):
+    def stack_register_child_step(task: 'AbstractResourceTask', step_id, params, *args, **kvargs):
         """Register vsphere stack child entity
 
         :param task: parent celery task
@@ -160,7 +163,7 @@ class StackTask(AbstractResourceTask):
         :return: oid, params
         """
         # get params from shared data
-        params = self.get_shared_data()
+        params = task.get_shared_data()
 
         # validate input params
         cid = params.get("cid")
@@ -168,17 +171,17 @@ class StackTask(AbstractResourceTask):
         ext_id = params.get("ext_id")
         name = params.get("name")
         parent_id = params.get("parent")
-        self.update("PROGRESS", msg="Get configuration params")
+        task.update("PROGRESS", msg="Get configuration params")
 
         # get container
-        self.get_session()
-        container = self.get_container(cid, projectid=parent_id)
+        task.get_session()
+        container = task.get_container(cid, projectid=parent_id)
         conn = container.conn
-        self.update("PROGRESS", msg="Get container %s" % cid)
+        task.update("PROGRESS", msg="Get container %s" % cid)
 
         # get resources
         resources = conn.heat.stack.resource.list(stack_name=name, oid=ext_id)
-        self.update("PROGRESS", msg="Get child resources: %s" % truncate(resources))
+        task.update("PROGRESS", msg="Get child resources: %s" % truncate(resources))
 
         """
         [{'resource_name': 'my_instance',
@@ -202,7 +205,7 @@ class StackTask(AbstractResourceTask):
             if mapping is not None:
                 objdefs[mapping] = None
                 res_ext_ids.append(item["physical_resource_id"])
-        self.update("PROGRESS", msg="get child resources objdef: %s" % objdefs)
+        task.update("PROGRESS", msg="get child resources objdef: %s" % objdefs)
 
         # run celery job
         if len(objdefs) > 0:
@@ -214,22 +217,23 @@ class StackTask(AbstractResourceTask):
                 "changed": False,
             }
             params.update(container.get_user())
-            task = signature(
+            from beehive.common.task.job import JobTask
+            task: 'JobTask' = signature(
                 "beehive_resource.tasks.job_synchronize_container",
                 (container.objid, params),
                 app=task_manager,
                 queue=container.celery_broker_queue,
             )
             job = task.apply_async()
-            self.logger.info("Start job job_synchronize_container %s" % job.id)
+            task.logger.info("Start job job_synchronize_container %s" % job.id)
 
             # wait job complete
-            self.wait_for_job_complete(job.id)
+            task.wait_for_job_complete(job.id)
 
         # save current data in shared area
         params["res_ext_ids"] = res_ext_ids
-        self.set_shared_data(params)
-        self.update("PROGRESS", msg="Update shared area")
+        task.set_shared_data(params)
+        task.update("PROGRESS", msg="Update shared area")
 
         return res_ext_ids, params
 
@@ -245,15 +249,15 @@ class StackTask(AbstractResourceTask):
         """
         oid = params.get("id")
         res_ext_ids = params.get("res_ext_ids")
-        self.update("PROGRESS", msg="Get configuration params")
+        task.update("PROGRESS", msg="Get configuration params")
 
         # link child resource to stack
-        self.get_session()
-        stack = self.get_resource(oid)
+        task.get_session()
+        stack = task.get_resource(oid)
         for ext_id in res_ext_ids:
-            child = self.get_resource_by_extid(ext_id)
+            child = task.get_resource_by_extid(ext_id)
             stack.add_link("%s-%s-stack-link" % (oid, child.oid), "stack", child.oid, attributes={})
-            self.update("PROGRESS", msg="Link stack %s to child %s" % (oid, child.oid))
+            task.update("PROGRESS", msg="Link stack %s to child %s" % (oid, child.oid))
 
         return True, params
 
@@ -282,12 +286,12 @@ class StackTask(AbstractResourceTask):
         cid = params.get("cid")
         ext_id = params.get("ext_id")
         parent_id = params.get("parent_id")
-        self.update("PROGRESS", msg="Get configuration params")
+        task.update("PROGRESS", msg="Get configuration params")
 
         # get stack resource
-        self.get_session()
-        container = self.get_container(cid, projectid=parent_id)
+        task.get_session()
+        container = task.get_container(cid, projectid=parent_id)
         conn = container.conn
-        self.update("PROGRESS", msg="Get container %s" % cid)
+        task.update("PROGRESS", msg="Get container %s" % cid)
 
         return True

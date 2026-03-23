@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_resource.plugins.vsphere.entity import VsphereResource
 from beehive_resource.plugins.vsphere.entity.vs_volumetype import VsphereVolumeType
@@ -185,10 +185,14 @@ class VsphereVolume(VsphereResource):
         """
         kvargs = VsphereResource.pre_update(self, *args, **kvargs)
 
-        kvargs["attribute"] = {
-            "size": kvargs.pop("size", None),
-            "metadata": kvargs.pop("metadata", None),
-        }
+        attributes = self.get_attribs()
+        size = kvargs.pop("size", None)
+        metadata = kvargs.pop("metadata", None)
+        if size:
+            attributes["size"] = size
+        if metadata:
+            attributes["metadata"] = metadata
+        kvargs["attribute"] = attributes
 
         return kvargs
 

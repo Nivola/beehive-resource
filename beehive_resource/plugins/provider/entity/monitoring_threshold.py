@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2021-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.model import BaseEntity
 from beehive.common.task_v2 import prepare_or_run_task
@@ -355,7 +355,8 @@ class ComputeMonitoringThreshold(ComputeProviderResource):
         return res
 
     def get_monitoring_threshold_instance(self):
-        instances, total = self.get_linked_resources(link_type_filter="relation%")
+        # instances, total = self.get_linked_resources(link_type_filter="relation%")
+        instances, total = self.get_linked_resources_optimized(link_type_filter="relation%")
         self.logger.debug("get_monitoring_threshold_instance - total: %s " % total)
 
         res = None
@@ -456,7 +457,8 @@ class MonitoringThreshold(AvailabilityZoneChildResource):
         """
         from beehive_resource.plugins.zabbix.entity.zbx_usergroup import ZabbixUsergroup
 
-        usergroups, total = self.get_linked_resources(link_type_filter="relation", objdef=ZabbixUsergroup.objdef)
+        # usergroups, total = self.get_linked_resources(link_type_filter="relation", objdef=ZabbixUsergroup.objdef)
+        usergroups, total = self.get_linked_resources_optimized(link_type_filter="relation", objdef=ZabbixUsergroup.objdef)
         if total > 0:
             usergroup = usergroups[0]
             self.logger.debug("get zone monitoring_threshold %s zabbix usergroup: %s" % (self.oid, usergroup))

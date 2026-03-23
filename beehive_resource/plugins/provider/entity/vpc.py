@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beecell.types.type_string import truncate
 from beehive.common.apimanager import ApiManagerError
@@ -115,7 +115,7 @@ class Vpc(ComputeProviderResource):
                 "args": [network],
             }
             g_tasks.append(subtask)
-        kvargs["tasks"] = ComputeProviderResource.group_create_task(g_tasks)
+        kvargs["tasks"] = ComputeProviderResource.group_create_task(g_tasks) # non esiste più
 
         return kvargs
 

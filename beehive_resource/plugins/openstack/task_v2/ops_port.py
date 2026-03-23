@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from logging import getLogger
+from beedrones.openstack.client import OpenstackError, OpenstackManager
+from beehive.common.apimanager import ApiManagerError
 from beehive.common.task_v2 import task_step
-from beehive.common.task_v2.manager import task_manager
+from beehive.common.task_v2.manager import get_task_manager
 from beehive_resource.plugins.openstack.entity.ops_port import OpenstackPort
 from beehive_resource.task_v2 import AbstractResourceTask
 
@@ -19,7 +21,7 @@ class PortTask(AbstractResourceTask):
 
     @staticmethod
     @task_step()
-    def port_create_physical_step(task, step_id, params, *args, **kvargs):
+    def port_create_physical_step(task: 'AbstractResourceTask', step_id, params, *args, **kvargs):
         """Create physical resource
 
         :param task: parent celery task
@@ -84,7 +86,7 @@ class PortTask(AbstractResourceTask):
 
     @staticmethod
     @task_step()
-    def port_delete_physical_step(task, step_id, params, *args, **kvargs):
+    def port_delete_physical_step(task: 'AbstractResourceTask', step_id, params, *args, **kvargs):
         """Delete physical resource
 
         :param task: parent celery task
@@ -96,25 +98,46 @@ class PortTask(AbstractResourceTask):
         oid = params.get("id")
 
         container = task.get_container(cid)
-        conn = container.conn
+        conn: OpenstackManager = container.conn
         resource = container.get_simple_resource(oid)
 
+        port_uuid = resource.ext_id
         if resource.is_ext_id_valid() is True:
+            port_exists = False
             try:
                 # check port exists
-                conn.network.port.get(resource.ext_id)
+                task.progress(step_id, msg="Check port exists %s" % port_uuid)
+                conn.network.port.get(port_uuid)
+                port_exists = True
+            except OpenstackError as ose:
+                task.logger.error(ose, exc_info=True)
+                if ose.code == 404:
+                    task.progress(step_id, msg="Port doesn't exist %s" % port_uuid)
+                    port_exists = False
+                else:
+                    raise ApiManagerError(ose, code=ose.code)
+            except Exception as ex:
+                task.progress(step_id, msg="Error checking port %s - %s" % (port_uuid, ex))
+                task.logger.error(ex, exc_info=True)
+                raise ApiManagerError(ex, code=getattr(ex, "code", 500))
 
-                # delete openport port
-                conn.network.port.delete(resource.ext_id)
-                task.progress(step_id, msg="Delete port %s" % resource.ext_id)
-            except:
-                pass
+            try:
+                if port_exists:
+                    # delete openport port
+                    conn.network.port.delete(port_uuid)
+                    task.progress(step_id, msg="Delete port %s" % port_uuid)
+            except Exception as ex:
+                task.progress(step_id, msg="Error deleting port %s - %s" % (port_uuid, ex))
+                task.logger.error(ex, exc_info=True)
+                raise ApiManagerError(ex, code=getattr(ex, "code", 500))
+        else:
+            task.progress(step_id, msg="Port uuid not valid %s" % (port_uuid))
 
         return oid, params
 
     @staticmethod
     @task_step()
-    def port_add_security_group_step(task, step_id, params, *args, **kvargs):
+    def port_add_security_group_step(task: 'AbstractResourceTask', step_id, params, *args, **kvargs):
         """Attach security group to port
 
         :param task: parent celery task
@@ -138,7 +161,7 @@ class PortTask(AbstractResourceTask):
 
     @staticmethod
     @task_step()
-    def port_del_security_group_step(task, step_id, params, *args, **kvargs):
+    def port_del_security_group_step(task: 'AbstractResourceTask', step_id, params, *args, **kvargs):
         """Detach security group from port
 
         :param task: parent celery task
@@ -164,4 +187,4 @@ class PortTask(AbstractResourceTask):
         return oid, params
 
 
-task_manager.tasks.register(PortTask())
+get_task_manager().register_task(PortTask())

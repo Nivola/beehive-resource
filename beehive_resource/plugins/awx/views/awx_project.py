@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
@@ -40,15 +40,22 @@ class ListAwxProjectsParamsResponseSchema(ResourceResponseSchema):
 
 
 class ListAwxProjectsResponseSchema(PaginatedResponseSchema):
-    projects = fields.Nested(ListAwxProjectsParamsResponseSchema, many=True, required=True, allow_none=True)
+    projects = fields.Nested(
+        ListAwxProjectsParamsResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListAwxProjects(AwxProjectView):
     summary = "List projects"
     description = "List projects"
+
     definitions = {
         "ListAwxProjectsResponseSchema": ListAwxProjectsResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(ListAwxProjectsRequestSchema)
     parameters_schema = ListAwxProjectsRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListAwxProjectsResponseSchema}})
@@ -59,19 +66,30 @@ class ListAwxProjects(AwxProjectView):
 
 
 class GetAwxProjectParamsResponseSchema(ResourceResponseSchema):
-    projects = fields.Nested(ResourceSmallResponseSchema, required=True, many=True, allow_none=True)
+    projects = fields.Nested(
+        ResourceSmallResponseSchema,
+        required=True,
+        many=True,
+        allow_none=True,
+    )
 
 
 class GetAwxProjectResponseSchema(Schema):
-    project = fields.Nested(GetAwxProjectParamsResponseSchema, required=True, allow_none=True)
+    project = fields.Nested(
+        GetAwxProjectParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetAwxProject(AwxProjectView):
     summary = "Get project"
     description = "Get project"
+
     definitions = {
         "GetAwxProjectResponseSchema": GetAwxProjectResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetAwxProjectResponseSchema}})
 
@@ -81,49 +99,97 @@ class GetAwxProject(AwxProjectView):
 
 
 class CreateAwxProjectParamRequestSchema(CreateProviderResourceRequestSchema):
-    container = fields.String(required=True, example="12", description="Container id, uuid or name")
-    name = fields.String(required=True, example="test-project", default="", description="Project name")
-    desc = fields.String(example="test-project", default="", description="Project description")
-    organization = fields.String(required=True, example="1", default="Default", description="Organization name")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'Container id, uuid or name',
+        },
+    )
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test-project',
+            "description": 'Project name',
+        },
+    )
+
+    desc = fields.String(
+        metadata={
+            "example": 'test-project',
+            "description": 'Project description',
+        },
+    )
+
+    organization = fields.String(
+        required=True,
+        metadata={
+            "example": '1',
+            "description": 'Organization name',
+        },
+    )
+
     scm_type = fields.String(
         required=True,
-        example="git",
-        default="git",
-        description="The source control system used to store the project",
+        metadata={
+            "example": 'git',
+            "description": 'The source control system used to store the project',
+        },
     )
+
     scm_url = fields.String(
         required=True,
-        example="https://github.com/awx_projects/nginx",
-        default="",
-        description="The location where the project is stored",
+        metadata={
+            "example": 'https://github.com/awx_projects/nginx',
+            "description": 'The location where the project is stored',
+        },
     )
+
     scm_branch = fields.String(
-        example="1.6.0",
-        default="master",
-        description="Specific branch, tag or commit to checkout",
+        metadata={
+            "example": '1.6.0',
+            "description": 'Specific branch, tag or commit to checkout',
+        },
     )
+
     scm_update_on_launch = fields.Boolean(
-        default="False",
-        description="Update the project when a job using the project is launched",
+        metadata={
+            "description": 'Update the project when a job using the project is launched',
+        },
     )
-    scm_creds_name = fields.String(required=True, example="git-test-creds", description="SCM credentials name")
+
+    scm_creds_name = fields.String(
+        required=True,
+        metadata={
+            "example": 'git-test-creds',
+            "description": 'SCM credentials name',
+        },
+    )
 
 
 class CreateAwxProjectRequestSchema(Schema):
-    project = fields.Nested(CreateAwxProjectParamRequestSchema)
+    project = fields.Nested(
+        CreateAwxProjectParamRequestSchema,
+    )
 
 
 class CreateAwxProjectBodyRequestSchema(Schema):
-    body = fields.Nested(CreateAwxProjectRequestSchema, context="body")
+    body = fields.Nested(
+        CreateAwxProjectRequestSchema,
+        context="body",
+    )
 
 
 class CreateAwxProject(AwxProjectView):
     summary = "Create project"
     description = "Create project"
+
     definitions = {
         "CreateAwxProjectRequestSchema": CreateAwxProjectRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateAwxProjectBodyRequestSchema)
     parameters_schema = CreateAwxProjectRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
@@ -134,8 +200,20 @@ class CreateAwxProject(AwxProjectView):
 
 
 class UpdateAwxProjectTemplateRequestSchema(Schema):
-    name = fields.String(required=True, example="test-project", default="", description="Project name")
-    desc = fields.String(example="test-project", default="", description="Project description")
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test-project',
+            "description": 'Project name',
+        },
+    )
+
+    desc = fields.String(
+        metadata={
+            "example": 'test-project',
+            "description": 'Project description',
+        },
+    )
 
 
 class UpdateAwxProjectParamRequestSchema(UpdateProviderResourceRequestSchema):
@@ -143,29 +221,41 @@ class UpdateAwxProjectParamRequestSchema(UpdateProviderResourceRequestSchema):
         UpdateAwxProjectTemplateRequestSchema,
         required=False,
         many=True,
-        description="list of orchestrator projects to link",
         allow_none=True,
+        metadata={
+            "description": 'list of orchestrator projects to link',
+        },
     )
 
 
 class UpdateAwxProjectRequestSchema(Schema):
-    project = fields.Nested(UpdateAwxProjectParamRequestSchema)
+    project = fields.Nested(
+        UpdateAwxProjectParamRequestSchema,
+    )
 
 
 class UpdateAwxProjectBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateAwxProjectRequestSchema, context="body")
+    body = fields.Nested(
+        UpdateAwxProjectRequestSchema,
+        context="body",
+    )
 
 
 class UpdateAwxProject(AwxProjectView):
     summary = "Update project"
     description = "Update project"
+
     definitions = {
         "UpdateAwxProjectRequestSchema": UpdateAwxProjectRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateAwxProjectBodyRequestSchema)
     parameters_schema = UpdateAwxProjectRequestSchema
-    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
+
+    responses = SwaggerApiView.setResponses({
+        202:{"description": "success", "schema": CrudApiObjectJobResponseSchema}
+    })
 
     def put(self, controller, data, oid, *args, **kwargs):
         """Update AWX project"""
@@ -177,7 +267,10 @@ class DeleteAwxProject(AwxProjectView):
     description = "Delete project"
     definitions = {"CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
+
+    responses = SwaggerApiView.setResponses({
+        202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}
+    })
 
     def delete(self, controller, data, oid, *args, **kwargs):
         """Delete AWX project"""

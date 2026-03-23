@@ -1,13 +1,14 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import logging
 from beehive.common.task_v2 import task_step
 from beehive_resource.plugins.grafana.entity.grafana_folder import GrafanaFolder
 from beehive_resource.plugins.grafana.controller import GrafanaContainer
-from beehive_resource.task_v2 import AbstractResourceTask, task_manager
+from beehive_resource.task_v2 import AbstractResourceTask
+from beehive.common.task_v2.manager import get_task_manager
 
 logger = logging.getLogger(__name__)
 
@@ -242,7 +243,7 @@ class GrafanaFolderTask(AbstractResourceTask):
             "Error adding dashboard",
             params,
         )
-        logger.debug("+++++ add_dashboard_step - res={}".format(res))  # aaa
+        logger.debug("+++++ add_dashboard_step - res={}".format(res))
         return res, params
 
     @staticmethod
@@ -375,4 +376,4 @@ class GrafanaFolderTask(AbstractResourceTask):
         return True
 
 
-task_manager.tasks.register(GrafanaFolderTask())
+get_task_manager().register_task(GrafanaFolderTask())

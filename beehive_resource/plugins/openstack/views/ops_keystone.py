@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_resource.plugins.openstack.views import OpenstackAPI, OpenstackApiView
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
+
 from beehive.common.apimanager import (
     GetApiObjectRequestSchema,
     SwaggerApiView,
@@ -13,8 +14,21 @@ from beehive.common.apimanager import (
 
 
 class SystemIdentityGetRequestSchema(GetApiObjectRequestSchema):
-    entity = fields.String(required=True, description="entity type", context="path")
-    name = fields.String(required=False, description="entity name", context="query")
+    entity = fields.String(
+        required=True,
+        context="path",
+        metadata={
+            "description": 'entity type',
+        },
+    )
+
+    name = fields.String(
+        required=False,
+        context="query",
+        metadata={
+            "description": 'entity name',
+        },
+    )
 
 
 class SystemIdentityGetResponseSchema(Schema):
@@ -29,12 +43,15 @@ class SystemIdentityGetResponseSchema(Schema):
 
 class SystemIdentityGet(OpenstackApiView):
     tags = ["openstack"]
+
     definitions = {
         "SystemIdentityGetRequestSchema": SystemIdentityGetRequestSchema,
         "SystemIdentityGetResponseSchema": SystemIdentityGetResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(SystemIdentityGetRequestSchema)
     parameters_schema = SystemIdentityGetRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": SystemIdentityGetResponseSchema}}
     )

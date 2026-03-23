@@ -1,17 +1,19 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
-
+# (C) Copyright 2018-2026 CSI-Piemonte
+from __future__ import annotations
 import ujson as json
 from celery.utils.log import get_task_logger
-
+from typing import TYPE_CHECKING
 from beehive.common.apimanager import ApiManagerError
 from beehive.common.data import operation
 from beehive.common.task_v2 import BaseTask, task_step, run_sync_task
-from beehive.common.task_v2.manager import task_manager
+from beehive.common.task_v2.manager import get_task_manager
 from beehive_resource.container import Resource
 from beehive_resource.model import Resource as ModelResource, ResourceState
 from beecell.simple import jsonDumps
+if TYPE_CHECKING:
+    from beehive_resource.controller import ResourceController
 
 logger = get_task_logger(__name__)
 
@@ -25,6 +27,8 @@ class AbstractResourceTask(BaseTask):
 
     name = "resource_task"
     entity_class = Resource
+
+    controller: 'ResourceController'
 
     def __init__(self, *args, **kwargs):
         super(AbstractResourceTask, self).__init__(*args, **kwargs)
@@ -74,10 +78,9 @@ class AbstractResourceTask(BaseTask):
         local_container = self.controller.get_container(container_oid, connect=False, cache=False)
         if local_container.objdef == "Openstack":
             from beehive_resource.plugins.openstack.controller import OpenstackContainer
-            from beedrones.openstack.client import OpenstackManager
 
             openstackContainer: OpenstackContainer = local_container
-            openstackManager: OpenstackManager = openstackContainer.get_connection(projectid=projectid)
+            openstackContainer.get_connection(projectid=projectid)
         else:
             local_container.get_connection()
         self.logger.debug("Get container %s of type %s" % (local_container, local_container.objdef))
@@ -96,42 +99,26 @@ class AbstractResourceTask(BaseTask):
         self.logger.debug("Get container %s of type %s" % (local_container, local_container.objdef))
         return local_container
 
-    def __get_resource(self, oid, run_customize=True):
+    def __get_resource(self, oid, run_customize=True, entity_class=None):
         """Get resource instance.
 
-        :param oid: resource oid
+        :param oid: resource id or name or uuid
         :param run_customize: if True run customize [default=True]
+        :param entity_class: optional entity class
         :return: resource instance
         :raises ApiManagerError: if query empty return error.
         """
-        from beehive_resource.controller import ResourceController
+        return self.controller.get_resource(oid, run_customize=run_customize, cache=False, entity_class=entity_class)
 
-        controller: ResourceController
-        controller = self.controller
-        return controller.get_resource(oid, run_customize=run_customize, cache=False)
-
-    def get_simple_resource(self, oid):
+    def get_simple_resource(self, oid, entity_class = None):
         """Get resource instance without detail.
 
-        :param oid: resource oid
+        :param oid: resource id or name or uuid
+        :param entity_class: optional entity class
         :return: resource instance
         :raises ApiManagerError: if query empty return error.
         """
-        return self.__get_resource(oid, run_customize=False)
-
-    def get_simple_resource_by_name_and_entity_class(self, name, entity_class):
-        """Get resource by name and entity class
-
-        :param name: resource name
-        :param entity_class: entity class
-        :return: resource instance
-        :raises ApiManagerError:
-        """
-        from beehive_resource.controller import ResourceController
-
-        controller: ResourceController
-        controller = self.controller
-        return controller.get_entity_v2(ModelResource, name, entity_class=entity_class, customize=None)
+        return self.__get_resource(oid, run_customize=False, entity_class=entity_class)
 
     def get_resource(self, oid):
         """Get resource instance with detail.
@@ -228,7 +215,7 @@ class AbstractResourceTask(BaseTask):
 
     @staticmethod
     @task_step()
-    def create_resource_pre_step(task, step_id, params, *args, **kvargs):
+    def create_resource_pre_step(task: AbstractResourceTask, step_id, params, *args, **kvargs):
         """Create resource in beehive - pre step
 
         :param task: parent celery task
@@ -276,7 +263,7 @@ class AbstractResourceTask(BaseTask):
                     task.logger.warning(ex)
 
             # add tags
-            for tag in tags:
+            for tag in tags.split(","):
                 resource.add_tag(tag)
                 task.progress(step_id, msg="Add resource tag %s" % tag)
 
@@ -284,7 +271,7 @@ class AbstractResourceTask(BaseTask):
 
     @staticmethod
     @task_step()
-    def create_resource_post_step(task: "AbstractResourceTask", step_id, params, *args, **kvargs):
+    def create_resource_post_step(task: AbstractResourceTask, step_id, params, *args, **kvargs):
         """Create resource in beehive database - post step
 
         :param task: parent celery task
@@ -328,7 +315,7 @@ class AbstractResourceTask(BaseTask):
 
     @staticmethod
     @task_step()
-    def update_resource_pre_step(task, step_id, params, *args, **kvargs):
+    def update_resource_pre_step(task: AbstractResourceTask, step_id, params, *args, **kvargs):
         """Update resource in beehive database - pre step
 
         :param task: parent celery task
@@ -370,7 +357,7 @@ class AbstractResourceTask(BaseTask):
 
     @staticmethod
     @task_step()
-    def update_resource_post_step(task, step_id, params, *args, **kvargs):
+    def update_resource_post_step(task: AbstractResourceTask, step_id, params, *args, **kvargs):
         """Update resource in beehive database - post step
 
         :param task: parent celery task
@@ -403,7 +390,7 @@ class AbstractResourceTask(BaseTask):
 
     @staticmethod
     @task_step()
-    def patch_resource_pre_step(task, step_id, params, *args, **kvargs):
+    def patch_resource_pre_step(task: AbstractResourceTask, step_id, params, *args, **kvargs):
         """Patch resource in beehive database - pre step
 
         :param task: parent celery task
@@ -429,7 +416,7 @@ class AbstractResourceTask(BaseTask):
 
     @staticmethod
     @task_step()
-    def patch_resource_post_step(task, step_id, params, *args, **kvargs):
+    def patch_resource_post_step(task: AbstractResourceTask, step_id, params, *args, **kvargs):
         """Patch resource in beehive database - post step
 
         :param task: parent celery task
@@ -459,7 +446,7 @@ class AbstractResourceTask(BaseTask):
 
     @staticmethod
     @task_step()
-    def expunge_resource_pre_step(task, step_id, params, *args, **kvargs):
+    def expunge_resource_pre_step(task: AbstractResourceTask, step_id, params, *args, **kvargs):
         """Hard delete resource from beehive database - pre step
 
         :param task: parent celery task
@@ -484,7 +471,7 @@ class AbstractResourceTask(BaseTask):
 
     @staticmethod
     @task_step()
-    def expunge_resource_post_step(task, step_id, params, *args, **kvargs):
+    def expunge_resource_post_step(task: AbstractResourceTask, step_id, params, *args, **kvargs):
         """Hard delete resource from beehive database - post step
 
         :param task: parent celery task
@@ -508,7 +495,7 @@ class AbstractResourceTask(BaseTask):
 
     @staticmethod
     @task_step()
-    def action_resource_pre_step(task, step_id, params, *args, **kvargs):
+    def action_resource_pre_step(task: AbstractResourceTask, step_id, params, *args, **kvargs):
         """Run action on a resource - pre step
 
         :param task: parent celery task
@@ -540,7 +527,7 @@ class AbstractResourceTask(BaseTask):
 
     @staticmethod
     @task_step()
-    def action_resource_post_step(task, step_id, params, *args, **kvargs):
+    def action_resource_post_step(task:AbstractResourceTask, step_id, params, *args, **kvargs):
         """Run action on a resource - post step
 
         :param task: parent celery task
@@ -563,7 +550,7 @@ class AbstractResourceTask(BaseTask):
 
     @staticmethod
     @task_step()
-    def delete_resource_list(task, step_id, params, *args, **kvargs):
+    def delete_resource_list(task: AbstractResourceTask, step_id, params, *args, **kvargs):
         """Remove resource list from beehive database.
 
         :param task: parent celery task
@@ -586,7 +573,7 @@ class AbstractResourceTask(BaseTask):
 
     @staticmethod
     @task_step()
-    def delete_resourcelink_list(task, step_id, params, *args, **kvargs):
+    def delete_resourcelink_list(task: AbstractResourceTask, step_id, params, *args, **kvargs):
         """Remove resource link list from beehive database.
 
         :param task: parent celery task
@@ -608,7 +595,7 @@ class AbstractResourceTask(BaseTask):
 
     @staticmethod
     @task_step()
-    def remove_child_step(task, step_id, params, resource_id, *args, **kvargs):
+    def remove_child_step(task: AbstractResourceTask, step_id, params, resource_id, *args, **kvargs):
         """Remove compute resource childs.
 
         :param task: parent celery task
@@ -749,11 +736,11 @@ class ResourceActionTask(AbstractResourceTask):
     entity_class = Resource
 
 
-task_manager.tasks.register(ResourceAddTask())
-# task_manager.tasks.register(ResourceCloneTask())
-task_manager.tasks.register(ResourceImportTask())
-task_manager.tasks.register(ResourceUpdateTask())
-task_manager.tasks.register(ResourcePatchTask())
-task_manager.tasks.register(ResourceDeleteTask())
-task_manager.tasks.register(ResourceExpungeTask())
-task_manager.tasks.register(ResourceActionTask())
+get_task_manager().register_task(ResourceAddTask())
+# get_task_manager().register_task(ResourceCloneTask())
+get_task_manager().register_task(ResourceImportTask())
+get_task_manager().register_task(ResourceUpdateTask())
+get_task_manager().register_task(ResourcePatchTask())
+get_task_manager().register_task(ResourceDeleteTask())
+get_task_manager().register_task(ResourceExpungeTask())
+get_task_manager().register_task(ResourceActionTask())

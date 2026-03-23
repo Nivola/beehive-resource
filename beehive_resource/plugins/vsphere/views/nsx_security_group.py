@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_resource.plugins.vsphere.views import VsphereAPI, VsphereApiView
 from flasgger import fields, Schema
 from marshmallow.validate import OneOf
 from beecell.swagger import SwaggerHelper
+
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
@@ -13,6 +14,7 @@ from beehive.common.apimanager import (
     CrudApiObjectJobResponseSchema,
     CrudApiJobResponseSchema,
 )
+
 from beehive_resource.view import ResourceResponseSchema, ListResourcesRequestSchema
 from beehive_resource.plugins.vsphere.entity.nsx_manager import NsxManager
 from beehive_resource.plugins.vsphere.entity.nsx_security_group import NsxSecurityGroup
@@ -33,15 +35,19 @@ class ListNsxSecurityGroupsParamsResponseSchema(ResourceResponseSchema):
 
 
 class ListNsxSecurityGroupsResponseSchema(PaginatedResponseSchema):
-    nsx_security_groups = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
+    nsx_security_groups = fields.Nested(
+        ResourceResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListNsxSecurityGroups(VsphereNsxSecurityGroupApiView):
-    definitions = {
-        "ListNsxSecurityGroupsResponseSchema": ListNsxSecurityGroupsResponseSchema,
-    }
+    definitions = {"ListNsxSecurityGroupsResponseSchema": ListNsxSecurityGroupsResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListNsxSecurityGroupsRequestSchema)
     parameters_schema = ListNsxSecurityGroupsRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": ListNsxSecurityGroupsResponseSchema}}
     )
@@ -49,21 +55,23 @@ class ListNsxSecurityGroups(VsphereNsxSecurityGroupApiView):
     def get(self, controller, data, *args, **kwargs):
         """
         List nsx_security_group
-        List nsx_security_group
         """
         return self.get_resources(controller, **data)
 
 
 ## get
 class GetNsxSecurityGroupResponseSchema(Schema):
-    nsx_security_group = fields.Nested(ResourceResponseSchema, required=True, allow_none=True)
+    nsx_security_group = fields.Nested(
+        ResourceResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetNsxSecurityGroup(VsphereNsxSecurityGroupApiView):
-    definitions = {
-        "GetNsxSecurityGroupResponseSchema": GetNsxSecurityGroupResponseSchema,
-    }
+    definitions = {"GetNsxSecurityGroupResponseSchema": GetNsxSecurityGroupResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": GetNsxSecurityGroupResponseSchema}}
     )
@@ -71,15 +79,26 @@ class GetNsxSecurityGroup(VsphereNsxSecurityGroupApiView):
     def get(self, controller, data, oid, *args, **kwargs):
         """
         Get nsx_security_group
-        Get nsx_security_group
         """
         return self.get_resource(controller, oid)
 
 
 ## create
 class CreateNsxSecurityGroupParamRequestSchema(Schema):
-    container = fields.String(required=True, example="12", description="container id, uuid or name")
-    name = fields.String(required=True, example="test")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'container id, uuid or name',
+        },
+    )
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+        },
+    )
 
 
 class CreateNsxSecurityGroupRequestSchema(Schema):
@@ -87,7 +106,10 @@ class CreateNsxSecurityGroupRequestSchema(Schema):
 
 
 class CreateNsxSecurityGroupBodyRequestSchema(Schema):
-    body = fields.Nested(CreateNsxSecurityGroupRequestSchema, context="body")
+    body = fields.Nested(
+        CreateNsxSecurityGroupRequestSchema,
+        context="body",
+    )
 
 
 class CreateNsxSecurityGroup(VsphereNsxSecurityGroupApiView):
@@ -95,6 +117,7 @@ class CreateNsxSecurityGroup(VsphereNsxSecurityGroupApiView):
         "CreateNsxSecurityGroupRequestSchema": CreateNsxSecurityGroupRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateNsxSecurityGroupBodyRequestSchema)
     parameters_schema = CreateNsxSecurityGroupRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
@@ -102,23 +125,27 @@ class CreateNsxSecurityGroup(VsphereNsxSecurityGroupApiView):
     def post(self, controller, data, *args, **kwargs):
         """
         Create nsx_security_group
-        Create nsx_security_group
         """
         return self.create_resource(controller, data)
 
 
 class UpdateNsxSecurityGroupParamRequestSchema(Schema):
-    name = fields.String(default="test")
-    desc = fields.String(default="test")
-    enabled = fields.Boolean(default=True)
+    name = fields.String(load_default="test")
+    desc = fields.String(load_default="test")
+    enabled = fields.Boolean(load_default=True)
 
 
 class UpdateNsxSecurityGroupRequestSchema(Schema):
-    nsx_security_group = fields.Nested(UpdateNsxSecurityGroupParamRequestSchema)
+    nsx_security_group = fields.Nested(
+        UpdateNsxSecurityGroupParamRequestSchema,
+    )
 
 
 class UpdateNsxSecurityGroupBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateNsxSecurityGroupRequestSchema, context="body")
+    body = fields.Nested(
+        UpdateNsxSecurityGroupRequestSchema,
+        context="body",
+    )
 
 
 class UpdateNsxSecurityGroup(VsphereNsxSecurityGroupApiView):
@@ -126,6 +153,7 @@ class UpdateNsxSecurityGroup(VsphereNsxSecurityGroupApiView):
         "UpdateNsxSecurityGroupRequestSchema": UpdateNsxSecurityGroupRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateNsxSecurityGroupBodyRequestSchema)
     parameters_schema = UpdateNsxSecurityGroupRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
@@ -133,9 +161,8 @@ class UpdateNsxSecurityGroup(VsphereNsxSecurityGroupApiView):
     def put(self, controller, data, oid, *args, **kwargs):
         """
         Update nsx_security_group
-        Update nsx_security_group
         """
-        return self.update_resource(controller, data)
+        return self.update_resource(controller, oid, data)
 
 
 ## delete
@@ -147,26 +174,39 @@ class DeleteNsxSecurityGroup(VsphereNsxSecurityGroupApiView):
     def delete(self, controller, data, oid, *args, **kwargs):
         """
         Delete nsx_security_group
-        Delete nsx_security_group
         """
         return self.expunge_resource(controller, oid)
 
 
 class UpdateSecurityGroupMemberParamRequestSchema(Schema):
     action = fields.String(
-        example="add",
-        validate=OneOf(["add", "delete"]),
-        description="Action. Can be: add or delete",
+        validate=OneOf(['add', 'delete']),
+        metadata={
+            "example": 'add',
+            "description": 'Action. Can be: add or delete',
+        },
     )
-    member = fields.String(example="12", description="id, uuid or name of member")
+
+    member = fields.String(
+        metadata={
+            "example": '12',
+            "description": 'id, uuid or name of member',
+        },
+    )
 
 
 class UpdateSecurityGroupMemberSchema(Schema):
-    nsx_security_group_member = fields.Nested(UpdateSecurityGroupMemberParamRequestSchema, required=True)
+    nsx_security_group_member = fields.Nested(
+        UpdateSecurityGroupMemberParamRequestSchema,
+        required=True,
+    )
 
 
 class UpdateSecurityGroupBodyMemberSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateSecurityGroupMemberSchema, context="body")
+    body = fields.Nested(
+        UpdateSecurityGroupMemberSchema,
+        context="body",
+    )
 
 
 class UpdateSecurityGroupMember(VsphereNsxSecurityGroupApiView):
@@ -174,12 +214,14 @@ class UpdateSecurityGroupMember(VsphereNsxSecurityGroupApiView):
         "UpdateSecurityGroupMemberSchema": UpdateSecurityGroupMemberSchema,
         "CrudApiJobResponseSchema": CrudApiJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateSecurityGroupBodyMemberSchema)
     parameters_schema = UpdateSecurityGroupMemberSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiJobResponseSchema}})
 
     def put(self, controller, data, oid, *args, **kwargs):
-        sg = self.get_resource_reference(controller, oid)
+        res = None, 500
+        sg: 'NsxSecurityGroup' = self.get_resource_reference(controller, oid)
         params = data["nsx_security_group_member"]
         cmd = params.pop("action")
         if cmd == "add":

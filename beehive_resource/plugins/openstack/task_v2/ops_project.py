@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from logging import getLogger
 
 from beecell.simple import id_gen
 from beehive.common.task_v2 import task_step
-from beehive.common.task_v2.manager import task_manager
+from beehive.common.task_v2.manager import get_task_manager
 from beehive_resource.model import ResourceState
 from beehive_resource.plugins.openstack.entity.ops_project import OpenstackProject
 from beehive_resource.plugins.openstack.entity.ops_security_group import (
@@ -265,4 +265,4 @@ class ProjectTask(AbstractResourceTask):
         return restore_point_id, params
 
 
-task_manager.tasks.register(ProjectTask())
+get_task_manager().register_task(ProjectTask())

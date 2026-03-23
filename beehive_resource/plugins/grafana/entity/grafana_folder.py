@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import logging
 from beecell.simple import id_gen
@@ -315,7 +315,7 @@ class GrafanaFolder(GrafanaResource):
 
         steps = ["beehive_resource.plugins.grafana.task_v2.grafana_folder.GrafanaFolderTask.add_dashboard_step"]
         res = self.action("add_dashboard", steps, log="Add dashboard", check=check, **kvargs)
-        logger.debug("+++++ add_dashboard - res {}".format(res))  # aaa
+        logger.debug("+++++ add_dashboard - res {}".format(res))
         return res, "called"
 
     @trace(op="update")

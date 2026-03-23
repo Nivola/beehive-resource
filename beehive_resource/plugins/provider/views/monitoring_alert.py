@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2021-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
@@ -9,22 +9,27 @@ from beehive.common.apimanager import (
     GetApiObjectRequestSchema,
     CrudApiObjectTaskResponseSchema,
 )
+
 from beehive_resource.plugins.provider.entity.monitoring_alert import (
     ComputeMonitoringAlert,
 )
+
 from beehive_resource.plugins.provider.entity.monitoring_folder import (
     ComputeMonitoringFolder,
 )
+
 from beehive_resource.plugins.provider.views import (
     ProviderAPI,
     LocalProviderApiView,
     CreateProviderResourceRequestSchema,
 )
+
 from beehive_resource.view import (
     ListResourcesRequestSchema,
     ResourceResponseSchema,
     ResourceSmallResponseSchema,
 )
+
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
 
@@ -40,7 +45,7 @@ class ProviderMonitoringAlert(LocalProviderApiView):
 
 class ListMonitoringAlertsRequestSchema(ListResourcesRequestSchema):
     instance = fields.String(context="query", description="instance id, uuid or name")
-    parent = fields.String(required=False, default="", description="il padre Folder id", allow_none=True)
+    parent = fields.String(context="query", required=False, description="il padre Folder id", allow_none=True)
 
 
 class ListMonitoringAlertsResponseSchema(PaginatedResponseSchema):
@@ -50,11 +55,10 @@ class ListMonitoringAlertsResponseSchema(PaginatedResponseSchema):
 class ListMonitoringAlerts(ProviderMonitoringAlert):
     summary = "List monitoring alerts"
     description = "List monitoring alerts"
-    definitions = {
-        "ListMonitoringAlertsResponseSchema": ListMonitoringAlertsResponseSchema,
-    }
+    definitions = {"ListMonitoringAlertsResponseSchema": ListMonitoringAlertsResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListMonitoringAlertsRequestSchema)
     parameters_schema = ListMonitoringAlertsRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": ListMonitoringAlertsResponseSchema}}
     )
@@ -67,20 +71,28 @@ class ListMonitoringAlerts(ProviderMonitoringAlert):
 
 
 class GetMonitoringAlertParamsResponseSchema(ResourceResponseSchema):
-    applied = fields.Nested(ResourceSmallResponseSchema, required=True, many=False, allow_none=True)
+    applied = fields.Nested(
+        ResourceSmallResponseSchema,
+        required=True,
+        many=False,
+        allow_none=True,
+    )
 
 
 class GetMonitoringAlertResponseSchema(Schema):
-    monitoring_alert = fields.Nested(GetMonitoringAlertParamsResponseSchema, required=True, allow_none=True)
+    monitoring_alert = fields.Nested(
+        GetMonitoringAlertParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetMonitoringAlert(ProviderMonitoringAlert):
     summary = "Get monitoring alert"
     description = "Get monitoring alert"
-    definitions = {
-        "GetMonitoringAlertResponseSchema": GetMonitoringAlertResponseSchema,
-    }
+    definitions = {"GetMonitoringAlertResponseSchema": GetMonitoringAlertResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": GetMonitoringAlertResponseSchema}}
     )
@@ -90,51 +102,99 @@ class GetMonitoringAlert(ProviderMonitoringAlert):
 
 
 class CreateMonitoringAlertGrafanaAlertRequestSchema(Schema):
-    name = fields.String(required=True, example="Test alert", default="", description="Alert name")
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'Test alert',
+            "description": 'Alert name',
+        },
+    )
+
     desc = fields.String(
         required=True,
-        example="This is the test alert",
-        default="",
-        description="Alert description",
+        metadata={
+            "example": 'This is the test alert',
+            "description": 'Alert description',
+        },
     )
+
     email = fields.String(
         required=True,
-        example="test_email@aaa.it",
-        default="",
-        description="Alert email",
+        metadata={
+            "example": 'test_email@aaa.it',
+            "description": 'Alert email',
+        },
     )
 
 
 class CreateMonitoringAlertParamRequestSchema(CreateProviderResourceRequestSchema):
-    name = fields.String(required=True, example="test", description="monitoring_alert name")
-    desc = fields.String(required=True, example="test", description="monitoring_alert description")
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'monitoring_alert name',
+        },
+    )
+
+    desc = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'monitoring_alert description',
+        },
+    )
+
     # compute_zone = fields.String(required=True, example='1', description='parent compute zone id or uuid')
-    monitoring_folder = fields.String(required=True, example="1", description="parent compute folder id or uuid")
-    norescreate = fields.Boolean(required=False, allow_none=True, description="don't create physical resource")
+    monitoring_folder = fields.String(
+        required=True,
+        metadata={
+            "example": '1',
+            "description": 'parent compute folder id or uuid',
+        },
+    )
+
+    norescreate = fields.Boolean(
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": "don't create physical resource",
+        },
+    )
+
     grafana_alert = fields.Nested(
         CreateMonitoringAlertGrafanaAlertRequestSchema,
         required=True,
-        description="grafana alert parameters",
+        metadata={
+            "description": 'grafana alert parameters',
+        },
     )
 
 
 class CreateMonitoringAlertRequestSchema(Schema):
-    monitoring_alert = fields.Nested(CreateMonitoringAlertParamRequestSchema)
+    monitoring_alert = fields.Nested(
+        CreateMonitoringAlertParamRequestSchema,
+    )
 
 
 class CreateMonitoringAlertBodyRequestSchema(Schema):
-    body = fields.Nested(CreateMonitoringAlertRequestSchema, context="body")
+    body = fields.Nested(
+        CreateMonitoringAlertRequestSchema,
+        context="body",
+    )
 
 
 class CreateMonitoringAlert(ProviderMonitoringAlert):
     summary = "Create monitoring alert"
     description = "Create monitoring alert"
+
     definitions = {
         "CreateMonitoringAlertRequestSchema": CreateMonitoringAlertRequestSchema,
         "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateMonitoringAlertBodyRequestSchema)
     parameters_schema = CreateMonitoringAlertRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )

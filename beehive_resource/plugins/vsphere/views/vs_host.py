@@ -1,18 +1,24 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
+from typing import TYPE_CHECKING
 from beehive_resource.plugins.vsphere.entity.vs_host import VsphereHost
 from beehive_resource.plugins.vsphere.views import VsphereAPI, VsphereApiView
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
+
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
     GetApiObjectRequestSchema,
 )
+
 from beehive_resource.view import ResourceResponseSchema, ListResourcesRequestSchema
 from beehive_resource.plugins.vsphere.entity.vs_cluster import VsphereCluster
+
+if TYPE_CHECKING:
+    from beehive_resource.controller import ResourceController
 
 
 class VsphereHostApiView(VsphereApiView):
@@ -30,25 +36,27 @@ class ListHostsParamsResponseSchema(ResourceResponseSchema):
 
 
 class ListHostsResponseSchema(PaginatedResponseSchema):
-    hosts = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
+    hosts = fields.Nested(
+        ResourceResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListHosts(VsphereHostApiView):
-    definitions = {
-        "ListHostsResponseSchema": ListHostsResponseSchema,
-    }
+    definitions = {"ListHostsResponseSchema": ListHostsResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListHostsRequestSchema)
     parameters_schema = ListHostsRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListHostsResponseSchema}})
 
-    def get(self, controller, data, *args, **kwargs):
+    def get(self, controller: 'ResourceController', data, *args, **kwargs):
         """
-        List host
         List host
         """
         cluster = data.get("cluster", None)
         if cluster is not None:
-            resp, total = self.controller.get_resources(parent=cluster, type=VsphereHost.objdef)
+            resp, total = controller.get_resources(parent=cluster, type=VsphereHost.objdef)
             return self.format_paginated_response(resp, self.resclass.objname + "s", total, **data)
         else:
             return self.get_resources(controller, **data)
@@ -56,19 +64,20 @@ class ListHosts(VsphereHostApiView):
 
 ## get TODO: gestire dettaglio risposta
 class GetHostResponseSchema(Schema):
-    host = fields.Nested(ResourceResponseSchema, required=True, allow_none=True)
+    host = fields.Nested(
+        ResourceResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetHost(VsphereHostApiView):
-    definitions = {
-        "GetHostResponseSchema": GetHostResponseSchema,
-    }
+    definitions = {"GetHostResponseSchema": GetHostResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetHostResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
-        Get host
         Get host
         """
         return self.get_resource(controller, oid)
@@ -80,9 +89,7 @@ class GetHostHardwareResponseSchema(Schema):
 
 
 class GetHostHardware(VsphereHostApiView):
-    definitions = {
-        "GetHostHardwareResponseSchema": GetHostHardwareResponseSchema,
-    }
+    definitions = {"GetHostHardwareResponseSchema": GetHostHardwareResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetHostHardwareResponseSchema}})
 
@@ -98,9 +105,7 @@ class GetHostRuntimeResponseSchema(Schema):
 
 
 class GetHostRuntime(VsphereHostApiView):
-    definitions = {
-        "GetHostRuntimeResponseSchema": GetHostRuntimeResponseSchema,
-    }
+    definitions = {"GetHostRuntimeResponseSchema": GetHostRuntimeResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetHostRuntimeResponseSchema}})
 
@@ -112,13 +117,11 @@ class GetHostRuntime(VsphereHostApiView):
 
 ## config TODO: gestire dettaglio risposta
 class GetHostConfigResponseSchema(Schema):
-    host_config = fields.Dict(required=True)
+    host_config = fields.Dict(equired=True)
 
 
 class GetHostConfig(VsphereHostApiView):
-    definitions = {
-        "GetHostConfigResponseSchema": GetHostConfigResponseSchema,
-    }
+    definitions = {"GetHostConfigResponseSchema": GetHostConfigResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetHostConfigResponseSchema}})
 
@@ -134,9 +137,7 @@ class GetHostStatsResponseSchema(Schema):
 
 
 class GetHostStats(VsphereHostApiView):
-    definitions = {
-        "GetHostStatsResponseSchema": GetHostStatsResponseSchema,
-    }
+    definitions = {"GetHostStatsResponseSchema": GetHostStatsResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetHostStatsResponseSchema}})
 
@@ -152,9 +153,7 @@ class GetHostServicesResponseSchema(Schema):
 
 
 class GetHostServices(VsphereHostApiView):
-    definitions = {
-        "GetHostServicesResponseSchema": GetHostServicesResponseSchema,
-    }
+    definitions = {"GetHostServicesResponseSchema": GetHostServicesResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetHostServicesResponseSchema}})
 
@@ -162,17 +161,6 @@ class GetHostServices(VsphereHostApiView):
         obj = self.get_resource_reference(controller, oid)
         resp = obj.get_services()
         return {"host_services": resp}
-
-
-"""
-## servers
-class GetHostServers(VsphereApiView):
-    def get(self, controller, data, oid, *args, **kwargs):
-        obj = self.get_resource(controller, oid)
-        data = obj.get_servers()
-        resp = [d.info() for d in data]
-        return resp
-"""
 
 
 class VsphereHostAPI(VsphereAPI):

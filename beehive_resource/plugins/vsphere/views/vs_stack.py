@@ -1,17 +1,19 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_resource.plugins.vsphere.entity.vs_orchestrator import VsphereStack
 from beehive_resource.plugins.vsphere.views import VsphereAPI, VsphereApiView
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
+
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
     GetApiObjectRequestSchema,
     CrudApiObjectJobResponseSchema,
 )
+
 from beehive_resource.view import ResourceResponseSchema, ListResourcesRequestSchema
 from beehive_resource.plugins.vsphere.entity.vs_folder import VsphereFolder
 
@@ -31,7 +33,12 @@ class ListVsphereStackParamsResponseSchema(ResourceResponseSchema):
 
 
 class ListVsphereStackResponseSchema(PaginatedResponseSchema):
-    stacks = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
+    stacks = fields.Nested(
+        ResourceResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListVsphereStack(VsphereVsphereStackApiView):
@@ -52,7 +59,11 @@ class ListVsphereStack(VsphereVsphereStackApiView):
 
 
 class GetVsphereStackResponseSchema(Schema):
-    stack = fields.Nested(ResourceResponseSchema, required=True, allow_none=True)
+    stack = fields.Nested(
+        ResourceResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetVsphereStack(VsphereVsphereStackApiView):
@@ -72,7 +83,10 @@ class GetVsphereStack(VsphereVsphereStackApiView):
 
 
 class GetVsphereStackTemplateResponseSchema(Schema):
-    stack_template = fields.List(fields.Dict, required=True)
+    stack_template = fields.List(
+        fields.Dict,
+        required=True,
+    )
 
 
 class GetVsphereStackTemplate(VsphereVsphereStackApiView):
@@ -101,7 +115,10 @@ class GetVsphereStackTemplate(VsphereVsphereStackApiView):
 
 
 class GetVsphereStackEnvironmentResponseSchema(Schema):
-    stack_environment = fields.List(fields.Dict, required=True)
+    stack_environment = fields.List(
+        fields.Dict,
+        required=True,
+    )
 
 
 class GetVsphereStackEnvironment(VsphereVsphereStackApiView):
@@ -130,7 +147,10 @@ class GetVsphereStackEnvironment(VsphereVsphereStackApiView):
 
 
 class GetVsphereStackFilesResponseSchema(Schema):
-    stack_files = fields.List(fields.Dict, required=True)
+    stack_files = fields.List(
+        fields.Dict,
+        required=True,
+    )
 
 
 class GetVsphereStackFiles(VsphereVsphereStackApiView):
@@ -154,7 +174,10 @@ class GetVsphereStackFiles(VsphereVsphereStackApiView):
 
 
 class GetVsphereStackOutputsResponseSchema(Schema):
-    stack_outputs = fields.List(fields.Dict, required=True)
+    stack_outputs = fields.List(
+        fields.Dict,
+        required=True,
+    )
 
 
 class GetVsphereStackOutputs(VsphereVsphereStackApiView):
@@ -183,7 +206,10 @@ class GetVsphereStackOutputs(VsphereVsphereStackApiView):
 
 
 class GetVsphereStackResourcesResponseSchema(Schema):
-    stack_resources = fields.List(fields.Dict, required=True)
+    stack_resources = fields.List(
+        fields.Dict,
+        required=True,
+    )
 
 
 class GetVsphereStackResources(VsphereVsphereStackApiView):
@@ -213,7 +239,10 @@ class GetVsphereStackResources(VsphereVsphereStackApiView):
 
 
 class GetVsphereStackInternalResourcesResponseSchema(Schema):
-    stack_resources = fields.List(fields.Dict, required=True)
+    stack_resources = fields.List(
+        fields.Dict,
+        required=True,
+    )
 
 
 class GetVsphereStackInternalResources(VsphereVsphereStackApiView):
@@ -242,7 +271,10 @@ class GetVsphereStackInternalResources(VsphereVsphereStackApiView):
 
 
 class GetVsphereStackEventsResponseSchema(Schema):
-    stack_events = fields.List(fields.Dict, required=True)
+    stack_events = fields.List(
+        fields.Dict,
+        required=True,
+    )
 
 
 class GetVsphereStackEvents(VsphereVsphereStackApiView):
@@ -266,50 +298,91 @@ class GetVsphereStackEvents(VsphereVsphereStackApiView):
 
 
 class CreateVsphereStackParamRequestSchema(Schema):
-    container = fields.String(required=True, example="12", description="container id, uuid or name")
-    name = fields.String(required=True, example="test", description="name")
-    desc = fields.String(required=True, example="test", description="name")
-    folder = fields.String(required=True, example="23", description="folder id, uuid or name")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'container id, uuid or name',
+        },
+    )
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'name',
+        },
+    )
+    desc = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'name',
+        },
+    )
+    folder = fields.String(
+        required=True,
+        metadata={
+            "example": '23',
+            "description": 'folder id, uuid or name',
+        },
+    )
     tags = fields.String(
-        example="test_api,tag_test_api",
-        default="",
-        description="comma separated list of tags",
+        metadata={
+            "example": 'test_api,tag_test_api',
+            "description": 'comma separated list of tags',
+        },
     )
     template_uri = fields.String(
         required=True,
-        example="",
-        default="",
-        description="A URI to the location containing the stack template on which to "
-        "perform the operation. See the description of the template parameter "
-        "for information about the expected template content located at the URI.",
+        metadata={
+            "example": '',
+            "description": (
+                'A URI to the location containing the stack template on which to perform the operation. See the'
+                'description of the template parameter for information about the expected template content located at'
+                'the URI.'
+            ),
+        },
     )
     environment = fields.Dict(
-        example={},
-        default={},
-        description="A JSON environment for the stack.",
         allow_none=True,
+        metadata={
+            "description": 'A JSON environment for the stack.',
+        },
     )
     parameters = fields.Dict(
-        example={"key_name": "opstkcsi"},
-        default={"key_name": "opstkcsi"},
         allow_none=True,
-        description="Supplies arguments for parameters defined in the stack template.",
+        metadata={
+            "example": {'key_name': 'opstkcsi'},
+            "description": 'Supplies arguments for parameters defined in the stack template.',
+        },
     )
     files = fields.Dict(
-        example={"myfile": '#!\/bin\/bash\necho "Hello world" > \/root\/testfile.txt'},
-        default={"myfile": '#!\/bin\/bash\necho "Hello world" > \/root\/testfile.txt'},
-        description="Supplies the contents of files referenced in the template or the environment.",
         allow_none=True,
+        metadata={
+            "example": {"myfile": '#!/bin/bash\necho "Hello world" > /root/testfile.txt'},
+            "description": 'Supplies the contents of files referenced in the template or the environment.',
+        },
     )
-    owner = fields.String(required=True, example="admin", missing="admin", description="stack owner name")
+    owner = fields.String(
+        required=True,
+        metadata={
+            "example": 'admin',
+            "description": 'stack owner name',
+        },
+    )
 
 
 class CreateVsphereStackRequestSchema(Schema):
-    stack = fields.Nested(CreateVsphereStackParamRequestSchema)
+    stack = fields.Nested(
+        CreateVsphereStackParamRequestSchema,
+    )
 
 
 class CreateVsphereStackBodyRequestSchema(Schema):
-    body = fields.Nested(CreateVsphereStackRequestSchema, context="body")
+    body = fields.Nested(
+        CreateVsphereStackRequestSchema,
+        context="body",
+    )
 
 
 class CreateVsphereStack(VsphereVsphereStackApiView):
@@ -331,16 +404,29 @@ class CreateVsphereStack(VsphereVsphereStackApiView):
 
 
 class UpdateVsphereStackParamRequestSchema(Schema):
-    name = fields.String(default="test")
-    desc = fields.String(default="test")
+    name = fields.String(
+        metadata={
+            "example": 'test',
+        },
+    )
+    desc = fields.String(
+        metadata={
+            "example": 'test',
+        },
+    )
 
 
 class UpdateVsphereStackRequestSchema(Schema):
-    stack = fields.Nested(UpdateVsphereStackParamRequestSchema)
+    stack = fields.Nested(
+        UpdateVsphereStackParamRequestSchema,
+    )
 
 
 class UpdateVsphereStackBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateVsphereStackRequestSchema, context="body")
+    body = fields.Nested(
+        UpdateVsphereStackRequestSchema,
+        context="body",
+    )
 
 
 class UpdateVsphereStack(VsphereVsphereStackApiView):

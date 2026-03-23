@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from logging import getLogger
 from time import sleep
@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from beecell.simple import id_gen
 from beehive.common.task_v2 import task_step, TaskError
-from beehive.common.task_v2.manager import task_manager
+from beehive.common.task_v2.manager import get_task_manager
 from beehive_resource.model import ResourceState
 from beehive_resource.plugins.openstack.entity.ops_volume import OpenstackVolume
 from beehive_resource.task_v2 import AbstractResourceTask
@@ -123,8 +123,8 @@ class VolumeTask(AbstractResourceTask):
         :return: ID of the managed volume.
         """
         # get origin container
-        orig_container: OpenstackContainer = task.get_container(source_volume.container_id)
-        openstack_manager: OpenstackManager = orig_container.conn
+        orig_container: 'OpenstackContainer' = task.get_container(source_volume.container_id)
+        openstack_manager: 'OpenstackManager' = orig_container.conn
 
         # This is the resource in the db with volume type share between different pods.
         pod_transit = "podto2-transito"
@@ -179,7 +179,7 @@ class VolumeTask(AbstractResourceTask):
 
     @staticmethod
     @task_step()
-    def volume_create_physical_step(task, step_id, params, *args, **kvargs):
+    def volume_create_physical_step(task: 'VolumeTask', step_id, params, *args, **kvargs):
         """
         Create physical resource.
 
@@ -213,7 +213,7 @@ class VolumeTask(AbstractResourceTask):
                 )
             else:
                 # Create volume from a source volume in the same container.
-                container = task.get_container(cid, projectid=parent_id)
+                container: 'OpenstackContainer' = task.get_container(cid, projectid=parent_id)
                 clone_volume = container.conn.volume_v3.clone(name, source_volume.ext_id, project_extid)
                 volume_id = clone_volume["id"]
                 # Attach and retype the volume.
@@ -227,9 +227,14 @@ class VolumeTask(AbstractResourceTask):
                     VolumeTask.change_volume_type(task, step_id, container, volume_id, type_id)
         else:
             # Create volume from image or other
-            container = task.get_container(cid, projectid=parent_id)
+            container: 'OpenstackContainer' = task.get_container(cid, projectid=parent_id)
             volume_type = task.get_resource(volume_type_id)
-            volume_ext = container.conn.volume_v3.create(
+
+            # print("+++++ openstack - volume_create_physical_step - project_extid: %s" % project_extid)
+            openstackManager: OpenstackManager = container.get_connection(projectid=parent_id)
+
+            # volume_ext = container.conn.volume_v3.create(
+            volume_ext = openstackManager.volume_v3.create(
                 size=int(size),
                 availability_zone=availability_zone,
                 snapshot_id=snapshot_id,
@@ -242,9 +247,10 @@ class VolumeTask(AbstractResourceTask):
                 description=desc,
             )
             volume_id = volume_ext["id"]
-            VolumeTask.poll_volume_status(task, step_id, container, volume_id, "create volume")
-            # Attach and activate volume.
+            # Attach volume (if the volume has the error status, we will have the reference in the resources for deletion)
             container.update_resource(oid, ext_id=volume_id)
+            VolumeTask.poll_volume_status(task, step_id, container, volume_id, "create volume")
+            # Activate volume.
             container.update_resource(oid, state=ResourceState.ACTIVE, active=True)
             task.progress(step_id, msg=f"Volume {volume_id} created and activated.")
 
@@ -461,4 +467,4 @@ class VolumeTask(AbstractResourceTask):
         return res, params
 
 
-task_manager.tasks.register(VolumeTask())
+get_task_manager().register_task(VolumeTask())

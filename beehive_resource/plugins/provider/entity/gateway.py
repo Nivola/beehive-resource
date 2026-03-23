@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from datetime import datetime
 from beecell.simple import format_date, truncate, dict_set, dict_get
@@ -75,11 +75,13 @@ class ComputeGateway(ComputeProviderResource):
             return None
 
     def get_uplink_vpcs(self):
-        objs, tot = self.get_linked_resources(link_type="uplink", objdef=Vpc.objdef, run_customize=False)
+        # objs, tot = self.get_linked_resources(link_type="uplink", objdef=Vpc.objdef, run_customize=False)
+        objs, tot = self.get_linked_resources_optimized(link_type="uplink", objdef=Vpc.objdef, run_customize=False)
         return objs
 
     def get_internal_vpcs(self):
-        objs, tot = self.get_linked_resources(link_type="internal-vpc", objdef=Vpc.objdef, run_customize=False)
+        # objs, tot = self.get_linked_resources(link_type="internal-vpc", objdef=Vpc.objdef, run_customize=False)
+        objs, tot = self.get_linked_resources_optimized(link_type="internal-vpc", objdef=Vpc.objdef, run_customize=False)
         return objs
 
     def get_internal_router(self):
@@ -97,9 +99,11 @@ class ComputeGateway(ComputeProviderResource):
 
     def get_external_ip_address(self):
         res = {}
-        objs, tot = self.get_linked_resources(link_type_filter="relation.%", objdef=Gateway.objdef, run_customize=False)
+        # objs, tot = self.get_linked_resources(link_type_filter="relation.%", objdef=Gateway.objdef, run_customize=False)
+        objs, tot = self.get_linked_resources_optimized(link_type_filter="relation.%", objdef=Gateway.objdef, run_customize=False)
         for obj in objs:
-            edge = obj.get_nsx_edge()
+            gateway: Gateway = obj
+            edge = gateway.get_nsx_edge()
             if edge is not None:
                 edge_info = edge.info()
                 uplink_vnics = [
@@ -1433,7 +1437,8 @@ class Gateway(AvailabilityZoneChildResource):
         return self.get_attribs("role")
 
     def get_nsx_edge(self):
-        res, tot = self.get_linked_resources(link_type="relation", objdef=NsxEdge.objdef, run_customize=False)
+        # res, tot = self.get_linked_resources(link_type="relation", objdef=NsxEdge.objdef, run_customize=False)
+        res, tot = self.get_linked_resources_optimized(link_type="relation", objdef=NsxEdge.objdef, run_customize=False)
         if len(res) > 0:
             edge = res[0]
             edge.set_container(self.controller.get_container(edge.container_id))

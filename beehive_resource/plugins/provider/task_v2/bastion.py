@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from logging import getLogger
 from time import sleep
@@ -338,6 +338,7 @@ class ComputeBastionTask(AbstractProviderResourceTask):
 
         return oid, params
 
+    @staticmethod
     @task_step()
     def delete_gateway_nat_step(task, step_id, params, *args, **kvargs):
         """delete create_gateway_nat

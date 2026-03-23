@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from logging import getLogger
 from beehive.common.task_v2 import task_step
-from beehive.common.task_v2.manager import task_manager
+from beehive.common.task_v2.manager import get_task_manager
 from beehive_resource.plugins.openstack.entity.ops_subnet import OpenstackSubnet
 from beehive_resource.task_v2 import AbstractResourceTask
 
@@ -137,4 +137,4 @@ class SubnetTask(AbstractResourceTask):
         return oid, params
 
 
-task_manager.tasks.register(SubnetTask())
+get_task_manager().register_task(SubnetTask())

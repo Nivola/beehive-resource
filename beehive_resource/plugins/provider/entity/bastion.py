@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from base64 import b64decode
 from datetime import datetime
 
-from six import ensure_text
+from beecell.util import ensure_text
 
 from beecell.simple import format_date, dict_get, random_password
 from beehive.common.apimanager import ApiManagerError

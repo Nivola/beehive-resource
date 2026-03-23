@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
+from typing import List
 from beecell.simple import get_value, import_class
 from beehive_resource.container import Resource, AsyncResource
 from beehive.common.apimanager import ApiManagerError
@@ -22,7 +23,7 @@ from beehive_resource.plugins.openstack.entity.ops_network import OpenstackNetwo
 
 
 def get_task(task_name):
-    return "%s.task.%s" % (__name__.rstrip(".entity.base"), task_name)
+    return f"{__name__.removesuffix('.entity.base')}.task.{task_name}"
 
 
 def orchestrator_mapping(mapping_type, mapping_index):
@@ -102,10 +103,10 @@ class LocalProviderResource(AsyncResource):
     #     """
     #     return None
 
-    def __get_linked_resources(self, link_type, container=None, objdef=None):
+    def __get_linked_resources(self, link_type, container=None, objdef=None) -> List[Resource]:
         """Get linked resources
 
-        :param link_type:
+        :param link_type: e.g. relation, relation.%
         :param container:
         :param objdef:
         :return:
@@ -138,13 +139,8 @@ class LocalProviderResource(AsyncResource):
                 resp.append(obj)
             return resp
         except:
-            self.logger.warn("", exc_info=1)
+            self.logger.warning("", exc_info=1)
             return []
-
-    # def get_linked_resources_internal(self, link_type, container=None, objdef=None):
-    #     res = self.__get_linked_resources(link_type, container, objdef)
-    #     self.logger.debug('Get linked resources: %s' % res)
-    #     return res
 
     def get_physical_resources(self, cid, objdef):
         """Get remote resources in a certain orchestrator with an objdef

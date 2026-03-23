@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_resource.plugins.openstack.views import OpenstackAPI, OpenstackApiView
 from beehive_resource.plugins.openstack.entity.ops_domain import OpenstackDomain
@@ -46,7 +46,7 @@ class UpdateDomain(OpenstackDomainApiView):
     """
 
     def dispatch(self, controller, data, oid, *args, **kwargs):
-        return self.update_resource(controller, data)
+        return self.update_resource(controller, oid, data)
 
 
 class DeleteDomain(OpenstackDomainApiView):

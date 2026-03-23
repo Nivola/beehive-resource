@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
@@ -10,17 +10,21 @@ from beehive.common.apimanager import (
     CrudApiObjectJobResponseSchema,
     ApiView,
 )
+
 from beehive_resource.plugins.grafana.entity.grafana_dashboard import GrafanaDashboard
+
 from beehive_resource.plugins.provider.views import (
     ResourceApiView,
     CreateProviderResourceRequestSchema,
     UpdateProviderResourceRequestSchema,
 )
+
 from beehive_resource.view import (
     ListResourcesRequestSchema,
     ResourceResponseSchema,
     ResourceSmallResponseSchema,
 )
+
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
 from beehive_resource.plugins.grafana.views import GrafanaAPI, GrafanaApiView
@@ -52,11 +56,14 @@ class ListGrafanaDashboardsResponseSchema(PaginatedResponseSchema):
 class ListGrafanaDashboards(GrafanaDashboardView):
     summary = "List dashboards"
     description = "List dashboards"
+
     definitions = {
         "ListGrafanaDashboardsResponseSchema": ListGrafanaDashboardsResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(ListGrafanaDashboardsRequestSchema)
     parameters_schema = ListGrafanaDashboardsRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": ListGrafanaDashboardsResponseSchema}}
     )
@@ -67,11 +74,20 @@ class ListGrafanaDashboards(GrafanaDashboardView):
 
 
 class GetGrafanaDashboardParamsResponseSchema(ResourceResponseSchema):
-    dashboards = fields.Nested(ResourceSmallResponseSchema, required=True, many=True, allow_none=True)
+    dashboards = fields.Nested(
+        ResourceSmallResponseSchema,
+        required=True,
+        many=True,
+        allow_none=True,
+    )
 
 
 class GetGrafanaDashboardResponseSchema(Schema):
-    dashboard = fields.Nested(GetGrafanaDashboardParamsResponseSchema, required=True, allow_none=True)
+    dashboard = fields.Nested(
+        GetGrafanaDashboardParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetGrafanaDashboard(GrafanaDashboardView):
@@ -91,21 +107,40 @@ class GetGrafanaDashboard(GrafanaDashboardView):
 
 
 class CreateGrafanaDashboardParamRequestSchema(CreateProviderResourceRequestSchema):
-    container = fields.String(required=True, example="12", description="Container id, uuid or name")
-    name = fields.String(required=True, example="test-name-dashboard", default="", description="Dashboard name")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'Container id, uuid or name',
+        },
+    )
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test-name-dashboard',
+            "description": 'Dashboard name',
+        },
+    )
     desc = fields.String(
         required=False,
-        example="test-desc-dashboard",
-        description="The resource description",
+        metadata={
+            "example": 'test-desc-dashboard',
+            "description": 'The resource description',
+        },
     )
 
 
 class CreateGrafanaDashboardRequestSchema(Schema):
-    dashboard = fields.Nested(CreateGrafanaDashboardParamRequestSchema)
+    dashboard = fields.Nested(
+        CreateGrafanaDashboardParamRequestSchema,
+    )
 
 
 class CreateGrafanaDashboardBodyRequestSchema(Schema):
-    body = fields.Nested(CreateGrafanaDashboardRequestSchema, context="body")
+    body = fields.Nested(
+        CreateGrafanaDashboardRequestSchema,
+        context="body",
+    )
 
 
 class CreateGrafanaDashboard(GrafanaDashboardView):
@@ -125,12 +160,19 @@ class CreateGrafanaDashboard(GrafanaDashboardView):
 
 
 class UpdateGrafanaDashboardTemplateRequestSchema(Schema):
-    name = fields.String(required=True, example="Test dashboard", default="", description="Dashboard name")
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'Test dashboard',
+            "description": 'Dashboard name',
+        },
+    )
     desc = fields.String(
         required=False,
-        example="This is the test dashboard",
-        default="",
-        description="Dashboard description",
+        metadata={
+            "example": 'This is the test dashboard',
+            "description": 'Dashboard description',
+        },
     )
 
 
@@ -139,17 +181,24 @@ class UpdateGrafanaDashboardParamRequestSchema(UpdateProviderResourceRequestSche
         UpdateGrafanaDashboardTemplateRequestSchema,
         required=False,
         many=True,
-        description="list of orchestrator dashboards to link",
         allow_none=True,
+        metadata={
+            "description": 'list of orchestrator dashboards to link',
+        },
     )
 
 
 class UpdateGrafanaDashboardRequestSchema(Schema):
-    dashboard = fields.Nested(UpdateGrafanaDashboardParamRequestSchema)
+    dashboard = fields.Nested(
+        UpdateGrafanaDashboardParamRequestSchema,
+    )
 
 
 class UpdateGrafanaDashboardBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateGrafanaDashboardRequestSchema, context="body")
+    body = fields.Nested(
+        UpdateGrafanaDashboardRequestSchema,
+        context="body",
+    )
 
 
 class UpdateGrafanaDashboard(GrafanaDashboardView):

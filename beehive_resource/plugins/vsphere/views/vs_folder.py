@@ -1,17 +1,19 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_resource.plugins.vsphere.views import VsphereAPI, VsphereApiView
 from flasgger import fields, Schema
 from marshmallow.validate import OneOf
 from beecell.swagger import SwaggerHelper
+
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
     GetApiObjectRequestSchema,
     CrudApiObjectJobResponseSchema,
 )
+
 from beehive_resource.view import ResourceResponseSchema, ListResourcesRequestSchema
 from beehive_resource.plugins.vsphere.entity.vs_folder import VsphereFolder
 
@@ -31,13 +33,16 @@ class ListFoldersParamsResponseSchema(ResourceResponseSchema):
 
 
 class ListFoldersResponseSchema(PaginatedResponseSchema):
-    folders = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
+    folders = fields.Nested(
+        ResourceResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListFolders(VsphereFolderApiView):
-    definitions = {
-        "ListFoldersResponseSchema": ListFoldersResponseSchema,
-    }
+    definitions = {"ListFoldersResponseSchema": ListFoldersResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListFoldersRequestSchema)
     parameters_schema = ListFoldersRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListFoldersResponseSchema}})
@@ -45,52 +50,96 @@ class ListFolders(VsphereFolderApiView):
     def get(self, controller, data, *args, **kwargs):
         """
         List folder
-        List folder
         """
         return self.get_resources(controller, **data)
 
 
 class GetFolderResponseSchema(Schema):
-    folder = fields.Nested(ResourceResponseSchema, required=True, allow_none=True)
+    folder = fields.Nested(
+        ResourceResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetFolder(VsphereFolderApiView):
-    definitions = {
-        "GetFolderResponseSchema": GetFolderResponseSchema,
-    }
+    definitions = {"GetFolderResponseSchema": GetFolderResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetFolderResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
         Get folder
-        Get folder
         """
         return self.get_resource(controller, oid)
 
 
 class CreateFolderParamRequestSchema(Schema):
-    container = fields.String(required=True, example="12", description="container id, uuid or name")
-    name = fields.String(required=True, example="test")
-    desc = fields.String(required=True, example="test")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'container id, uuid or name',
+        },
+    )
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+        },
+    )
+
+    desc = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+        },
+    )
+
     folder_type = fields.String(
         required=False,
-        example="vm",
-        default="vm",
-        description="folder type. Can be: host, network, storage, vm",
-        validate=OneOf(["host", "network", "storage", "vm"]),
+        validate=OneOf(['host', 'network', 'storage', 'vm']),
+        metadata={
+            "example": 'vm',
+            "description": 'folder type. Can be: host, network, storage, vm',
+        },
     )
-    folder = fields.String(example=1, description="parent folder id or uuid")
-    datacenter = fields.String(example=1, description="parent datacenter id or uuid")
-    tags = fields.String(default="", description="comma separated resource tags to assign")
+
+    folder = fields.String(
+        metadata={
+            "example": '1',
+            "description": 'parent folder id or uuid',
+        },
+    )
+
+    datacenter = fields.String(
+        metadata={
+            "example": '1',
+            "description": 'parent datacenter id or uuid',
+        },
+    )
+
+    tags = fields.String(
+        load_default="",
+        metadata={
+            "description": 'comma separated resource tags to assign',
+        },
+    )
 
 
 class CreateFolderRequestSchema(Schema):
-    folder = fields.Nested(CreateFolderParamRequestSchema, required=True)
+    folder = fields.Nested(
+        CreateFolderParamRequestSchema,
+        required=True,
+    )
 
 
 class CreateFolderBodyRequestSchema(Schema):
-    body = fields.Nested(CreateFolderRequestSchema, context="body")
+    body = fields.Nested(
+        CreateFolderRequestSchema,
+        context="body",
+    )
 
 
 class CreateFolder(VsphereFolderApiView):
@@ -98,6 +147,7 @@ class CreateFolder(VsphereFolderApiView):
         "CreateFolderRequestSchema": CreateFolderRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateFolderBodyRequestSchema)
     parameters_schema = CreateFolderRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
@@ -105,16 +155,15 @@ class CreateFolder(VsphereFolderApiView):
     def post(self, controller, data, *args, **kwargs):
         """
         Create folder
-        Create folder
         """
         return self.create_resource(controller, data)
 
 
 ## update
 class UpdateFolderParamRequestSchema(Schema):
-    name = fields.String(default="test")
-    desc = fields.String(default="test")
-    enabled = fields.Boolean(default=True)
+    name = fields.String(load_default="test")
+    desc = fields.String(load_default="test")
+    enabled = fields.Boolean(load_default=True)
 
 
 class UpdateFolderRequestSchema(Schema):
@@ -130,6 +179,7 @@ class UpdateFolder(VsphereFolderApiView):
         "UpdateFolderRequestSchema": UpdateFolderRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateFolderBodyRequestSchema)
     parameters_schema = UpdateFolderRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
@@ -137,9 +187,8 @@ class UpdateFolder(VsphereFolderApiView):
     def put(self, controller, data, oid, *args, **kwargs):
         """
         Update folder
-        Update folder
         """
-        return self.update_resource(controller, data)
+        return self.update_resource(controller, oid, data)
 
 
 ## delete

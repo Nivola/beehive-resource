@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import json
 from time import sleep
@@ -13,10 +13,12 @@ from beehive_resource.container import Orchestrator
 from beehive_resource.plugins.elk.entity.elk_space import ElkSpace
 from beehive_resource.plugins.elk.entity.elk_role import ElkRole
 from beehive_resource.plugins.elk.entity.elk_role_mapping import ElkRoleMapping
+from beecell.util import b, ensure_text
+
 
 
 def get_task(task_name):
-    return "%s.task.%s" % (__name__.rstrip(".controller"), task_name)
+    return f"{__name__.removesuffix('.controller')}.task.{task_name}"
 
 
 class ElkContainer(Orchestrator):
@@ -178,7 +180,6 @@ class ElkContainer(Orchestrator):
             elastic_pwd = self.decrypt_data(elastic_pwd)
             kibana_pwd = self.decrypt_data(kibana_pwd)
 
-            from six import b, ensure_text
 
             elastic_pwd = ensure_text(elastic_pwd)
             kibana_pwd = ensure_text(kibana_pwd)

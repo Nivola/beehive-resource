@@ -1,11 +1,15 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.task_v2 import task_step
-from beehive.common.task_v2.manager import task_manager
+from beehive.common.task_v2.manager import get_task_manager
 from beehive_resource.plugins.awx.entity.awx_project import AwxProject
 from beehive_resource.task_v2 import AbstractResourceTask
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ..controller import AwxContainer
+    from beedrones.awx.client import AwxManager
 
 
 class AwxProjectTask(AbstractResourceTask):
@@ -16,7 +20,7 @@ class AwxProjectTask(AbstractResourceTask):
 
     @staticmethod
     @task_step()
-    def awx_project_create_physical_step(task, step_id, params, *args, **kvargs):
+    def awx_project_create_physical_step(task:'AwxProjectTask', step_id, params, *args, **kvargs):
         """Create physical resource
 
         :param task: parent celery task
@@ -37,10 +41,9 @@ class AwxProjectTask(AbstractResourceTask):
         # default_environment = params.get("default_environment", None)
         task.progress(step_id, msg="Get configuration params")
 
-        from beedrones.awx.client import AwxManager
 
-        container = task.get_container(cid)
-        conn: AwxManager = container.conn
+        container: 'AwxContainer'= task.get_container(cid)
+        conn: 'AwxManager' = container.conn
         inst = conn.project.add(
             name,
             description=desc,
@@ -64,7 +67,7 @@ class AwxProjectTask(AbstractResourceTask):
 
     @staticmethod
     @task_step()
-    def awx_project_update_physical_step(task, step_id, params, *args, **kvargs):
+    def awx_project_update_physical_step(task:'AwxProjectTask', step_id, params, *args, **kvargs):
         """Update physical resource
 
         :param task: parent celery task
@@ -77,7 +80,7 @@ class AwxProjectTask(AbstractResourceTask):
 
     @staticmethod
     @task_step()
-    def awx_project_delete_physical_step(task, step_id, params, *args, **kvargs):
+    def awx_project_delete_physical_step(task:'AwxProjectTask', step_id, params, *args, **kvargs):
         """Delete physical resource
 
         :param task: parent celery task
@@ -88,7 +91,7 @@ class AwxProjectTask(AbstractResourceTask):
         cid = params.get("cid")
         oid = params.get("id")
 
-        container = task.get_container(cid)
+        container :'AwxContainer'= task.get_container(cid)
         conn = container.conn
         resource = container.get_simple_resource(oid)
 
@@ -108,4 +111,4 @@ class AwxProjectTask(AbstractResourceTask):
         return oid, params
 
 
-task_manager.tasks.register(AwxProjectTask())
+get_task_manager().register_task(AwxProjectTask())

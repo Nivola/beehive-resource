@@ -1,6 +1,7 @@
 *.py[co]
 _build/
 *.so
+*.pyc
 .project
 .pydevproject
 .idea/

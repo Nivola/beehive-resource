@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
-
+# (C) Copyright 2018-2026 CSI-Piemonte
+from __future__ import annotations
 from copy import deepcopy
 import ujson as json
 from logging import getLogger
@@ -17,13 +17,18 @@ from beehive_resource.plugins.provider.entity.instance import ComputeInstance, I
 from beehive_resource.plugins.provider.entity.volume import ComputeVolume
 from beehive.common.task_v2 import task_step, run_sync_task
 from beehive_resource.plugins.provider.task_v2 import AbstractProviderResourceTask
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from beehive_resource.plugins.provider.controller import Provider
+    from beehive_resource.plugins.provider.entity.zone import ComputeZone
 
 logger = getLogger(__name__)
 
 
 class PostAction(object):
     @staticmethod
-    def set_flavor(task, resource, configs):
+    def set_flavor(task: ComputeInstanceTask, resource, configs):
         links, total = resource.get_links(type="flavor")
         links[0].expunge()
 
@@ -88,7 +93,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def link_compute_instance_step(task, step_id, params, *args, **kvargs):
+    def link_compute_instance_step(task: ComputeInstanceTask, step_id: str, params: dict, *args, **kvargs):
         """Create main links
 
         :param task: parent celery task
@@ -133,13 +138,29 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def create_compute_volume_step(task, step_id, params, block_device, *args, **kvargs):
+    def create_compute_volume_step(
+        task: ComputeInstanceTask, step_id: str, params: dict, block_device: dict, *args, **kvargs
+    ):
         """Create compute instance volume
+        Args:
+            task (ComputeInstanceTask): parent celery task
+            step_id (str): step id
+            params (dict): step params
+            block_device (dict): block_device cames from block_device_mapping cpmpute instnace creation
+              parameter and should have this structure:
+                device_name (str): A path to the device for the volume
+                source_type (str): The source type of the volume.: snapshot -
+                volume_size (real): size of volume in GB
+                uuid (str): This is the uuid of source resource.
+                flavor (str): The volumeflavor.
+                delete_on_termination (bool): delete volume on server delete
+                guest_format ():
+                boot_index (int):
+                tag (str): datastore tag (ex. user oracle to create server vsphere in cluster
+                volume_tags (str): comma separated list of tags for the volume resource
+        Returns:
+            _type_: _description_
 
-        :param task: parent celery task
-        :param str step_id: step id
-        :param dict params: step params
-        :param block_device: block_device config
         :return: physical resource id, params
         """
         cid = params.get("cid")
@@ -148,17 +169,19 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
         boot_index = block_device.get("boot_index")
         source_type = block_device.get("source_type")
         from_template = block_device.get("from_template", False)
+        volume_tags = block_device.get("volume_tags")
+
         availability_zone_id = params.get("main_availability_zone")
-        attribute = params.get("attribute")
+        attribute: dict = params.get("attribute")
         image_id = None
         task.progress(step_id, msg="Set configuration params")
 
         # get has_quotas
         has_quotas = attribute.get("has_quotas", True)
 
-        provider = task.get_container(cid)
+        provider: Provider = task.get_container(cid)
         resource = task.get_simple_resource(oid)
-        availability_zone = task.get_simple_resource(availability_zone_id)
+        availability_zone: ComputeZone = task.get_simple_resource(availability_zone_id)
         site_id = availability_zone.parent_id
         task.progress(step_id, msg="Get resource %s" % oid)
 
@@ -182,6 +205,9 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
                 "size": block_device.get("volume_size"),
                 "sync": True,
             }
+            if volume_tags:
+                # logger.debug(f"++++++++++++++++++++++{volume_params} \ntag\n{volume_tags}\n\n")
+                volume_params["tags"] = volume_tags
 
             if source_type == "image":
                 volume_params["image"] = block_device.get("uuid")
@@ -288,7 +314,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def remove_wrong_compute_volumes_step(task, step_id, params, *args, **kvargs):
+    def remove_wrong_compute_volumes_step(task: ComputeInstanceTask, step_id: str, params: dict, *args, **kvargs):
         """Remove wrong compute volumes from compute instance
 
         :param task: parent celery task
@@ -321,7 +347,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def import_compute_volumes_step(task, step_id, params, *args, **kvargs):
+    def import_compute_volumes_step(task: ComputeInstanceTask, step_id: str, params: dict, *args, **kvargs):
         """Import compute volumes from a physical server
 
         :param task: parent celery task
@@ -409,8 +435,9 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
         return True, params
 
+    @staticmethod
     @task_step()
-    def import_restored_server_step(task, step_id, params, *args, **kvargs):
+    def import_restored_server_step(task: ComputeInstanceTask, step_id: str, params: dict, *args, **kvargs):
         """Import a new server restored from backup
 
         :param task: parent celery task
@@ -469,7 +496,9 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def create_zone_instance_step(task, step_id, params, availability_zone_id, *args, **kvargs):
+    def create_zone_instance_step(
+        task: ComputeInstanceTask, step_id: str, params, availability_zone_id, *args, **kvargs
+    ):
         """Create compute instance zone instance
 
         :param task: parent celery task
@@ -561,7 +590,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
         if admin_username is None:
             # Discriminate admin user by image across compute instance;
             # It can be root or non root sudoer
-            current_compute_instance = task.get_resource(oid)
+            current_compute_instance: ComputeInstance = task.get_resource(oid)
             admin_username = current_compute_instance.get_real_admin_user()
 
         # create zone instance params
@@ -600,7 +629,9 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def import_zone_instance_step(task, step_id, params, availability_zone_id, *args, **kvargs):
+    def import_zone_instance_step(
+        task: ComputeInstanceTask, step_id: str, params, availability_zone_id, *args, **kvargs
+    ):
         """Import compute_instance instance.
 
         :param task: parent celery task
@@ -698,7 +729,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def manage_compute_instance_step(task, step_id, params, *args, **kvargs):
+    def manage_compute_instance_step(task: ComputeInstanceTask, step_id: str, params: dict, *args, **kvargs):
         """Register compute instance in ssh module
 
         :param task: parent celery task
@@ -721,7 +752,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def unmanage_compute_instance_step(task, step_id, params, *args, **kvargs):
+    def unmanage_compute_instance_step(task: ComputeInstanceTask, step_id: str, params: dict, *args, **kvargs):
         """Deregister compute_instance from ssh module
 
         :param task: parent celery task
@@ -741,7 +772,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def register_dns_compute_instance_step(task, step_id, params, *args, **kvargs):
+    def register_dns_compute_instance_step(task: ComputeInstanceTask, step_id: str, params: dict, *args, **kvargs):
         """Register compute_instance in dns
 
         :param task: parent celery task
@@ -751,7 +782,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
         """
         oid = params.get("id")
         resolve = params.get("resolve")
-        compute_instance = task.get_simple_resource(oid)
+        compute_instance: 'ComputeInstance' = task.get_simple_resource(oid)
 
         uuid = None
         if resolve is True:
@@ -774,7 +805,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def deregister_dns_compute_instance_step(task, step_id, params, *args, **kvargs):
+    def deregister_dns_compute_instance_step(task: ComputeInstanceTask, step_id: str, params: dict, *args, **kvargs):
         """Deregister compute_instance from dns
 
         :param task: parent celery task
@@ -793,7 +824,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def remove_compute_volume_step(task, step_id, params, volume_id, *args, **kvargs):
+    def remove_compute_volume_step(task: ComputeInstanceTask, step_id: str, params, volume_id, *args, **kvargs):
         """Remove compute volume.
 
         :param task: parent celery task
@@ -813,7 +844,9 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def send_action_to_zone_instance_step(task, step_id, params, zone_instance_id, *args, **kvargs):
+    def send_action_to_zone_instance_step(
+        task: ComputeInstanceTask, step_id: str, params, zone_instance_id, *args, **kvargs
+    ):
         """Send action to zone instance.
 
         :param task: parent celery task
@@ -842,7 +875,9 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
         res = run_sync_task(prepared_task, task, step_id)
 
         # clean cache
+        print("fv - instance - unset last_runstate")
         resource.clean_cache()
+        resource.unset_configs("last_runstate") # remove last_runstate
 
         # run action post operation only for main zone instance
         if resource.get_main_zone_instance().oid == zone_instance_id:
@@ -854,7 +889,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def pass_certificate_step(task, step_id, params, *args, **kvargs):
+    def pass_certificate_step(task: ComputeInstanceTask, step_id, params, *args, **kvargs):
         """Get certificate from stdout of previous step and add to extra_vars
 
         :param task: parent celery task
@@ -894,7 +929,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def apply_customization_action_step(task, step_id, params, *args, **kvargs):
+    def apply_customization_action_step(task: ComputeInstanceTask, step_id: str, params: dict, *args, **kvargs):
         """Apply customization to instance
 
         :param task: parent celery task
@@ -917,6 +952,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
         action = params.get("action_name")
         customization = params.get("customization")
         playbook = params.get("playbook")
+        job_tags = params.get("job_tags")
         extra_vars = params.get("extra_vars", {})
         provider = task.get_container(cid)
         resource = task.get_simple_resource(oid)
@@ -932,6 +968,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
             "compute_zone": resource.parent_id,
             "instances": [{"id": oid, "extra_vars": {}}],
             "playbook": playbook,
+            "job_tags": job_tags,
             "extra_vars": extra_vars,
             "orchestrator_tag": orchestrator_tag,
             "sync": True,
@@ -951,7 +988,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def manage_user_action_step(task, step_id, params, *args, **kvargs):
+    def manage_user_action_step(task: ComputeInstanceTask, step_id: str, params: dict, *args, **kvargs):
         """manage instance user in ssh module
 
         :param task: parent celery task
@@ -981,7 +1018,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def link_instance_step(task, step_id, params, *args, **kvargs):
+    def link_instance_step(task: ComputeInstanceTask, step_id: str, params: dict, *args, **kvargs):
         """Link instance to compute instance
 
         :param task: parent celery task
@@ -1005,7 +1042,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def create_main_server_step(task, step_id, params, *args, **kvargs):
+    def create_main_server_step(task: ComputeInstanceTask, step_id: str, params: dict, *args, **kvargs):
         """Create main server
 
         :param task: parent celery task
@@ -1050,7 +1087,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def import_main_server_step(task, step_id, params, *args, **kvargs):
+    def import_main_server_step(task: ComputeInstanceTask, step_id: str, params: dict, *args, **kvargs):
         """Import main server
 
         :param task: parent celery task
@@ -1079,7 +1116,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def configure_network_step(task, step_id, params, *args, **kvargs):
+    def configure_network_step(task: ComputeInstanceTask, step_id: str, params: dict, *args, **kvargs):
         """Configure network
 
         :param task: parent celery task
@@ -1108,7 +1145,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def create_twins_step(task, step_id, params, *args, **kvargs):
+    def create_twins_step(task: ComputeInstanceTask, step_id: str, params: dict, *args, **kvargs):
         """Create remote resources
 
         :param task: parent celery task
@@ -1150,7 +1187,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def instance_action_step(task, step_id, params, orchestrator, *args, **kvargs):
+    def instance_action_step(task: ComputeInstanceTask, step_id: str, params: dict, orchestrator, *args, **kvargs):
         """Send action to physical server.
 
         :param task: parent celery task
@@ -1170,7 +1207,9 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def instance_security_group_action_step(task, step_id, params, orchestrator, *args, **kvargs):
+    def instance_security_group_action_step(
+        task: ComputeInstanceTask, step_id: str, params: dict, orchestrator, *args, **kvargs
+    ):
         """Send action to physical resource based to orchestrator.
 
         :param task: parent celery task
@@ -1192,7 +1231,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def enable_plugin_step(task, step_id, params, *args, **kvargs):
+    def enable_plugin_step(task: ComputeInstanceTask, step_id: str, params: dict, *args, **kvargs):
         """enable plugin step
 
         :param task: parent celery task
@@ -1211,7 +1250,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def enable_monitoring_step(task, step_id, params, *args, **kvargs):
+    def enable_monitoring_step(task: ComputeInstanceTask, step_id, params: dict, *args, **kvargs):
         """update monitoring status attribute
 
         :param task: parent celery task
@@ -1244,7 +1283,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def disable_monitoring_step(task, step_id, params, *args, **kvargs):
+    def disable_monitoring_step(task: ComputeInstanceTask, step_id, params: dict, *args, **kvargs):
         """update monitoring status attribute
 
         :param task: parent celery task
@@ -1272,7 +1311,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def enable_logging_step(task, step_id, params, *args, **kvargs):
+    def enable_logging_step(task: ComputeInstanceTask, step_id: str, params: dict, *args, **kvargs):
         """enable logging step
 
         :param task: parent celery task
@@ -1291,7 +1330,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def enable_log_module_step(task, step_id, params, *args, **kvargs):
+    def enable_log_module_step(task: ComputeInstanceTask, step_id: str, params: dict, *args, **kvargs):
         """enable log module step
 
         :param task: parent celery task
@@ -1315,7 +1354,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def disable_log_module_step(task, step_id, params, *args, **kvargs):
+    def disable_log_module_step(task: ComputeInstanceTask, step_id: str, params: dict, *args, **kvargs):
         """Disable log module step
 
         :param task: parent celery task
@@ -1339,7 +1378,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def disable_logging_step(task, step_id, params, *args, **kvargs):
+    def disable_logging_step(task: ComputeInstanceTask, step_id: str, params: dict, *args, **kvargs):
         """Disable logging step
 
         :param task: parent celery task
@@ -1363,7 +1402,7 @@ class ComputeInstanceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def wait_ssh_up_step(task, step_id, params, *args, **kvargs):
+    def wait_ssh_up_step(task: ComputeInstanceTask, step_id: str, params: dict, *args, **kvargs):
         """Wait until server is reachable
 
         :param task: parent celery task

@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beedrones.vsphere.client import VsphereError
+from beedrones.vsphere.network import VsphereNetwork
 from beehive.common.task_v2 import task_step
 from beehive_resource.plugins.vsphere.entity.nsx_security_group import NsxSecurityGroup
 from beehive_resource.task_v2 import AbstractResourceTask, truncate
+from beehive.common.task_v2.manager import get_task_manager
 
 
 class NsxSecurityGroupTask(AbstractResourceTask):
@@ -62,10 +64,11 @@ class NsxSecurityGroupTask(AbstractResourceTask):
         # delete vsphere security_group
         if resource.is_ext_id_valid() is True:
             try:
-                conn.network.nsx.sg.get(ext_id)
+                vsphereNetwork: VsphereNetwork = conn.network
+                vsphereNetwork.nsx.sg.get(ext_id)
             except VsphereError:
                 task.progress(step_id, msg="Security group %s does not already exist" % ext_id)
-                return None
+                return oid, params
 
             # search if security group is used in dfw rules
             rules = conn.network.nsx.dfw.filter_rules(security_groups=[ext_id])

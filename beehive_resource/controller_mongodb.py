@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from logging import getLogger
 from beecell.types.type_class import import_class
@@ -8,10 +8,10 @@ from beecell.types.type_dict import dict_get
 from beecell.types.type_string import truncate
 from beehive.common.apimanager import ApiManagerError
 from beehive.common.data import operation, trace
-from beehive_resource.controller import AbstractResourceController
+#from beehive_resource.controller import AbstractResourceController # non esiste
+from beehive.common.apimanager import ApiController
+
 from beehive_resource.container import (
-    ResourceLink,
-    ResourceTag,
     ResourceContainer,
     Resource,
 )
@@ -19,7 +19,8 @@ from beehive_resource.container import (
 logger = getLogger(__name__)
 
 
-class ResourceController(AbstractResourceController):
+#class ResourceController(AbstractResourceController):
+class ResourceControllerMongo(ApiController):
     """Resource Module controller based on mongo db
 
     :param ApiModule module: beehive module instance
@@ -32,6 +33,7 @@ class ResourceController(AbstractResourceController):
 
         #: db manager reference
         self.manager = self.api_manager.db_manager
+        raise NotImplementedError("incomplete class")
 
     #
     # count

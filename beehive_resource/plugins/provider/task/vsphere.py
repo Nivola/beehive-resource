@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import ujson as json
 from celery.utils.log import get_task_logger
@@ -11,6 +11,7 @@ from beehive.common.task.job import JobError, JobInvokeApiError
 from beehive_resource.container import CustomResource
 from beehive_resource.plugins.provider.entity.base import orchestrator_mapping
 from beehive_resource.plugins.provider.entity.vpc import SiteNetwork, PrivateNetwork
+from beehive_resource.plugins.vsphere.entity.nsx_manager import NsxManager
 from beehive_resource.plugins.vsphere.entity.vs_dvpg import VsphereDvpg
 from beehive_resource.plugins.vsphere.entity.nsx_security_group import NsxSecurityGroup
 from beehive_resource.plugins.vsphere.entity.nsx_dfw import NsxDfwSection, NsxDfwRule
@@ -431,7 +432,7 @@ class ProviderVsphere(object):
 
         try:
             container = task.get_container(cid)
-            nsx_manager = container.get_nsx_manager()
+            nsx_manager: NsxManager = container.get_nsx_manager()
             startip = allocation_pools[0]["start"]
             stopip = allocation_pools[0]["end"]
 

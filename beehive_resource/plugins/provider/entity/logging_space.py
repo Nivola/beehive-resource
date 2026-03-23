@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.model import BaseEntity
 from beehive_resource.container import Resource
@@ -44,7 +44,10 @@ class ComputeLoggingSpace(ComputeProviderResource):
 
         self.child_classes = [ComputeLoggingRole, ComputeLoggingRoleMapping]
 
-        self.actions = ["add_dashboard"]
+        self.actions = [
+            "add_dashboard",
+            "delete_dashboard",
+        ]
 
     def get_physical_space(self):
         """Get physical space"""
@@ -253,6 +256,22 @@ class ComputeLoggingSpace(ComputeProviderResource):
             "dashboard": dashboard,
             "index_pattern": index_pattern,
         }
+    
+    def delete_dashboard(
+        self,
+        dashboard_to_search,
+        *args,
+        **kvargs,
+    ):
+        """Delete dashboard check function
+
+        :param dashboard: dashboard name
+        :return: kvargs
+        """
+        self.logger.debug("delete_dashboard - ComputeLoggingSpace - dashboard_to_search: %s" % (dashboard_to_search))
+        return {
+            "dashboard_to_search": dashboard_to_search,
+        }
 
     #
     # actions
@@ -320,7 +339,7 @@ class ComputeLoggingSpace(ComputeProviderResource):
         params.update(kvargs)
         params.update(self.get_user())
         res = prepare_or_run_task(self, self.action_task, params, sync=sync)
-        self.logger.debug("action - %s compute logging space %s using task" % (name, self.uuid))
+        self.logger.debug("action - %s compute logging space %s using task - res: %s" % (name, self.uuid, res))
         return res
 
     def get_logging_space_instance(self):
@@ -528,6 +547,22 @@ class LoggingSpace(AvailabilityZoneChildResource):
             "dashboard": dashboard,
             "index_pattern": index_pattern,
         }
+    
+    def delete_dashboard(
+        self,
+        dashboard_to_search,
+        *args,
+        **kvargs,
+    ):
+        """Add dashboard check function
+
+        :param dashboard_to_search: dashboard name to search
+        :return: kvargs
+        """
+        self.logger.debug("delete_dashboard - LoggingSpace - dashboard_to_search: %s" % (dashboard_to_search))
+        return {
+            "dashboard_to_search": dashboard_to_search,
+        }
 
     def action(self, name, params):
         """Execute an action
@@ -592,5 +627,5 @@ class LoggingSpace(AvailabilityZoneChildResource):
         self.logger.debug("action - post update - params {}".format(params))
 
         res = prepare_or_run_task(self, self.action_task, params, sync=True)
-        self.logger.info("%s logging space %s using task" % (name, self.uuid))
+        self.logger.info("%s logging space %s using task - res: %s" % (name, self.uuid, res))
         return res

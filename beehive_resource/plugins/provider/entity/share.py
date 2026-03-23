@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from datetime import datetime
 from random import randint
+from typing import TYPE_CHECKING
 from beecell.simple import format_date, id_gen
 from beedrones.ontapp.volume import OntapVolume
 from beehive.common.apimanager import ApiManagerError
@@ -19,6 +20,8 @@ from beehive_resource.plugins.provider.entity.vpc_v2 import (
 )
 from beehive_resource.plugins.provider.entity.zone import AvailabilityZoneChildResource
 
+if TYPE_CHECKING:
+    from beehive_resource.controller import ResourceController
 
 class ComputeFileShare(ComputeProviderResource):
     """Compute file share like nfs or cifs"""
@@ -34,7 +37,7 @@ class ComputeFileShare(ComputeProviderResource):
     def __init__(self, *args, **kvargs):
         ComputeProviderResource.__init__(self, *args, **kvargs)
 
-        self.availability_zone = None
+        self.availability_zone: Site = None
         self.main_zone_share = None
         self.physical_share = None
         self.vpcs = []
@@ -76,6 +79,15 @@ class ComputeFileShare(ComputeProviderResource):
             info["vpcs"].append({"uuid": vpc.uuid, "name": vpc.name})
         return info
 
+    @staticmethod
+    def __check_exports(exports):
+        for ex in exports:
+            if ex.endswith(":None"):
+                exports.remove(ex)
+                ex = ex.removesuffix("None")
+                exports.append(ex)
+        return exports
+
     def info(self):
         """Get infos.
 
@@ -88,19 +100,23 @@ class ComputeFileShare(ComputeProviderResource):
         info = self.__get_network_info(info)
         info.pop("attributes")
         exports = self.get_attribs().get("exports", [])
-        export = None
-        if len(exports) > 0:
-            export = exports[0]
+        exports = ComputeFileShare.__check_exports(exports)
+        exports = [{
+            "protocol": self.get_attribs(key="proto"),
+            "mounts": [ex]
+        } for ex in exports]
+
         info["details"].update(
             {
                 "size": self.get_attribs(key="size"),
                 "type": self.get_attribs(key="type"),
-                "export": export,
+                "exports": exports,
                 "proto": self.get_attribs(key="proto"),
                 "subnet": self.get_attribs(key="subnet"),
                 "ontap_volume": self.get_attribs(key="ontap_volume"),
             }
         )
+
         return info
 
     def detail(self):
@@ -114,20 +130,23 @@ class ComputeFileShare(ComputeProviderResource):
         info = self.__get_network_info(info)
         info.pop("attributes")
         exports = self.get_attribs().get("exports", [])
-        export = None
-        if len(exports) > 0:
-            export = exports[0]
+        exports = ComputeFileShare.__check_exports(exports)
+        exports = [{
+            "protocol": self.get_attribs(key="proto"),
+            "mounts": [ex]
+        } for ex in exports]
         info["details"].update(
             {
                 "size": self.get_attribs(key="size"),
                 "type": self.get_attribs(key="type"),
-                "export": export,
+                "exports": exports,
                 "proto": self.get_attribs(key="proto"),
                 "subnet": self.get_attribs(key="subnet"),
-                "grants": self.grant_list(),
+                "grants": self.get_grants(),
                 "netapp_volume": self.get_attribs(key="netapp_volume"),
             }
         )
+
         return info
 
     # def check(self):
@@ -143,7 +162,7 @@ class ComputeFileShare(ComputeProviderResource):
     #     return res
 
     @staticmethod
-    def customize_list(controller, entities, *args, **kvargs):
+    def customize_list(controller: 'ResourceController', entities, *args, **kvargs):
         """Post list function. Extend this function to execute some operation after entity was created. Used only for
         synchronous creation.
 
@@ -581,30 +600,60 @@ class ComputeFileShare(ComputeProviderResource):
 
         return kvargs
 
-    def grant_list(self):
-        """Get grant list
+    @staticmethod
+    def __get_access_level(rule):
+        if rule.get("access_level"):
+            # manila compatibility
+            return rule.get("access_level")
+        if "any" in rule.get("rw_access"):
+            return "rw"
+        if "any" in rule.get("ro_access"):
+            return "ro"
+        return "never"
 
-        :raise ApiManagerError:
-        :return: grant list::
+    @staticmethod
+    def __get_access_superuser(rule):
+        if "any" in rule.get("su_access",""):
+            return True
+        return False
 
-            {'SiteVercelli01': [
-                {
-                    "access_level": "rw",
-                    "state": "error",
-                    "id": "507bf114-36f2-4f56-8cf4-857985ca87c1",
-                    "access_type": "cert",
-                    "access_to": "example.com",
-                    "access_key": null
-                },..
-            ]}
+    @staticmethod
+    def __get_clients(rule):
+        if rule.get("clients"):
+            return rule.get("clients")
+        # manila compatibility
+        if rule.get("access_to"):
+            access_to = rule.get("access_to")
+            if isinstance(access_to,str):
+                access_to = [access_to]
+            return access_to
+        return None
+
+    def get_grants(self):
         """
-        grants = {}
-        if self.physical_share is not None:
-            zone_name = self.availability_zone.name
-            grants[zone_name] = self.physical_share.grant_list()
 
-        self.logger.debug("Get compute share %s grants: %s" % (self.uuid, grants))
-        return grants
+        :return:
+        """
+        rules = None
+        if self.physical_share is not None:
+            rules = self.physical_share.grant_list()
+        res = []
+        if rules is None:
+            return res
+        if len(rules)>0:
+            # if manila format return directly
+            if rules[0].get("access_to"):
+                return rules
+        for rule in rules:
+            d = {
+                "id": rule.get("id"),
+                "access_level": self.__get_access_level(rule),
+                "access_superuser": self.__get_access_superuser(rule),
+                "protocols": rule.get("protocols"),
+                "clients": self.__get_clients(rule)
+            }
+            res.append(d)
+        return res
 
     def get_quotas(self):
         """Get resource quotas
@@ -675,9 +724,10 @@ class FileShare(AvailabilityZoneChildResource):
         :raise ApiManagerError:
         """
         info = {}
+        if not self.__internal_share:
+            self.__internal_share = self.get_physical_share()
         if self.__internal_share is not None:
             res = self.__internal_share.detail()
-            self.logger.warning("$$$$ res %s" % res)
             info.update(
                 {
                     "size": res.get("details", {}).get("size", 0),
@@ -698,6 +748,9 @@ class FileShare(AvailabilityZoneChildResource):
             objdef = OpenstackShare.objdef
         elif inst_type == "ontap":
             objdef = OntapNetappVolume.objdef
+        else:
+            return None
+
         try:
             share = self.get_physical_resource(objdef)
         except:
@@ -748,7 +801,6 @@ class FileShare(AvailabilityZoneChildResource):
         """
         remote_share = self.get_physical_share()
         res = remote_share.grant_list()
-
         return res
 
     def grant_set(self, params):

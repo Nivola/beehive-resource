@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from logging import getLogger
 
@@ -187,7 +187,7 @@ class ComputeFileShareTask(AbstractProviderResourceTask):
         grant = params.get("grant", None)
 
         compute_share = task.get_simple_resource(oid)
-        zone_share = task.get_simple_resource(zone_share_id)
+        zone_share: 'FileShare' = task.get_simple_resource(zone_share_id)
         avz_id = zone_share.parent_id
         task.progress(step_id, msg="Get resources")
 

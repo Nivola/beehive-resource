@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from logging import getLogger
 
 from beedrones.openstack.client import OpenstackNotFound, OpenstackError
 from beehive.common.task_v2 import task_step
-from beehive.common.task_v2.manager import task_manager
+from beehive.common.task_v2.manager import get_task_manager
 from beehive_resource.plugins.openstack.entity.ops_security_group import (
     OpenstackSecurityGroup,
 )
@@ -103,7 +103,7 @@ class SecurityGroupTask(AbstractResourceTask):
                 container.conn.network.security_group.get(ext_id)
             except:
                 task.progress(step_id, msg="Security group %s does not already exist" % ext_id)
-                return None
+                return oid, params
 
             # delete openstack security group
             container.conn.network.security_group.delete(ext_id)
@@ -211,4 +211,4 @@ class SecurityGroupTask(AbstractResourceTask):
         return True, params
 
 
-task_manager.tasks.register(SecurityGroupTask())
+get_task_manager().register_task(SecurityGroupTask())

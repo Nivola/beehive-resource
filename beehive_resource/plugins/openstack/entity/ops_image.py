@@ -1,12 +1,16 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
+from __future__ import annotations
+from typing import List, TYPE_CHECKING
 from beecell.simple import id_gen
 from beehive.common.apimanager import ApiManagerError
 from beehive_resource.plugins.openstack.entity import OpenstackResource, get_task
 from beehive.common.data import trace
-
+if TYPE_CHECKING:
+    from beehive_resource.controller import ResourceController
+    from beehive_resource.plugins.openstack.controller import OpenstackContainer
 
 class OpenstackImage(OpenstackResource):
     objdef = "Openstack.Image"
@@ -109,7 +113,12 @@ class OpenstackImage(OpenstackResource):
     # internal list, get, create, update, delete
     #
     @staticmethod
-    def customize_list(controller, entities, container, *args, **kvargs):
+    def customize_list(
+        controller: 'ResourceController',
+        entities: List['OpenstackImage'],
+        container: 'OpenstackContainer',
+        *args, **kvargs
+    ):
         """Post list function. Extend this function to execute some operation after entity was created. Used only for
         synchronous creation.
 
@@ -131,7 +140,7 @@ class OpenstackImage(OpenstackResource):
                 ext_obj = remote_entities_index.get(entity.ext_id, None)
                 entity.set_physical_entity(ext_obj)
             except:
-                container.logger.warn("", exc_info=1)
+                container.logger.warning("", exc_info=1)
         return entities
 
     def post_get(self):
@@ -274,15 +283,16 @@ class OpenstackImage(OpenstackResource):
         image_name = "image-%s.qcow2" % self.name
 
         try:
+            pathname = image_path + image_name
             data = self.container.conn.image.download(self.ext_id)
-            f = open(image_path + image_name, "wb+")
+            f = open(pathname, "wb+")
             f.write(data)
             f.close()
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex, code=400)
 
-        self.logger.debug("Get openstack image %s metadata: %s" % (self.uuid, res))
+        self.logger.debug("Downloaded openstack image %s to path %s", self.uuid, pathname)
         return image_name
 
     # @trace(op='use')

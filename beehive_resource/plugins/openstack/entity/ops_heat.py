@@ -1,17 +1,17 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import requests
 from beecell.simple import truncate, id_gen
 from beehive.common.apimanager import ApiManagerError
-from beehive_resource.plugins.openstack.entity import OpenstackResource, get_task
+from beehive_resource.plugins.openstack.entity import OpenstackResource
 from yaml import load, dump
 
 try:
-    from yaml import CLoader as Loader, CDumper as Dumper
+    from yaml import CLoader as Loader
 except ImportError:
-    from yaml import Loader, Dumper
+    from yaml import Loader
 
 
 stack_entity_type_mapping = {

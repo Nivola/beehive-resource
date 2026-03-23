@@ -1,14 +1,18 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import logging
 from beehive.common.data import truncate, operation
 from beehive_resource.container import Resource, AsyncResource
 from beehive.common.apimanager import ApiManagerError
-from typing import Any, Union
-
+from typing import Any, Union, Dict, Tuple, TYPE_CHECKING
+if TYPE_CHECKING:
+    from beehive_resource.container import ResourceContainer
+    from beehive_resource.plugins.provider.entity.site import Site
+    from beehive_resource.plugins.provider.entity.zone import ComputeZone
+    from beehive_resource.plugins.provider.entity.zone import AvailabilityZone
 
 def get_task(task_name):
     return "%s.task.%s" % (__name__.replace(".entity.aggregate", ""), task_name)
@@ -79,6 +83,15 @@ class ComputeQuotas(object):
             item = {"quota": quota, "unit": value["unit"], "default": value["default"]}
             classes.append(item)
         return classes
+
+    @classmethod
+    def zero_quotas(cls) -> Dict[str, int]:
+        """return zeroed-in mapping
+
+        :return: dict with quota names mapped to 0
+        :rtype: Dict[str, int]
+        """
+        return {k: 0 for k in cls.classes}
 
     def get_simple(self):
         """Get quotas as simple dict
@@ -165,7 +178,25 @@ class ComputeProviderResource(AsyncResource):
         return self.attribs.get("configs")
 
     @staticmethod
-    def get_active_availability_zone(compute_zone, site):
+    def get_site_and_active_zone(
+        container: 'ResourceContainer', compute_zone: 'ComputeZone', site_name: str
+    ) -> Tuple['Site','AvailabilityZone']:
+        """get site and active availability zone
+
+        :return: (site,availability zone) tuple.
+        equivalent to calling container.get_resource(site_name)
+        and then get_active_availability_zone(compute_zone, site)
+        :rtype: Tuple[Site,AvailabilityZone]
+        """
+        from beehive_resource.plugins.provider.entity.site import Site
+        from beehive_resource.plugins.provider.entity.zone import AvailabilityZone
+        site: 'Site' = container.get_resource(site_name, entity_class=Site)
+        avz_id: int = ComputeProviderResource.get_active_availability_zone(compute_zone, site)
+        availability_zone: 'AvailabilityZone' = container.get_resource(avz_id, entity_class=AvailabilityZone)
+        return site, availability_zone
+
+    @staticmethod
+    def get_active_availability_zone(compute_zone: 'ComputeZone', site: 'Site'):
         """Get availability zone ACTIVE
 
         :param compute_zone: compute zone instance
@@ -239,7 +270,7 @@ class ComputeProviderResource(AsyncResource):
         obj.check_active()
         return obj
 
-    def get_local_resource(self, site_id):
+    def get_local_resource(self, site_id: int):
         """Get local resource in a specific availability zone related to an aggregated resource
 
         :param site_id: site id

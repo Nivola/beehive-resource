@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from gevent import sleep
 from beehive.common.task.job import Job, job, job_task
-from beehive.common.task.manager import task_manager
+from beehive.common.task.manager import get_task_manager
 from beehive_resource.tasks import (
     ResourceJob,
     create_resource_pre,
@@ -18,6 +18,7 @@ from beehive_resource.tasks import (
 from beehive_resource.plugins.dummy.controller import DummyAsyncResource
 from beehive.common.task.util import end_task, start_task
 
+task_manager = get_task_manager()
 
 #
 # TASK

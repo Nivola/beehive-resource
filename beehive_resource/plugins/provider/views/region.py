@@ -1,22 +1,25 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_resource.plugins.provider.entity.region import Region
+
 from beehive_resource.view import (
     ListResourcesRequestSchema,
-    ResourceResponseSchema,
-    DeleteResourceRequestSchema,
+    ResourceResponseSchema
 )
+
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
     GetApiObjectRequestSchema,
     CrudApiObjectResponseSchema,
 )
+
 from beecell.swagger import SwaggerHelper
 from flasgger import fields, Schema
+
 from beehive_resource.plugins.provider.views import (
     ProviderAPI,
     LocalProviderApiView,
@@ -45,9 +48,7 @@ class ListRegionsResponseSchema(PaginatedResponseSchema):
 class ListRegions(ProviderRegion):
     summary = "List regions"
     description = "List regions"
-    definitions = {
-        "ListRegionsResponseSchema": ListRegionsResponseSchema,
-    }
+    definitions = {"ListRegionsResponseSchema": ListRegionsResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListRegionsRequestSchema)
     parameters_schema = ListRegionsRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListRegionsResponseSchema}})
@@ -61,15 +62,17 @@ class GetRegionParamsResponseSchema(ResourceResponseSchema):
 
 
 class GetRegionResponseSchema(Schema):
-    region = fields.Nested(GetRegionParamsResponseSchema, required=True, allow_none=True)
+    region = fields.Nested(
+        GetRegionParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetRegion(ProviderRegion):
     summary = "Get region"
     description = "Get region"
-    definitions = {
-        "GetRegionResponseSchema": GetRegionResponseSchema,
-    }
+    definitions = {"GetRegionResponseSchema": GetRegionResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetRegionResponseSchema}})
 
@@ -78,11 +81,20 @@ class GetRegion(ProviderRegion):
 
 
 class CreateRegionParamRequestSchema(CreateProviderResourceRequestSchema):
-    geo_area = fields.String(required=True, example="Italy", description="geographic area: Italy, Europe")
+    geo_area = fields.String(
+        required=True,
+        metadata={
+            "example": 'Italy',
+            "description": 'geographic area: Italy, Europe',
+        },
+    )
+
     coords = fields.String(
         required=True,
-        example="45.514046, 13.007813",
-        description="geographic coordinates",
+        metadata={
+            "example": '45.514046, 13.007813',
+            "description": 'geographic coordinates',
+        },
     )
 
 
@@ -91,16 +103,21 @@ class CreateRegionRequestSchema(Schema):
 
 
 class CreateRegionBodyRequestSchema(Schema):
-    body = fields.Nested(CreateRegionRequestSchema, context="body")
+    body = fields.Nested(
+        CreateRegionRequestSchema,
+        context="body",
+    )
 
 
 class CreateRegion(ProviderRegion):
     summary = "Create region"
     description = "Create region"
+
     definitions = {
         "CreateRegionRequestSchema": CreateRegionRequestSchema,
         "CrudApiObjectResponseSchema": CrudApiObjectResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateRegionBodyRequestSchema)
     parameters_schema = CreateRegionRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": CrudApiObjectResponseSchema}})
@@ -110,8 +127,19 @@ class CreateRegion(ProviderRegion):
 
 
 class UpdateRegionParamRequestSchema(UpdateProviderResourceRequestSchema):
-    geo_area = fields.String(example="Italy", description="geographic area: Italy, Europe")
-    coords = fields.String(example="45.514046, 13.007813", description="geographic coordinates")
+    geo_area = fields.String(
+        metadata={
+            "example": 'Italy',
+            "description": 'geographic area: Italy, Europe',
+        },
+    )
+
+    coords = fields.String(
+        metadata={
+            "example": '45.514046, 13.007813',
+            "description": 'geographic coordinates',
+        },
+    )
 
 
 class UpdateRegionRequestSchema(Schema):
@@ -119,16 +147,21 @@ class UpdateRegionRequestSchema(Schema):
 
 
 class UpdateRegionBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateRegionRequestSchema, context="body")
+    body = fields.Nested(
+        UpdateRegionRequestSchema,
+        context="body",
+    )
 
 
 class UpdateRegion(ProviderRegion):
     summary = "Update region"
     description = "Update region"
+
     definitions = {
         "UpdateRegionRequestSchema": UpdateRegionRequestSchema,
         "CrudApiObjectResponseSchema": CrudApiObjectResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateRegionBodyRequestSchema)
     parameters_schema = UpdateRegionRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": CrudApiObjectResponseSchema}})

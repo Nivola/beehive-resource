@@ -1,33 +1,22 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from celery.utils.log import get_task_logger
-from celery import chain, chord, group, signature
-from beecell.simple import get_value, import_class, id_gen
+from beecell.simple import id_gen
 from beehive_resource.tasks import (
     ResourceJobTask,
-    ResourceJob,
-    create_resource_pre,
-    create_resource_post,
-    expunge_resource_pre,
-    expunge_resource_post,
-    update_resource_post,
-    update_resource_pre,
 )
-from beehive.common.task.manager import task_manager
-from beehive.common.task.job import job_task, job, Job
-from beehive.common.task.util import end_task, start_task
+from beehive.common.task.manager import get_task_manager
+from beehive.common.task.job import job_task
 from beedrones.openstack.client import OpenstackNotFound
-from beehive_resource.plugins.openstack.entity.ops_project import OpenstackProject
-from beehive_resource.plugins.openstack.entity.ops_domain import OpenstackDomain
 from beehive_resource.plugins.openstack.entity.ops_security_group import (
     OpenstackSecurityGroup,
 )
 from beehive_resource.model import ResourceState
 
 logger = get_task_logger(__name__)
-
+task_manager = get_task_manager()
 
 #
 # entity management

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
@@ -50,11 +50,14 @@ class ListAwxJobTemplatesResponseSchema(PaginatedResponseSchema):
 class ListAwxJobTemplates(AwxJobTemplateView):
     summary = "List job_templates"
     description = "List job_templates"
+
     definitions = {
         "ListAwxJobTemplatesResponseSchema": ListAwxJobTemplatesResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(ListAwxJobTemplatesRequestSchema)
     parameters_schema = ListAwxJobTemplatesRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": ListAwxJobTemplatesResponseSchema}}
     )
@@ -65,20 +68,32 @@ class ListAwxJobTemplates(AwxJobTemplateView):
 
 
 class GetAwxJobTemplateParamsResponseSchema(ResourceResponseSchema):
-    job_templates = fields.Nested(ResourceSmallResponseSchema, required=True, many=True, allow_none=True)
+    job_templates = fields.Nested(
+        ResourceSmallResponseSchema,
+        required=True,
+        many=True,
+        allow_none=True,
+    )
 
 
 class GetAwxJobTemplateResponseSchema(Schema):
-    job_template = fields.Nested(GetAwxJobTemplateParamsResponseSchema, required=True, allow_none=True)
+    job_template = fields.Nested(
+        GetAwxJobTemplateParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetAwxJobTemplate(AwxJobTemplateView):
     summary = "Get job_template"
     description = "Get job_template"
+
     definitions = {
         "GetAwxJobTemplateResponseSchema": GetAwxJobTemplateResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": GetAwxJobTemplateResponseSchema}}
     )
@@ -91,101 +106,186 @@ class GetAwxJobTemplate(AwxJobTemplateView):
 class AwxJobTemplateHostRequestSchema(Schema):
     name = fields.String(
         required=True,
-        example="test.nivolapiemonte.it",
-        default="",
-        description="Host IP or FQDN",
+        metadata={
+            "example": 'test.nivolapiemonte.it',
+            "description": 'Host IP or FQDN',
+        },
     )
+
     extra_vars = fields.String(
-        description="host variables. Ex: k1:v1;k2:v2",
-        default="",
-        example="ansible_user:root;ansible_connection:ssh",
+        metadata={
+            "example": 'ansible_user:root;ansible_connection:ssh',
+            "description": 'host variables. Ex: k1:v1;k2:v2',
+        },
     )
 
 
 class AwxJobTemplateHostSshCredsRequestSchema(Schema):
-    username = fields.String(required=True, example="test", description="Username")
-    password = fields.String(required=True, example="test1234", description="Password")
+    username = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'Username',
+        },
+    )
+
+    password = fields.String(
+        required=True,
+        metadata={
+            "example": 'test1234',
+            "description": 'Password',
+        },
+    )
 
 
 class CreateAwxJobTemplateAddParamRequestSchema(Schema):
-    organization = fields.String(required=True, example="1", default="", description="Organization id")
+    organization = fields.String(
+        required=True,
+        metadata={
+            "example": '1',
+            "description": 'Organization id',
+        },
+    )
+
     hosts = fields.Nested(
         AwxJobTemplateHostRequestSchema,
         required=False,
         many=True,
         allow_none=True,
-        description="Hosts to add to inventory",
+        metadata={
+            "description": 'Hosts to add to inventory',
+        },
     )
+
     project = fields.String(
         required=True,
-        example="test-project",
-        default="",
-        description="Awx project name",
+        metadata={
+            "example": 'test-project',
+            "description": 'Awx project name',
+        },
     )
-    playbook = fields.String(required=True, example="main.yml", default="", description="Playbook")
+
+    playbook = fields.String(
+        required=True,
+        metadata={
+            "example": 'main.yml',
+            "description": 'Playbook',
+        },
+    )
+
     verbosity = fields.Integer(
-        example=1,
-        default=0,
-        description="Verbosity: 0 (Normal) (default), 1 (Verbose), "
-        "2 (More Verbose), 3 (Debug), 4 (Connection Debug), 5 (WinRM Debug)",
+        metadata={
+            "example": 1,
+            "description": (
+                'Verbosity: 0 (Normal) (default), 1 (Verbose), 2 (More Verbose), 3 (Debug), 4 (Connection Debug), '
+                '5 (WinRM Debug)'
+            ),
+        },
     )
-    inventory = fields.String(required=False, example="12", default="", description="inventory id")
+
+    inventory = fields.String(
+        required=False,
+        metadata={
+            "example": '12',
+            "description": 'inventory id',
+        },
+    )
 
 
 class CreateAwxJobTemplateLaunchParamRequestSchema(Schema):
     ssh_creds = fields.Nested(
         AwxJobTemplateHostSshCredsRequestSchema,
         required=False,
-        description="Ssh credentials",
+        metadata={
+            "description": 'Ssh credentials',
+        },
     )
-    ssh_cred_id = fields.String(required=False, description="Ssh credential id")
+
+    ssh_cred_id = fields.String(
+        required=False,
+        metadata={
+            "description": 'Ssh credential id',
+        },
+    )
+
     extra_vars = fields.String(
-        description="Variables used when launching job template. Ex: k1:v1;k2:v2",
-        default="",
-        example="host_groups:[awx_group_prova, awx_group_test];"
-        "host_templates:[Template OS Linux];zabbix_server:10.138.218.29",
+        metadata={
+            "example": (
+                'host_groups:[awx_group_prova, awx_group_test];host_templates:[Template OS'
+                'Linux];zabbix_server:10.138.218.29'
+            ),
+            "description": 'Variables used when launching job template. Ex: k1:v1;k2:v2',
+        },
     )
 
 
 class CreateAwxJobTemplateParamRequestSchema(CreateProviderResourceRequestSchema):
-    container = fields.String(required=True, example="12", description="Container id, uuid or name")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'Container id, uuid or name',
+        },
+    )
     name = fields.String(
         required=True,
-        example="test-job-template",
-        default="",
-        description="Job template name",
+        metadata={
+            "example": 'test-job-template',
+            "description": 'Job template name',
+        },
     )
-    desc = fields.String(example="test-job-template", default="", description="Job template description")
+
+    desc = fields.String(
+        metadata={
+            "example": 'test-job-template',
+            "description": 'Job template description',
+        },
+    )
+
     add = fields.Nested(
         CreateAwxJobTemplateAddParamRequestSchema,
         required=True,
-        description="List of parameters to create an awx job template",
+        metadata={
+            "description": 'List of parameters to create an awx job template',
+        },
     )
+
     launch = fields.Nested(
         CreateAwxJobTemplateLaunchParamRequestSchema,
         required=True,
-        description="List of parameters to run an awx job template",
+        metadata={
+            "description": 'List of parameters to run an awx job template',
+        },
     )
 
 
 class CreateAwxJobTemplateRequestSchema(Schema):
-    job_template = fields.Nested(CreateAwxJobTemplateParamRequestSchema)
+    job_template = fields.Nested(
+        CreateAwxJobTemplateParamRequestSchema,
+    )
 
 
 class CreateAwxJobTemplateBodyRequestSchema(Schema):
-    body = fields.Nested(CreateAwxJobTemplateRequestSchema, context="body")
+    body = fields.Nested(
+        CreateAwxJobTemplateRequestSchema,
+        context="body",
+    )
 
 
 class CreateAwxJobTemplate(AwxJobTemplateView):
     summary = "Create job_template"
     description = "Create job_template"
+
     definitions = {
         "CreateAwxJobTemplateRequestSchema": CreateAwxJobTemplateRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateAwxJobTemplateBodyRequestSchema)
     parameters_schema = CreateAwxJobTemplateRequestSchema
-    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
+    responses = SwaggerApiView.setResponses({
+        202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}
+    })
 
     def post(self, controller, data, *args, **kwargs):
         """Create AWX job_template"""
@@ -195,11 +295,18 @@ class CreateAwxJobTemplate(AwxJobTemplateView):
 class UpdateAwxJobTemplateTemplateRequestSchema(Schema):
     name = fields.String(
         required=True,
-        example="test-job_template",
-        default="",
-        description="Job_template name",
+        metadata={
+            "example": 'test-job_template',
+            "description": 'Job_template name',
+        },
     )
-    desc = fields.String(example="test-job_template", default="", description="Job_template description")
+
+    desc = fields.String(
+        metadata={
+            "example": 'test-job_template',
+            "description": 'Job_template description',
+        },
+    )
 
 
 class UpdateAwxJobTemplateParamRequestSchema(UpdateProviderResourceRequestSchema):
@@ -207,26 +314,35 @@ class UpdateAwxJobTemplateParamRequestSchema(UpdateProviderResourceRequestSchema
         UpdateAwxJobTemplateTemplateRequestSchema,
         required=False,
         many=True,
-        description="list of orchestrator job_templates to link",
         allow_none=True,
+        metadata={
+            "description": 'list of orchestrator job_templates to link',
+        },
     )
 
 
 class UpdateAwxJobTemplateRequestSchema(Schema):
-    job_template = fields.Nested(UpdateAwxJobTemplateParamRequestSchema)
+    job_template = fields.Nested(
+        UpdateAwxJobTemplateParamRequestSchema,
+    )
 
 
 class UpdateAwxJobTemplateBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateAwxJobTemplateRequestSchema, context="body")
+    body = fields.Nested(
+        UpdateAwxJobTemplateRequestSchema,
+        context="body",
+    )
 
 
 class UpdateAwxJobTemplate(AwxJobTemplateView):
     summary = "Update job_template"
     description = "Update job_template"
+
     definitions = {
         "UpdateAwxJobTemplateRequestSchema": UpdateAwxJobTemplateRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateAwxJobTemplateBodyRequestSchema)
     parameters_schema = UpdateAwxJobTemplateRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})

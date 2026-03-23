@@ -1,13 +1,15 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import logging
+from typing import List, TYPE_CHECKING
 from beecell.simple import id_gen
-from beecell.types.type_dict import dict_get
 from beehive_resource.plugins.veeam.entity import VeeamResource
-from beehive.common.data import trace, operation
+if TYPE_CHECKING:
+    from beehive_resource.plugins.veeam.controller import VeeamContainer
+    from beehive_resource.controller import ResourceController
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +34,7 @@ class VeeamJob(VeeamResource):
     # discover, synchronize
     #
     @staticmethod
-    def discover_new(container, ext_id, res_ext_ids):
+    def discover_new(container: 'VeeamContainer', ext_id, res_ext_ids):
         """Discover method used when synchronize beehive container with remote platform.
 
         :param container: client used to communicate with remote platform
@@ -66,7 +68,7 @@ class VeeamJob(VeeamResource):
         return res
 
     @staticmethod
-    def discover_died(container):
+    def discover_died(container: 'VeeamContainer'):
         """Discover method used when check if resource already exists in remote platform or was been modified.
 
         :param container: client used to comunicate with remote platform
@@ -84,7 +86,7 @@ class VeeamJob(VeeamResource):
         return items
 
     @staticmethod
-    def synchronize(container, entity):
+    def synchronize(container: 'VeeamContainer', entity):
         """Discover method used when synchronize beehive container with remote platform.
 
         :param container: instance of resource container
@@ -118,7 +120,7 @@ class VeeamJob(VeeamResource):
     # internal list, get, create, update, delete
     #
     @staticmethod
-    def customize_list(controller, entities, container, *args, **kvargs):
+    def customize_list(controller: 'ResourceController', entities: List['VeeamJob'], container: 'VeeamContainer', *args, **kvargs):
         """Post list function. Extend this function to execute some operation after entity was created. Used only for
         synchronous creation.
 
@@ -136,12 +138,11 @@ class VeeamJob(VeeamResource):
         # create index of remote objs
         remote_entities_index = {i["id"]: i for i in remote_entities}
 
-        entity: VeeamJob
         for entity in entities:
             try:
                 ext_obj = remote_entities_index.get(entity.ext_id, None)
                 entity.set_physical_entity(ext_obj)
-                entity.get_veeam_user()
+                entity.get_veeam_user() # TODO
             except:
                 container.logger.warn("", exc_info=1)
 
@@ -156,10 +157,10 @@ class VeeamJob(VeeamResource):
         """
         ext_obj = self.get_remote_job(self.controller, self.ext_id, self.container, self.ext_id)
         self.set_physical_entity(ext_obj)
-        self.get_veeam_user()
+        self.get_veeam_user() # TODO
 
     @staticmethod
-    def pre_create(controller, container, *args, **kvargs):
+    def pre_create(controller: 'ResourceController', container: 'VeeamContainer', *args, **kvargs):
         """Check input params before resource creation. This function is used in container resource_factory method.
 
         :param controller: resource controller instance

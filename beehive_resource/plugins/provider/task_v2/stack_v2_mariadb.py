@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 from beehive.common.task_v2 import task_step
 from beehive_resource.plugins.provider.entity.stack_v2 import ComputeStackV2
 from beehive_resource.plugins.provider.task_v2.stack_v2 import StackV2SqlTask
@@ -190,7 +190,8 @@ class StackV2MariaDBTask(StackV2SqlTask):
     ):
         """Install db extension(s)"""
         data = {
-            "customization": "mariadb",
+            "customization": "mariadb-v2",
+            "orchestrator_tag": "02",
             "playbook": "extensionMgmtMariaDB.yml",
             "extra_vars": {
                 "p_mariadb_db_port": params.get("port"),
@@ -208,7 +209,8 @@ class StackV2MariaDBTask(StackV2SqlTask):
     @staticmethod
     def mariadb_commons(params):
         return {
-            "customization": "mariadb",
+            "customization": "mariadb-v2",
+            "orchestrator_tag": "02",
             "extra_vars": {
                 "p_mariadb_db_port": params.get("port"),
                 "p_mariadb_login_name": params.get("admin_usr"),

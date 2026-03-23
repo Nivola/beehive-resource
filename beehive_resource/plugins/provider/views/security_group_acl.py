@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from marshmallow import validates
 from marshmallow.validate import OneOf
@@ -9,19 +9,23 @@ from marshmallow.validate import OneOf
 from beecell.network import InternetProtocol
 from beehive_resource.plugins.provider.entity.security_group_acl import SecurityGroupAcl
 from beehive_resource.plugins.provider.entity.zone import ComputeZone
+
 from beehive_resource.view import (
     ListResourcesRequestSchema,
     ResourceResponseSchema,
     ResourceSmallResponseSchema,
 )
+
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
     GetApiObjectRequestSchema,
     CrudApiObjectJobResponseSchema,
 )
+
 from beecell.swagger import SwaggerHelper
 from flasgger import fields, Schema
+
 from beehive_resource.plugins.provider.views import (
     ProviderAPI,
     LocalProviderApiView,
@@ -36,23 +40,42 @@ class ProviderSecurityGroupAcl(LocalProviderApiView):
 
 class ListSecurityGroupAclsRequestSchema(ListResourcesRequestSchema):
     ports = fields.String(
+        context="query",
         required=False,
-        example="80",
-        missing=None,
-        description="Comma separated list of ports",
+        load_default=None,
+        metadata={
+            "example": '80',
+            "description": 'Comma separated list of ports',
+        },
     )
+
     protocol = fields.String(
+        context="query",
         required=False,
-        example="tcp",
-        missing=None,
-        description="Supported **protocol** are only 6 [tcp], 17 [udp], 1 [icmp], * [all]",
+        load_default=None,
+        metadata={
+            "example": 'tcp',
+            "description": 'Supported **protocol** are only 6 [tcp], 17 [udp], 1 [icmp], * [all]',
+        },
     )
-    is_default = fields.Boolean(required=False, missing=None, description="Set rule as default if True")
-    source = fields.String(
+
+    is_default = fields.Boolean(
+        context="query",
         required=False,
-        example="10.102.0.0/24",
-        missing=None,
-        description="SecurityGroup uuid or Cidr",
+        load_default=None,
+        metadata={
+            "description": 'Set rule as default if True',
+        },
+    )
+
+    source = fields.String(
+        context="query",
+        required=False,
+        load_default=None,
+        metadata={
+            "example": '10.102.0.0/24',
+            "description": 'SecurityGroup uuid or Cidr',
+        },
     )
 
 
@@ -70,11 +93,10 @@ class ListSecurityGroupAclsResponseSchema(PaginatedResponseSchema):
 
 
 class ListSecurityGroupAcls(ProviderSecurityGroupAcl):
-    definitions = {
-        "ListSecurityGroupAclsResponseSchema": ListSecurityGroupAclsResponseSchema,
-    }
+    definitions = {"ListSecurityGroupAclsResponseSchema": ListSecurityGroupAclsResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListSecurityGroupAclsRequestSchema)
     parameters_schema = ListSecurityGroupAclsRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": ListSecurityGroupAclsResponseSchema}}
     )
@@ -114,10 +136,9 @@ class GetSecurityGroupAclResponseSchema(Schema):
 
 
 class GetSecurityGroupAcl(ProviderSecurityGroupAcl):
-    definitions = {
-        "GetSecurityGroupAclResponseSchema": GetSecurityGroupAclResponseSchema,
-    }
+    definitions = {"GetSecurityGroupAclResponseSchema": GetSecurityGroupAclResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": GetSecurityGroupAclResponseSchema}}
     )
@@ -133,49 +154,94 @@ class GetSecurityGroupAcl(ProviderSecurityGroupAcl):
 class CreateSecurityGroupAclSourceRequestSchema(Schema):
     type = fields.String(
         required=True,
-        example="SecurityGroup",
-        validate=OneOf(["SecurityGroup", "Cidr"]),
-        description="Source/destination type supported: SecurityGroup, Instance, Cidr",
+        validate=OneOf(['SecurityGroup', 'Cidr']),
+        metadata={
+            "example": 'SecurityGroup',
+            "description": 'Source/destination type supported: SecurityGroup, Instance, Cidr',
+        },
     )
+
     value = fields.String(
         required=True,
-        example="3151",
-        description="value is the id of the object 3151 or a cidr 10.102.185.0/24",
+        metadata={
+            "example": '3151',
+            "description": 'value is the id of the object 3151 or a cidr 10.102.185.0/24',
+        },
     )
 
 
 class CreateSecurityGroupAclServiceRequestSchema(Schema):
     ports = fields.String(
         required=False,
-        example="*",
-        missing="*",
-        description="Comma separated list of ports. Ex. 80, 80,8080. Use * for all the ports",
+        load_default="*",
+        metadata={
+            "example": '*',
+            "description": 'Comma separated list of ports. Ex. 80, 80,8080. Use * for all the ports',
+        },
     )
+
     protocol = fields.String(
         required=False,
-        example="*",
-        missing="*",
-        description="Supported **protocol** are only 6 [tcp], 17 [udp], 1 [icmp], * [all]",
+        load_default="*",
+        metadata={
+            "example": '*',
+            "description": 'Supported **protocol** are only 6 [tcp], 17 [udp], 1 [icmp], * [all]',
+        },
     )
-    subprotocol = fields.String(required=False, example=17, missing="*", description="use this param with icmp")
-    where = fields.String(required=False, example=17, missing=None, description="custom rule filter")
+
+    subprotocol = fields.String(
+        required=False,
+        load_default="*",
+        metadata={
+            "example": '17',
+            "description": 'use this param with icmp',
+        },
+    )
+
+    where = fields.String(
+        required=False,
+        load_default=None,
+        metadata={
+            "example": '17',
+            "description": 'custom rule filter',
+        },
+    )
 
 
 class CreateSecurityGroupAclParamRequestSchema(CreateProviderResourceRequestSchema):
-    compute_zone = fields.String(required=True, example="1", description="parent compute zone id or uuid")
+    compute_zone = fields.String(
+        required=True,
+        metadata={
+            "example": '1',
+            "description": 'parent compute zone id or uuid',
+        },
+    )
+
     source = fields.Nested(
         CreateSecurityGroupAclSourceRequestSchema,
         required=False,
         allow_none=True,
-        description="Acl source",
+        metadata={
+            "description": 'Acl source',
+        },
     )
+
     service = fields.Nested(
         CreateSecurityGroupAclServiceRequestSchema,
         required=False,
         allow_none=True,
-        description="describe protocol and ports to use in rule",
+        metadata={
+            "description": 'describe protocol and ports to use in rule',
+        },
     )
-    is_default = fields.Boolean(required=False, missing=False, description="Set rule as default if True")
+
+    is_default = fields.Boolean(
+        required=False,
+        load_default=False,
+        metadata={
+            "description": 'Set rule as default if True',
+        },
+    )
 
 
 class CreateSecurityGroupAclRequestSchema(Schema):
@@ -183,7 +249,10 @@ class CreateSecurityGroupAclRequestSchema(Schema):
 
 
 class CreateSecurityGroupAclBodyRequestSchema(Schema):
-    body = fields.Nested(CreateSecurityGroupAclRequestSchema, context="body")
+    body = fields.Nested(
+        CreateSecurityGroupAclRequestSchema,
+        context="body",
+    )
 
 
 class CreateSecurityGroupAcl(ProviderSecurityGroupAcl):
@@ -191,13 +260,13 @@ class CreateSecurityGroupAcl(ProviderSecurityGroupAcl):
         "CreateSecurityGroupAclRequestSchema": CreateSecurityGroupAclRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateSecurityGroupAclBodyRequestSchema)
     parameters_schema = CreateSecurityGroupAclRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def post(self, controller, data, *args, **kwargs):
         """
-        Create security group acl
         Create security group acl
         """
         return self.create_resource(controller, data)
@@ -220,13 +289,13 @@ class UpdateSecurityGroupAcl(ProviderSecurityGroupAcl):
         "UpdateSecurityGroupAclRequestSchema": UpdateSecurityGroupAclRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateSecurityGroupAclBodyRequestSchema)
     parameters_schema = UpdateSecurityGroupAclRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def put(self, controller, data, oid, *args, **kwargs):
         """
-        Update security group acl
         Update security group acl
         """
         return self.update_resource(controller, oid, data)
@@ -239,7 +308,6 @@ class DeleteSecurityGroupAcl(ProviderSecurityGroupAcl):
 
     def delete(self, controller, data, oid, *args, **kwargs):
         """
-        Delete security group acl
         Delete security group acl
         """
         return self.expunge_resource(controller, oid)

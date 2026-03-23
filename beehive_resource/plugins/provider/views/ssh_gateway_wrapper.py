@@ -1,17 +1,20 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2023 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from uuid import UUID
+
 from beehive_resource.plugins.provider.views import (
     ProviderAPI,
     LocalProviderApiView,
 )
+
 from beehive_resource.plugins.ssh_gateway.controller import SshGatewayContainer
 from beehive_resource.plugins.provider.entity.instance import ComputeInstance
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
+
 from beehive.common.apimanager import (
     ApiManagerError,
     SwaggerApiView,
@@ -32,18 +35,22 @@ class ActivateSshGatewayResponseSchema(Schema):
     """
     ActivateSshGatewayResponseSchema
     """
-
     keyMaterial = fields.String(
         required=True,
         allow_none=False,
-        example="",
-        description="An unencrypted PEM encoded ED private key",
+        metadata={
+            "example": '',
+            "description": 'An unencrypted PEM encoded ED private key',
+        },
     )
+
     commandTemplate = fields.String(
         required=True,
         allow_none=False,
-        example="ssh -L ...",
-        description="ssh local port forwarding sample command",
+        metadata={
+            "example": 'ssh -L ...',
+            "description": 'ssh local port forwarding sample command',
+        },
     )
 
 
@@ -52,32 +59,55 @@ class ActivateSshGatewayRequestSchema(Schema):
     ActivateSshGatewayRequestSchema
     """
 
-    user = fields.String(required=True, example="abcd@def.gh", description="user id")
-    destination = fields.String(required=True, description="destination uuid")
-    port = fields.Int(required=True, example="5432", description="destination port")
+    user = fields.String(
+        required=True,
+        metadata={
+            "example": 'abcd@def.gh',
+            "description": 'user id',
+        },
+    )
+
+    destination = fields.String(
+        required=True,
+        metadata={
+            "description": 'destination uuid',
+        },
+    )
+
+    port = fields.Int(
+        required=True,
+        metadata={
+            "example": '5432',
+            "description": 'destination port',
+        },
+    )
 
 
 class ActivateSshGatewayBodyRequestSchema(Schema):
     """
     ActivateSshGatewayBodyRequestSchema
     """
-
-    body = fields.Nested(ActivateSshGatewayRequestSchema, context="body")
+    body = fields.Nested(
+        ActivateSshGatewayRequestSchema,
+        context="body",
+    )
 
 
 class ActivateSshGateway(LocalProviderApiView):
     """
     ActivateSshGateway
     """
-
     summary = "Activate ssh gateway"
     description = "generate a keypair for user to access destination through the ssh gateway. only private key is returned to the user"
+
     definitions = {
         "ActivateSshGatewayRequestSchema": ActivateSshGatewayRequestSchema,
         "ActivateSshGatewayResponseSchema": ActivateSshGatewayResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(ActivateSshGatewayBodyRequestSchema)
     parameters_schema = ActivateSshGatewayRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": ActivateSshGatewayResponseSchema}}
     )

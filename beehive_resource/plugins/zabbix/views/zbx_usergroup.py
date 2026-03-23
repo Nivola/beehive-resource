@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
@@ -41,7 +41,12 @@ class ListZabbixUsergroupsParamsResponseSchema(ResourceResponseSchema):
 
 
 class ListZabbixUsergroupsResponseSchema(PaginatedResponseSchema):
-    usergroups = fields.Nested(ListZabbixUsergroupsParamsResponseSchema, many=True, required=True, allow_none=True)
+    usergroups = fields.Nested(
+        ListZabbixUsergroupsParamsResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListZabbixUsergroups(ZabbixUsergroupView):
@@ -62,11 +67,20 @@ class ListZabbixUsergroups(ZabbixUsergroupView):
 
 
 class GetZabbixUsergroupParamsResponseSchema(ResourceResponseSchema):
-    usergroups = fields.Nested(ResourceSmallResponseSchema, required=True, many=True, allow_none=True)
+    usergroups = fields.Nested(
+        ResourceSmallResponseSchema,
+        required=True,
+        many=True,
+        allow_none=True,
+    )
 
 
 class GetZabbixUsergroupResponseSchema(Schema):
-    usergroup = fields.Nested(GetZabbixUsergroupParamsResponseSchema, required=True, allow_none=True)
+    usergroup = fields.Nested(
+        GetZabbixUsergroupParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetZabbixUsergroup(ZabbixUsergroupView):
@@ -86,27 +100,48 @@ class GetZabbixUsergroup(ZabbixUsergroupView):
 
 
 class CreateZabbixUsergroupParamRequestSchema(CreateProviderResourceRequestSchema):
-    container = fields.String(required=True, example="12", description="Container id, uuid or name")
-    name = fields.String(required=True, example="test-name-usergroup", default="", description="Usergroup name")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'Container id, uuid or name',
+        },
+    )
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test-name-usergroup',
+            "description": 'Usergroup name',
+        },
+    )
     desc = fields.String(
         required=False,
         allow_none=True,
-        default="Zabbix usergroup",
-        description="The resource description - redefined required False",
+        metadata={
+            "example": 'Zabbix usergroup',
+            "description": 'The resource description - redefined required False',
+        },
     )
     hostgroup_id = fields.Integer(
         required=True,
         allow_none=False,
-        description="Hostgroup id",
+        metadata={
+            "description": 'Hostgroup id',
+        },
     )
 
 
 class CreateZabbixUsergroupRequestSchema(Schema):
-    usergroup = fields.Nested(CreateZabbixUsergroupParamRequestSchema)
+    usergroup = fields.Nested(
+        CreateZabbixUsergroupParamRequestSchema,
+    )
 
 
 class CreateZabbixUsergroupBodyRequestSchema(Schema):
-    body = fields.Nested(CreateZabbixUsergroupRequestSchema, context="body")
+    body = fields.Nested(
+        CreateZabbixUsergroupRequestSchema,
+        context="body",
+    )
 
 
 class CreateZabbixUsergroup(ZabbixUsergroupView):
@@ -126,12 +161,19 @@ class CreateZabbixUsergroup(ZabbixUsergroupView):
 
 
 class UpdateZabbixUsergroupTemplateRequestSchema(Schema):
-    name = fields.String(required=True, example="Test usergroup", default="", description="Usergroup name")
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'Test usergroup',
+            "description": 'Usergroup name',
+        },
+    )
     desc = fields.String(
         required=False,
-        example="This is the test usergroup",
-        default="",
-        description="Usergroup description",
+        metadata={
+            "example": 'This is the test usergroup',
+            "description": 'Usergroup description',
+        },
     )
 
 
@@ -140,17 +182,24 @@ class UpdateZabbixUsergroupParamRequestSchema(UpdateProviderResourceRequestSchem
         UpdateZabbixUsergroupTemplateRequestSchema,
         required=False,
         many=True,
-        description="list of orchestrator usergroups to link",
         allow_none=True,
+        metadata={
+            "description": 'list of orchestrator usergroups to link',
+        },
     )
 
 
 class UpdateZabbixUsergroupRequestSchema(Schema):
-    usergroup = fields.Nested(UpdateZabbixUsergroupParamRequestSchema)
+    usergroup = fields.Nested(
+        UpdateZabbixUsergroupParamRequestSchema,
+    )
 
 
 class UpdateZabbixUsergroupBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateZabbixUsergroupRequestSchema, context="body")
+    body = fields.Nested(
+        UpdateZabbixUsergroupRequestSchema,
+        context="body",
+    )
 
 
 class UpdateZabbixUsergroup(ZabbixUsergroupView):

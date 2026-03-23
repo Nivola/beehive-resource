@@ -1,13 +1,11 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
-from logging import getLogger
-from beecell.simple import truncate, get_value, id_gen
+from beecell.simple import id_gen
 from beehive.common.apimanager import ApiManagerError
 from beehive_resource.plugins.vsphere.entity import VsphereResource
 from beehive.common.data import trace
-from beehive_resource.plugins.vsphere.entity import get_task
 
 
 class VsphereResourcePool(VsphereResource):

@@ -1,11 +1,14 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import logging
+from time import sleep
 from beecell.simple import id_gen
 from beecell.types.type_dict import dict_get
+from beehive.common.apimanager import ApiManagerError
+from beehive_resource.controller import ResourceController
 from beehive_resource.plugins.elk.entity import ElkResource
 from beehive.common.data import trace, operation
 
@@ -278,4 +281,79 @@ class ElkSpace(ElkResource):
 
         steps = ["beehive_resource.plugins.elk.task_v2.elk_space.ElkSpaceTask.add_dashboard_step"]
         res = self.action("add_dashboard", steps, log="Add dashboard", check=check, **kvargs)
+        logger.debug("add_dashboard - res {}".format(res))
+
+        if "taskid" in res[0]:
+            taskid = res[0]["taskid"]
+            logger.debug("add_dashboard - taskid: %s" % taskid)
+            status = self.wait_task(taskid)
+            if status == 'FAILURE':
+                raise ApiManagerError("Error in add_dashboard")
+            
         return res, "called"
+    
+    @trace(op="update")
+    def delete_dashboard(
+        self,
+        dashboard_to_search,
+        space_id,
+        *args,
+        **kvargs,
+    ):
+        """Delete dashboard
+
+        :param dashboard: dashboard name
+        :return: {'taskid':..}, 202
+        :raise ApiManagerError:
+        """
+
+        def check(*args, **kvargs):
+            # add check dashboard exists
+            return kvargs
+
+        kvargs.update(
+            {
+                "dashboard_to_search": dashboard_to_search,
+                "space_id": space_id,
+                # "sync": True, # if sync no taskid in res
+            }
+        )
+        logger.debug("delete_dashboard - after update kvargs {}".format(kvargs))
+
+        steps = ["beehive_resource.plugins.elk.task_v2.elk_space.ElkSpaceTask.delete_dashboard_step"]
+        res = self.action("delete_dashboard", steps, log="Delete dashboard", check=check, **kvargs)
+        logger.debug("+++++ delete_dashboard - res {}".format(res))
+
+        if "taskid" in res[0]:
+            taskid = res[0]["taskid"]
+            logger.debug("delete_dashboard - taskid: %s" % taskid)
+            status = self.wait_task(taskid)
+            if status == 'FAILURE':
+                raise ApiManagerError("Error in delete_dashboard")
+            
+        return res, "called"
+
+    def wait_task(self, taskid, maxtime=180, delta=1):
+        elapsed = 0
+        status = "SUPERUNKNOWN"
+        while status not in ["SUCCESS", "FAILURE", "TIMEOUT"]:
+            sleep(delta)
+            status = self.get_status(taskid)  
+            elapsed += delta
+            if elapsed > maxtime:
+                status = "TIMEOUT"
+        
+        return status
+    
+    def get_status(self, taskid):
+        status = "SUPERUNKNOWN"
+        from beehive.module.scheduler_v2.model import SchedulerDbManager
+        schedulerDbManager = SchedulerDbManager()
+        tasks, tot = schedulerDbManager.get_tasks(task_id=taskid, with_perm_tag=False)
+        logger.debug("get_status - tot: %s" % tot)
+        if tot == 1:
+            task = tasks[0]
+            status = task.status
+            logger.debug("get_status - status: %s" % status)
+
+        return status

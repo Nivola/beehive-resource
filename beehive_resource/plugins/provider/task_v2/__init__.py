@@ -1,33 +1,54 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
+from __future__ import annotations
+from typing import TYPE_CHECKING, Dict, Type, List, Union, Optional, overload, Literal
 from beecell.simple import id_gen
+from beehive.common.apimanager import ApiManagerError
 from beehive.common.task_v2 import task_step
 from beehive_resource.container import Resource
-from beehive_resource.task_v2 import AbstractResourceTask, task_manager
-
+from beehive_resource.task_v2 import AbstractResourceTask
+from beehive.common.task_v2.manager import get_task_manager
+if TYPE_CHECKING:
+    from beehive_resource.controller import ResourceController
+    from beehive_resource.container import ResourceContainer
+    from beehive_resource.plugins.provider.entity.zone import AvailabilityZone
+    from sqlalchemy.engine import RowProxy
+    from beehive_resource.plugins.provider.task_v2.ontap import ProviderNetappOntap
 
 class AbstractProviderResourceTask(AbstractResourceTask):
     """AbstractProviderResource task"""
 
-    def __init__(self, *args, **kwargs):
-        super(AbstractProviderResourceTask, self).__init__(*args, **kwargs)
+    @overload
+    def get_orchestrator(
+        self,
+        orchestrator_type: Literal["ontap"],
+        task,
+        step_id: str,
+        orchestrator: Dict,
+        resource
+    ) -> 'ProviderNetappOntap': ...
 
-    def get_orchestrator(self, orchestrator_type, task, step_id, orchestrator, resource):
+    def get_orchestrator(
+        self,
+        orchestrator_type: str,
+        task,
+        step_id: str,
+        orchestrator: Dict,
+        resource
+    ) -> AbstractProviderHelper:
         """Return orchestrator helper
 
         :param orchestrator_type: type of orchestrator like vsphere or openstack
         :param task: celery task reference
         :param step_id: task step id
-        :param orchestrator: orchestrator config
+        :param orchestrator: orchestrator config, containing at least a mapping "id": <orchestrator id>
         :param resource: resource reference
         :return: orchestrator helper
         """
-        from beehive_resource.plugins.provider.task_v2.openstack import (
-            ProviderOpenstack,
-        )
+        from beehive_resource.plugins.provider.task_v2.openstack import ProviderOpenstack
         from beehive_resource.plugins.provider.task_v2.vsphere import ProviderVsphere
         from beehive_resource.plugins.provider.task_v2.ontap import ProviderNetappOntap
         from beehive_resource.plugins.provider.task_v2.awx import ProviderAwx
@@ -36,7 +57,7 @@ class AbstractProviderResourceTask(AbstractResourceTask):
         from beehive_resource.plugins.provider.task_v2.zabbix import ProviderZabbix
         from beehive_resource.plugins.provider.task_v2.veeam import ProviderVeeam
 
-        helpers = {
+        helpers: Dict[str,Type[AbstractProviderHelper]] = {
             "vsphere": ProviderVsphere,
             "openstack": ProviderOpenstack,
             "ontap": ProviderNetappOntap,
@@ -52,6 +73,32 @@ class AbstractProviderResourceTask(AbstractResourceTask):
 
         res = helper(task, step_id, orchestrator, resource)
         return res
+
+    def get_awx_orchestrator_config(
+        self,
+        task: 'AbstractProviderResourceTask',
+        availability_zone_id: Union[str, int],
+        awx_orchestrator_tag: str = "default",
+        availability_zone: Optional['AvailabilityZone'] = None
+    ) -> Dict:
+        if not availability_zone:
+            availability_zone: 'AvailabilityZone' = task.get_simple_resource(availability_zone_id)
+
+        awx_orchestrators = availability_zone.get_orchestrators_by_tag(
+            awx_orchestrator_tag,
+            select_types=["awx"]
+        )
+        awx_orchestrator = list(awx_orchestrators.values())[0]
+
+        from beecell.types.type_dict import dict_get
+        awx_orchestrator_id = awx_orchestrator.get("id")
+        awx_organization = dict_get(awx_orchestrator,"config.organization")
+        awx_vault_cred_id = dict_get(awx_orchestrator,"config.vault_cred_id")
+        return {
+            "awx_orchestrator_id": awx_orchestrator_id,
+            "awx_organization_id": awx_organization,
+            "awx_vault_cred_id": awx_vault_cred_id,
+        }
 
     @staticmethod
     @task_step()
@@ -275,25 +322,70 @@ class ProviderResourceActionTask(AbstractProviderResourceTask):
     entity_class = Resource
 
 
+class ComputeProviderResourceActionTask(ProviderResourceActionTask):
+    name = "compute_provider_resource_action_task"
+
+    def failure(self, params, error):
+        # get resource
+        try:
+            # print("+++++ fv - failure ComputeProviderResourceActionTask - params: %s - error: %s" % (params, error))
+            resource = self.get_simple_resource(params.get("id"))
+
+            action_name = params.get("action_name", None)
+            # print("+++++ fv - failure ComputeProviderResourceActionTask - action_name: %s" % (action_name))
+            # 
+            actions_no_error = [
+                "enable_monitoring",
+                "disable_monitoring",
+                "enable_logging",
+                "disable_logging",
+                "enable_log_module",
+                "disable_log_module",
+                "start",
+                "stop",
+                "restart",
+                "reboot",
+            ]
+            if action_name is not None and action_name in actions_no_error:
+                # update resource state
+                # print("+++++ fv - failure ComputeProviderResourceActionTask - update_state: ACTIVE")
+                resource.update_state(ResourceState.ACTIVE, error=error)
+            else:
+                # update resource state
+                # print("+++++ fv - failure ComputeProviderResourceActionTask - update_state: ERROR")
+                resource.update_state(ResourceState.ERROR, error=error)
+        except ApiManagerError as ex:
+            if ex.code == 404:
+                self.logger.warning(ex)
+            else:
+                raise
+
+
 class ProviderResourceScheduledActionTask(AbstractProviderResourceTask):
     abstract = False
     name = "provider_resource_scheduled_action_task"
     entity_class = Resource
 
 
-task_manager.tasks.register(ProviderResourceAddTask())
-# task_manager.tasks.register(ProviderResourceCloneTask())
-task_manager.tasks.register(ProviderResourceImportTask())
-task_manager.tasks.register(ProviderResourceUpdateTask())
-task_manager.tasks.register(ProviderResourcePatchTask())
-task_manager.tasks.register(ProviderResourceDeleteTask())
-task_manager.tasks.register(ProviderResourceExpungeTask())
-task_manager.tasks.register(ProviderResourceActionTask())
-task_manager.tasks.register(ProviderResourceScheduledActionTask())
+task_manager = get_task_manager()
+task_manager.register_task(ProviderResourceAddTask())
+#task_manager.register_task(ProviderResourceCloneTask())
+task_manager.register_task(ProviderResourceImportTask())
+task_manager.register_task(ProviderResourceUpdateTask())
+task_manager.register_task(ProviderResourcePatchTask())
+task_manager.register_task(ProviderResourceDeleteTask())
+task_manager.register_task(ProviderResourceExpungeTask())
+task_manager.register_task(ProviderResourceActionTask())
+task_manager.register_task(ComputeProviderResourceActionTask())
+task_manager.register_task(ProviderResourceScheduledActionTask())
 
 
 class AbstractProviderHelper(object):
-    def __init__(self, task, step, orchestrator, resource, controller=None):
+
+    controller: 'ResourceController'
+    container: 'ResourceContainer'
+
+    def __init__(self, task: 'AbstractProviderResourceTask', step, orchestrator, resource, controller: 'ResourceController'= None):
         """Create a provider helper
 
         :param task: celery task reference
@@ -360,6 +452,17 @@ class AbstractProviderHelper(object):
         prepared_task, code = self.container.resource_factory(*args, **kvargs)
         self.progress("start creating resource %s %s" % (args[0], kvargs["name"]))
         return prepared_task
+
+    def remove_resource(self, children: List[RowProxy], **kwargs) -> List[int]:
+        """remove children
+
+        :param children: list of children as return by sqlalchemy
+        :type children: List[RowProxy]
+        :return: list of ids of removed children
+        :rtype: List[int]
+        """
+        # override in actual provider class
+        raise NotImplementedError()
 
     def run_sync_task(self, prepared_task, msg=""):
         res = run_sync_task(prepared_task, self.task, self.step)

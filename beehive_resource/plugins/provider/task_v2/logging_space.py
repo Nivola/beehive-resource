@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from copy import deepcopy
 from beecell.simple import id_gen
@@ -223,7 +223,6 @@ class LoggingSpaceTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    # def instance_action_step(task, step_id, params, orchestrator, *args, **kvargs):
     def logging_space_action_step(task, step_id, params, *args, **kvargs):
         """Send action to physical server.
 
@@ -239,6 +238,7 @@ class LoggingSpaceTask(AbstractProviderResourceTask):
         cid = params.get("cid")
         space_id = params.get("space_id")
         action = params.get("action_name")
+        logger.debug("logging_space_action_step - action: %s" % action)
 
         elk_space: ElkSpace
         elk_space = task.get_simple_resource(space_id)
@@ -247,13 +247,31 @@ class LoggingSpaceTask(AbstractProviderResourceTask):
         container = task.get_container(cid)
         elk_space.set_container(container)
 
-        space_id_from = params.get("space_id_from")
-        dashboard = params.get("dashboard")
-        index_pattern = params.get("index_pattern")
-        # space_name = params.get('space_name')
-        space_id_to = elk_space.ext_id
+        if action == "add_dashboard":
+            space_id_from = params.get("space_id_from")
+            dashboard = params.get("dashboard")
+            index_pattern = params.get("index_pattern")
+            # space_name = params.get('space_name')
+            space_id_to = elk_space.ext_id
+            
+            res, str = elk_space.add_dashboard(space_id_from, dashboard, space_id_to, index_pattern, params)
+            logger.debug("logging_space_action_step - action: %s - res: %s - str: %s" % (action, res, str))
+            # TODO get task if status FAILURE
 
-        res, str = elk_space.add_dashboard(space_id_from, dashboard, space_id_to, index_pattern, params)
-        logger.debug("logging_space_action_step - str: %s" % str)
+        elif action == "delete_dashboard":
+            dashboard_to_search = params.get("dashboard_to_search")
+            space_id = elk_space.ext_id
+
+            res, str = elk_space.delete_dashboard(
+                dashboard_to_search,
+                space_id,
+                params,
+            )
+            logger.debug("logging_space_action_step - action: %s - res: %s - str: %s" % (action, res, str))
+
+            # se sync
+            # ({'task': beehive_resource.task_v2.core.resource_action_task(), 'uuid': 'f5f7a13e-1338-4686-a65b-72768fad9e0b', 'params': {'dashboard_folder_from': 'default', 'dashboard_to_search': 'Mysql', 'folder_uid_to': 'e3HFClkSk', 'dash_tag': None, 'organization': 'CsiTest', 'division': 'DivCsi', 'account': 'account_csi', 'alias': 'GrafanaFolder.add_dashboard', 'cid': 19, 'id': 34183, 'objid': '1dcc06da3b//3b82ee774c', 'name': 'CsiTest.DivCsi.account_csi-folder', 'ext_id': 'e3HFClkSk', 'parent': None, 'action_name': 'add_dashboard', 'steps': ['beehive_resource.task_v2.core.AbstractResourceTask.action_resource_pre_step', 'beehive_resource.plugins.grafana.task_v2.grafana_folder.GrafanaFolderTask.delete_dashboard_step', 'beehive_resource.task_v2.core.AbstractResourceTask.action_resource_post_step'], 'user': 'client-beehive@local', 'server': '10.42.0.135', 'identity': '7c6a83b3-d9c8-4396-8784-4f675b4da5e3', 'api_id': '5624ebd5-b0ca-400c-952f-e7a6a5c6a056', 'sync': True}}, 200)
+            # child_task = res[0]
+            # run_sync_task(child_task, task, step_id)
 
         return True, params

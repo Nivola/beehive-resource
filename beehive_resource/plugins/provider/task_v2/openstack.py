@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import copy
 from logging import getLogger
@@ -101,7 +101,7 @@ class ProviderOpenstack(AbstractProviderHelper):
         :raise TaskError: If task fails
         :raise ApiManagerError: :class:`ApiManagerError`
         """
-        project = self.resource.get_physical_resource_from_container(self.cid, OpenstackProject.objdef)
+        project: OpenstackProject = self.resource.get_physical_resource_from_container(self.cid, OpenstackProject.objdef)
         ops_quotas = {}
         for k, v in quotas.items():
             base_quota = copy.deepcopy(ProviderOpenstack.QUOTAS)
@@ -439,17 +439,294 @@ class ProviderOpenstack(AbstractProviderHelper):
 
         return router_id
 
-    @staticmethod
-    def get_reserved_rule_type(*args, **kvargs):
-        """Dummy method to maintain the same structure as vsphere"""
-        return None
+    def create_rule(self, zone, source, destination, direction, service, *args):
+        """Create openstack rule.
 
-    @staticmethod
-    def get_reserved_rule(*args, **kvargs):
-        """Dummy method to maintain the same structure as vsphere"""
-        return None
+        :param zone: availability zone
+        :param source: source
+        :param destination: destination
+        :param direction: traffic flow, 'ingress' or 'egress'
+        :param service: service.
+            Ex. {'port':'*', 'protocol':'*'} -> *:*
+                {'port':'*', 'protocol':6} -> tcp:*
+                {'port':80, 'protocol':6} -> tcp:80
+                {'port':80, 'protocol':17} -> udp:80
+                {'protocol':1, 'subprotocol':8} -> icmp:echo request
+        :return: list
+        :raise TaskError: :class:`TaskError`
+        :raise ApiManagerError: :class:`ApiManagerError`
+        """
+        try:
+            policies = []
 
-    def create_rule(self, zone, source, destination, service, reserved):
+            # get protocol
+            protocol = service.get("protocol", None)
+            port = service.get("port", None)
+
+            # parse service
+            if protocol == "*" and port == "*":
+                proto = None
+                port_range_min = None
+                port_range_max = None
+            else:
+                if protocol == "1":
+                    # for a complete list of icmp type http://www.nthelp.com/icmp.html
+                    proto = "icmp"
+                    self.logger.warn(service)
+                    if service["subprotocol"] == "-1":
+                        port_range_min = port_range_max = None
+                    else:
+                        port_range_min = port_range_max = service["subprotocol"]  # contains icmp type
+                elif protocol == "6":
+                    proto = "tcp"
+                    if port == "*":
+                        port_range_min = port_range_max = None
+                    else:
+                        if port.find("-") > 0:
+                            port_range_min, port_range_max = port.split("-")
+                        else:
+                            port_range_min = port_range_max = port
+                elif protocol == "17":
+                    proto = "udp"
+                    if port == "*":
+                        port_range_min = port_range_max = None
+                    else:
+                        if port.find("-") > 0:
+                            port_range_min, port_range_max = port.split("-")
+                        else:
+                            port_range_min = port_range_max = port
+                else:
+                    raise Exception("Procotol %s is not supported" % protocol)
+
+            # sgrule1 -> sgrule1
+            if source["type"] == destination["type"] and source["value"] == destination["value"]:
+                # get source security group id
+                res = self.get_resource(source["value"])
+                sg_id = res.get_physical_resource_from_container(self.cid, OpenstackSecurityGroup.objdef).oid
+
+                # policies.append(
+                #     self.create_openstack_rule(
+                #         sg_id,
+                #         "egress",
+                #         port_range_min,
+                #         port_range_max,
+                #         proto,
+                #         group=sg_id,
+                #         cidr=None,
+                #     )
+                # )
+                policies.append(
+                    self.create_openstack_rule(
+                        sg_id,
+                        "ingress",
+                        port_range_min,
+                        port_range_max,
+                        proto,
+                        group=sg_id,
+                        cidr=None,
+                    )
+                )
+
+            # cidr -> sgrule
+            elif source["type"] == "Cidr" and destination["type"] in ["RuleGroup"]:
+                # get destination security group id
+                res = self.get_resource(destination["value"])
+                sg_id = res.get_physical_resource_from_container(self.cid, OpenstackSecurityGroup.objdef).oid
+                # get source cidr
+                cidr = source["value"]
+                policies.append(
+                    self.create_openstack_rule(
+                        sg_id,
+                        "ingress",
+                        port_range_min,
+                        port_range_max,
+                        proto,
+                        group=None,
+                        cidr=cidr,
+                    )
+                )
+
+            # sgrule -> cidr
+            elif destination["type"] == "Cidr" and source["type"] in ["RuleGroup"]:
+                # get source security group id
+                res = self.get_resource(source["value"])
+                sg_id = res.get_physical_resource_from_container(self.cid, OpenstackSecurityGroup.objdef).oid
+                # get destination cidr
+                cidr = destination["value"]
+                policies.append(
+                    self.create_openstack_rule(
+                        sg_id,
+                        "egress",
+                        port_range_min,
+                        port_range_max,
+                        proto,
+                        group=None,
+                        cidr=cidr,
+                    )
+                )
+
+            # sgrule1 -> sgrule2
+            elif source["type"] in ["RuleGroup"] and destination["type"] in ["RuleGroup"]:
+                # get source security group id
+                res = self.get_resource(source["value"])
+                source_sg_id = res.get_physical_resource_from_container(self.cid, OpenstackSecurityGroup.objdef).oid
+                # get destination security group id
+                res = self.get_resource(destination["value"])
+                dest_sg_id = res.get_physical_resource_from_container(self.cid, OpenstackSecurityGroup.objdef).oid
+
+                # policies.append(
+                #     self.create_openstack_rule(
+                #         source_sg_id,
+                #         "egress",
+                #         port_range_min,
+                #         port_range_max,
+                #         proto,
+                #         group=dest_sg_id,
+                #         cidr=None,
+                #     )
+                # )
+                if direction == "ingress":
+                    policies.append(
+                        self.create_openstack_rule(
+                            dest_sg_id,
+                            direction,
+                            port_range_min,
+                            port_range_max,
+                            proto,
+                            group=source_sg_id,
+                            cidr=None,
+                        )
+                    )
+                else: # egress
+                    policies.append(
+                        self.create_openstack_rule(
+                            source_sg_id,
+                            direction,
+                            port_range_min,
+                            port_range_max,
+                            proto,
+                            group=dest_sg_id,
+                            cidr=None,
+                        )
+                    )
+
+            # sgrule -> server
+            elif source["type"] in ["RuleGroup"] and destination["type"] in ["Server"]:
+                # get source security group id
+                res = self.get_resource(source["value"])
+                source_sg_id = res.get_physical_resource_from_container(self.cid, OpenstackSecurityGroup.objdef).oid
+
+                # get destination server id
+                server_id = destination["value"]
+                # get destination security group id where the server is
+                server = self.get_resource(server_id)
+                res = self.get_resource(server.parent_id)
+                dest_sg_id = res.get_physical_resource_from_container(self.cid, OpenstackSecurityGroup.objdef).oid
+
+                policies.append(
+                    self.create_openstack_rule(
+                        source_sg_id,
+                        "egress",
+                        port_range_min,
+                        port_range_max,
+                        proto,
+                        group=None,
+                        cidr=server_id,
+                    )
+                )
+                policies.append(
+                    self.create_openstack_rule(
+                        dest_sg_id,
+                        "ingress",
+                        port_range_min,
+                        port_range_max,
+                        proto,
+                        group=source_sg_id,
+                        cidr=None,
+                    )
+                )
+
+            # server -> sgrule
+            elif destination["type"] in ["Environment"] and source["type"] in ["Server"]:
+                # get source server id
+                server_id = source["value"]
+                # get source security group id where the server is
+                server = self.get_resource(server_id)
+                res = self.get_resource(server.parent_id)
+                source_sg_id = res.get_physical_resource_from_container(self.cid, OpenstackSecurityGroup.objdef).oid
+
+                # get destination security group id
+                res = self.get_resource(destination["value"])
+                dest_sg_id = res.get_physical_resource_from_container(self.cid, OpenstackSecurityGroup.objdef).oid
+
+                policies.append(
+                    self.create_openstack_rule(
+                        source_sg_id,
+                        "egress",
+                        port_range_min,
+                        port_range_max,
+                        proto,
+                        group=dest_sg_id,
+                        cidr=None,
+                    )
+                )
+                policies.append(
+                    self.create_openstack_rule(
+                        dest_sg_id,
+                        "ingress",
+                        port_range_min,
+                        port_range_max,
+                        proto,
+                        group=None,
+                        cidr=server_id,
+                    )
+                )
+
+            # server -> server
+            elif source["type"] in ["Server"] and destination["type"] in ["Server"]:
+                # get source server id
+                source_server_id = source["value"]
+                # get source security group id where the server is
+                server = self.get_resource(source_server_id)
+                res = self.get_resource(server.parent_id)
+                source_sg_id = res.get_physical_resource_from_container(self.cid, OpenstackSecurityGroup.objdef).oid
+
+                # get destination server id
+                dest_server_id = destination["value"]
+                # get destination security group id where the server is
+                server = self.get_resource(dest_server_id)
+                res = self.get_resource(dest_server_id.parent_id)
+                dest_sg_id = res.get_physical_resource_from_container(self.cid, OpenstackSecurityGroup.objdef).oid
+
+                policies.append(
+                    self.create_openstack_rule(
+                        source_sg_id,
+                        "egress",
+                        port_range_min,
+                        port_range_max,
+                        proto,
+                        group=None,
+                        cidr=dest_server_id,
+                    )
+                )
+                policies.append(
+                    self.create_openstack_rule(
+                        dest_sg_id,
+                        "ingress",
+                        port_range_min,
+                        port_range_max,
+                        proto,
+                        group=None,
+                        cidr=source_server_id,
+                    )
+                )
+
+            return policies
+        except Exception as ex:
+            self.logger.error(ex, exc_info=True)
+            raise TaskError(ex)
+        
+    def create_rule_before_optimization(self, zone, source, destination, service):    # reserved useless
         """Create openstack rule.
 
         :param zone: availability zone
@@ -467,6 +744,7 @@ class ProviderOpenstack(AbstractProviderHelper):
         :raise ApiManagerError: :class:`ApiManagerError`
         """
         try:
+            print("+++++ rule - openstack - create_rule_before_optimization")
             policies = []
 
             # get protocol
@@ -792,16 +1070,6 @@ class ProviderOpenstack(AbstractProviderHelper):
         self.progress("create rule resource: %s" % rule_resource_id)
 
         return rule_id
-
-    @staticmethod
-    def update_section(*args, **kvargs):
-        """Dummy method to maintain the same structure as vsphere"""
-        pass
-
-    @staticmethod
-    def update_reserved_rule(*args, **kvargs):
-        """Dummy method to maintain the same structure as vsphere"""
-        pass
 
     def import_server(self, params):
         """Import openstack server.

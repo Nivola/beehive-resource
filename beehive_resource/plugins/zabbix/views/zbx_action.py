@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
@@ -10,17 +10,21 @@ from beehive.common.apimanager import (
     CrudApiObjectJobResponseSchema,
     ApiView,
 )
+
 from beehive_resource.plugins.zabbix.entity.zbx_action import ZabbixAction
+
 from beehive_resource.plugins.provider.views import (
     ResourceApiView,
     CreateProviderResourceRequestSchema,
     UpdateProviderResourceRequestSchema,
 )
+
 from beehive_resource.view import (
     ListResourcesRequestSchema,
     ResourceResponseSchema,
     ResourceSmallResponseSchema,
 )
+
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
 from beehive_resource.plugins.zabbix.views import ZabbixAPI, ZabbixApiView
@@ -41,15 +45,22 @@ class ListZabbixActionsParamsResponseSchema(ResourceResponseSchema):
 
 
 class ListZabbixActionsResponseSchema(PaginatedResponseSchema):
-    actions = fields.Nested(ListZabbixActionsParamsResponseSchema, many=True, required=True, allow_none=True)
+    actions = fields.Nested(
+        ListZabbixActionsParamsResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListZabbixActions(ZabbixActionView):
     summary = "List actions"
     description = "List actions"
+
     definitions = {
         "ListZabbixActionsResponseSchema": ListZabbixActionsResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(ListZabbixActionsRequestSchema)
     parameters_schema = ListZabbixActionsRequestSchema
     responses = SwaggerApiView.setResponses(
@@ -62,11 +73,20 @@ class ListZabbixActions(ZabbixActionView):
 
 
 class GetZabbixActionParamsResponseSchema(ResourceResponseSchema):
-    actions = fields.Nested(ResourceSmallResponseSchema, required=True, many=True, allow_none=True)
+    actions = fields.Nested(
+        ResourceSmallResponseSchema,
+        required=True,
+        many=True,
+        allow_none=True,
+    )
 
 
 class GetZabbixActionResponseSchema(Schema):
-    action = fields.Nested(GetZabbixActionParamsResponseSchema, required=True, allow_none=True)
+    action = fields.Nested(
+        GetZabbixActionParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetZabbixAction(ZabbixActionView):
@@ -84,32 +104,54 @@ class GetZabbixAction(ZabbixActionView):
 
 
 class CreateZabbixActionParamRequestSchema(CreateProviderResourceRequestSchema):
-    container = fields.String(required=True, example="12", description="Container id, uuid or name")
-    name = fields.String(required=True, example="test-name-action", default="", description="Action name")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'Container id, uuid or name',
+        },
+    )
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test-name-action',
+            "description": 'Action name',
+        },
+    )
     desc = fields.String(
         required=False,
         allow_none=True,
-        default="Zabbix action",
-        description="The resource description - redefined required False",
+        metadata={
+            "description": 'The resource description - redefined required False',
+        },
     )
     usrgrp_id = fields.Integer(
         required=True,
         allow_none=False,
-        description="Usergroup id",
+        metadata={
+            "description": 'Usergroup id',
+        },
     )
     hostgroup_id = fields.Integer(
         required=True,
         allow_none=False,
-        description="Hostgroup id",
+        metadata={
+            "description": 'Hostgroup id',
+        },
     )
 
 
 class CreateZabbixActionRequestSchema(Schema):
-    action = fields.Nested(CreateZabbixActionParamRequestSchema)
+    action = fields.Nested(
+        CreateZabbixActionParamRequestSchema,
+    )
 
 
 class CreateZabbixActionBodyRequestSchema(Schema):
-    body = fields.Nested(CreateZabbixActionRequestSchema, context="body")
+    body = fields.Nested(
+        CreateZabbixActionRequestSchema,
+        context="body",
+    )
 
 
 class CreateZabbixAction(ZabbixActionView):
@@ -129,12 +171,19 @@ class CreateZabbixAction(ZabbixActionView):
 
 
 class UpdateZabbixActionTemplateRequestSchema(Schema):
-    name = fields.String(required=True, example="Test action", default="", description="Action name")
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'Test action',
+            "description": 'Action name',
+        },
+    )
     desc = fields.String(
         required=False,
-        example="This is the test action",
-        default="",
-        description="Action description",
+        metadata={
+            "example": 'This is the test action',
+            "description": 'Action description',
+        },
     )
 
 
@@ -143,17 +192,24 @@ class UpdateZabbixActionParamRequestSchema(UpdateProviderResourceRequestSchema):
         UpdateZabbixActionTemplateRequestSchema,
         required=False,
         many=True,
-        description="list of orchestrator actions to link",
         allow_none=True,
+        metadata={
+            "description": 'list of orchestrator actions to link',
+        },
     )
 
 
 class UpdateZabbixActionRequestSchema(Schema):
-    action = fields.Nested(UpdateZabbixActionParamRequestSchema)
+    action = fields.Nested(
+        UpdateZabbixActionParamRequestSchema,
+    )
 
 
 class UpdateZabbixActionBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateZabbixActionRequestSchema, context="body")
+    body = fields.Nested(
+        UpdateZabbixActionRequestSchema,
+        context="body",
+    )
 
 
 class UpdateZabbixAction(ZabbixActionView):

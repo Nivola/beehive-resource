@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from re import match
 from ipaddress import IPv4Address
-from six import ensure_text
+from beecell.util import ensure_text
 from beecell.network import InternetProtocol
 from beecell.simple import get_value
 from beecell.types.type_dict import dict_get
@@ -14,7 +14,7 @@ from beehive_resource.container import Resource
 from beehive_resource.plugins.provider.entity.aggregate import ComputeProviderResource
 from beehive_resource.plugins.provider.entity.instance import ComputeInstance
 from beehive_resource.plugins.provider.entity.security_group import SecurityGroup
-from beehive_resource.plugins.provider.entity.zone import AvailabilityZoneChildResource
+from beehive_resource.plugins.provider.entity.zone import AvailabilityZoneChildResource, ComputeZone
 
 
 class ComputeRule(ComputeProviderResource):
@@ -109,13 +109,15 @@ class ComputeRule(ComputeProviderResource):
         orchestrator_tag = kvargs.get("orchestrator_tag", "default")
         zone_id = kvargs.get("parent")
         reserved = kvargs.get("reserved")
+        logs = kvargs.get("logging", False)
         source = kvargs.get("source")
         destination = kvargs.get("destination")
+        direction = kvargs.get("direction")
         service = kvargs.get("service", {"port": "*", "protocol": "*"})
         rule_orchestrator_types = kvargs.get("rule_orchestrator_types")
 
         # get zone
-        compute_zone = container.get_resource(zone_id)
+        compute_zone: ComputeZone = container.get_resource(zone_id)
 
         # check quotas are not exceed
         # new_quotas = {
@@ -163,7 +165,7 @@ class ComputeRule(ComputeProviderResource):
         protocol = get_value(service, "protocol", None, exception=True)
 
         # convert string protocol in numeric protocol
-        if protocol != "*" and not match("^\d+$", protocol):
+        if protocol != "*" and not match(r"^\d+$", protocol):
             protocol = str(proto_check.get_number_from_name(protocol))
             service["protocol"] = protocol
 
@@ -248,19 +250,28 @@ class ComputeRule(ComputeProviderResource):
             "availability_zones": [z for z in availability_zones],
             "attribute": {
                 "reserved": reserved,
+                "rule_orchestrator_types": rule_orchestrator_types,
+                "logging": logs,
                 "configs": {
                     "source": source,
                     "destination": destination,
+                    "direction": direction,
                     "service": service,
                 },
             },
         }
         kvargs.update(params)
 
+        # get rules optimization tag
+        rules_optimization = compute_zone.get_attribs("netaas.rules_optimization", default=False)
+
         # create task workflow
         steps = [
             ComputeRule.task_path + "create_resource_pre_step",
-            ComputeRule.task_path + "link_rule_step",
+            {
+                "step": ComputeRule.task_path + "link_rule_step",
+                "args": [rules_optimization],
+            }
         ]
 
         for availability_zone in params["availability_zones"]:

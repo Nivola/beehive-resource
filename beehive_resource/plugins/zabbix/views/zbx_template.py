@@ -1,13 +1,14 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2018-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
 from beehive_resource.plugins.zabbix.entity.zbx_template import ZabbixTemplate
 from beehive_resource.plugins.zabbix.views import ZabbixAPI, ZabbixApiView
 from beehive_resource.view import ResourceResponseSchema, ListResourcesRequestSchema
+
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
@@ -32,7 +33,9 @@ class ListTemplatesParamsResponseSchema(ResourceResponseSchema):
 
 class ListTemplatesResponseSchema(PaginatedResponseSchema):
     # templates = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
-    templates = fields.List(fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True))
+    templates = fields.List(
+        fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True),
+    )
 
 
 class ListTemplates(ZabbixTemplateApiView):
@@ -49,7 +52,11 @@ class ListTemplates(ZabbixTemplateApiView):
 
 
 class GetTemplateResponseSchema(Schema):
-    template = fields.Nested(ResourceResponseSchema, required=True, allow_none=True)
+    template = fields.Nested(
+        ResourceResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetTemplate(ZabbixTemplateApiView):
@@ -65,26 +72,41 @@ class GetTemplate(ZabbixTemplateApiView):
 
 
 class CreateTemplateParamRequestSchema(Schema):
-    container = fields.String(required=True, example="1234", description="container id, uuid or name")
-    name = fields.String(required=True, example="linux template")
-    desc = fields.String(required=False, example="template description")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '1234',
+            "description": 'container id, uuid or name',
+        },
+    )
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'linux template',
+        },
+    )
+    desc = fields.String(
+        required=False,
+        metadata={
+            "example": 'template description',
+        },
+    )
     groups = fields.List(
-        fields.String(
-            required=True,
-            example="['50', '62']",
-            many=True,
-            allow_none=True,
-            description="hostgroups to add the template to",
-        )
+        fields.String(required=True, example="['50', '62']", many=True, allow_none=True, description='hostgroups to add the template to'),
     )
 
 
 class CreateTemplateRequestSchema(Schema):
-    template = fields.Nested(CreateTemplateParamRequestSchema)
+    template = fields.Nested(
+        CreateTemplateParamRequestSchema,
+    )
 
 
 class CreateHostBodyRequestSchema(Schema):
-    body = fields.Nested(CreateTemplateRequestSchema, context="body")
+    body = fields.Nested(
+        CreateTemplateRequestSchema,
+        context="body",
+    )
 
 
 class CreateTemplate(ZabbixTemplateApiView):

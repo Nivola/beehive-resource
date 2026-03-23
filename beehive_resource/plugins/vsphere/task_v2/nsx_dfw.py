@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from logging import getLogger
 from beecell.simple import dict_get
 from beedrones.vsphere.client import VsphereError
 from beehive.common.task_v2 import task_step, TaskError
-from beehive.common.task_v2.manager import task_manager
+from beehive.common.task_v2.manager import get_task_manager
 from beehive_resource.plugins.vsphere.entity.nsx_dfw import NsxDfw
 from beehive_resource.task_v2 import AbstractResourceTask
 
@@ -61,16 +61,22 @@ class NsxDfwTask(AbstractResourceTask):
         :params params.sectionid: section id
         :return: True, params
         """
+        from beedrones.vsphere.client import VsphereManager, VsphereNotFound
+
         cid = params.get("cid", None)
         section_id = params.get("sectionid", None)
 
         container = task.get_container(cid)
-        conn = container.conn
+        conn: 'VsphereManager' = container.conn
+
         task.progress(step_id, msg="Get container %s" % cid)
 
         # delete nsx dfw section
-        conn.network.nsx.dfw.query_status()  # get etag
-        res = conn.network.nsx.dfw.delete_section(section_id)
+        # conn.network.nsx.dfw.query_status()  # get etag
+        res, res_etag = conn.network.nsx.dfw.get_layer3_section_and_etag(sectionid=section_id)
+        logger.debug(f"Nsx dfw deleting section - sectionid {section_id}")
+
+        res = conn.network.nsx.dfw.delete_section(section_id, res_etag)
         task.progress(step_id, msg="Delete nsx dfw section %s" % section_id)
 
         return True, params
@@ -87,7 +93,7 @@ class NsxDfwTask(AbstractResourceTask):
         :params params.sectionid: section id
         :params params.name: rule name
         :params params.action: new action value. Ie: allow, deny, reject [optional]
-        :params params.logged: if 'true' rule is logged
+        :params params.logging: if 'true' rule is logged
         :params params.direction: rule direction: in, out, inout
         :params params.sources: List like [{'name':, 'value':, 'type':, }] [optional]
         :params params.destinations: List like [{'name':, 'value':, 'type':, }] [optional]
@@ -235,23 +241,31 @@ class NsxDfwTask(AbstractResourceTask):
         :params params.ruleid: rule id
         :return: True, params
         """
+        from beedrones.vsphere.client import VsphereManager, VsphereNotFound
+
         cid = params.get("cid", None)
         sectionid = params.get("sectionid", None)
         ruleid = params.get("ruleid", None)
 
         container = task.get_container(cid)
-        conn = container.conn
+        conn: 'VsphereManager' = container.conn
         task.progress(step_id, msg="Get container %s" % cid)
+
 
         # check rule exists
         try:
             # delete nsx dfw rule
-            conn.network.nsx.dfw.query_status()  # get etag
-            res = conn.network.nsx.dfw.delete_rule(sectionid, ruleid)
+            # res, res_etag = conn.network.nsx.dfw.query_status()  # get etag
+            res, res_etag = conn.network.nsx.dfw.get_layer3_section_and_etag(sectionid=sectionid)
+            logger.debug(f"Nsx dfw deleting rule {ruleid} - sectionid {sectionid}")
+
+            res = conn.network.nsx.dfw.delete_rule(sectionid, ruleid, res_etag)
             logger.debug(f"Nsx dfw rule {ruleid} deleted: {res}")
             task.progress(step_id, msg="Delete nsx dfw rule %s" % ruleid)
-        except:
-            task.progress(step_id, msg="ERROR: nsx dfw rule %s does not exist" % ruleid)
+        except VsphereNotFound as ex:
+            task.progress(step_id, msg="ERROR: nsx dfw rule %s not found: %s" % (ruleid,ex))
+        except Exception as ex:
+            raise Exception("Error while deleting rule %s on cid %s - ex: %s" % (ruleid, cid, ex))
 
         return True, params
 
@@ -402,9 +416,9 @@ class NsxDfwRuleDeleteTask(AbstractResourceTask):
         pass
 
 
-task_manager.tasks.register(NsxDfwSectionAddTask())
-task_manager.tasks.register(NsxDfwSectionDeleteTask())
-task_manager.tasks.register(NsxDfwRuleAddTask())
-task_manager.tasks.register(NsxDfwRuleMoveTask())
-task_manager.tasks.register(NsxDfwRuleUpdateTask())
-task_manager.tasks.register(NsxDfwRuleDeleteTask())
+get_task_manager().register_task(NsxDfwSectionAddTask())
+get_task_manager().register_task(NsxDfwSectionDeleteTask())
+get_task_manager().register_task(NsxDfwRuleAddTask())
+get_task_manager().register_task(NsxDfwRuleMoveTask())
+get_task_manager().register_task(NsxDfwRuleUpdateTask())
+get_task_manager().register_task(NsxDfwRuleDeleteTask())

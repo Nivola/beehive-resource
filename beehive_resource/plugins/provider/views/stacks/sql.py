@@ -1,13 +1,14 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from marshmallow import validates_schema, ValidationError
 
 from beehive_resource.plugins.provider.entity.sql_stack import SqlComputeStack
 from beehive_resource.plugins.provider.entity.zone import ComputeZone
 from beehive_resource.view import ListResourcesRequestSchema, ResourceResponseSchema
+
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
@@ -15,14 +16,17 @@ from beehive.common.apimanager import (
     CrudApiObjectJobResponseSchema,
     ApiManagerError,
 )
+
 from beecell.swagger import SwaggerHelper
 from flasgger import fields, Schema
+
 from beehive_resource.plugins.provider.views import (
     ProviderAPI,
     LocalProviderApiView,
     UpdateProviderResourceRequestSchema,
     CreateProviderResourceRequestSchema,
 )
+
 from marshmallow.validate import OneOf
 
 
@@ -43,17 +47,24 @@ class ProviderStack(LocalProviderApiView):
 
 
 class ListStacksRequestSchema(ListResourcesRequestSchema):
-    compute_zones = fields.String(context="query", description="comma separated list of compute zone id or uuid")
+    compute_zones = fields.String(
+        context="query",
+        metadata={
+            "description": 'comma separated list of compute zone id or uuid',
+        },
+    )
 
 
 class ListStacksResponseSchema(PaginatedResponseSchema):
-    sql_stacks = fields.Nested(ResourceResponseSchema, many=True, required=True)
+    sql_stacks = fields.Nested(
+        ResourceResponseSchema,
+        many=True,
+        required=True,
+    )
 
 
 class ListStacks(ProviderStack):
-    definitions = {
-        "ListStacksResponseSchema": ListStacksResponseSchema,
-    }
+    definitions = {"ListStacksResponseSchema": ListStacksResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListStacksRequestSchema)
     parameters_schema = ListStacksRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListStacksResponseSchema}})
@@ -84,15 +95,12 @@ class GetStackResponseSchema(Schema):
 
 
 class GetStack(ProviderStack):
-    definitions = {
-        "GetStackResponseSchema": GetStackResponseSchema,
-    }
+    definitions = {"GetStackResponseSchema": GetStackResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetStackResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
-        Get sql_stack
         Get sql_stack
         """
         containers, tot = controller.get_containers(container_type="Provider")
@@ -107,15 +115,12 @@ class GetStackResourcesResponseSchema(Schema):
 
 
 class GetStackResources(ProviderStack):
-    definitions = {
-        "GetStackResourcesResponseSchema": GetStackResourcesResponseSchema,
-    }
+    definitions = {"GetStackResourcesResponseSchema": GetStackResourcesResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetStackResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
-        Get sql_stack resources
         Get sql_stack resources
         """
         resource = self.get_resource_reference(controller, oid)
@@ -127,52 +132,148 @@ class GetStackResources(ProviderStack):
 
 
 class CreateStackParamRequestSchema(CreateProviderResourceRequestSchema):
-    compute_zone = fields.String(required=True, example="1", description="parent compute zone id or uuid")
+    compute_zone = fields.String(
+        required=True,
+        metadata={
+            "example": '1',
+            "description": 'parent compute zone id or uuid',
+        },
+    )
+
     availability_zone = fields.String(
         required=True,
-        example="2995",
-        description="id, uuid or name of the site where create sql",
+        metadata={
+            "example": '2995',
+            "description": 'id, uuid or name of the site where create sql',
+        },
     )
-    flavor = fields.String(required=True, example="2995", description="id, uuid or name of the flavor")
-    image = fields.String(required=True, example="2995", description="id, uuid or name of the image")
-    vpc = fields.String(required=True, example="2995", description="id, uuid or name of the vpc")
-    subnet = fields.String(required=True, example="10.102.167.90/24", description="subnet definition")
+
+    flavor = fields.String(
+        required=True,
+        metadata={
+            "example": '2995',
+            "description": 'id, uuid or name of the flavor',
+        },
+    )
+
+    image = fields.String(
+        required=True,
+        metadata={
+            "example": '2995',
+            "description": 'id, uuid or name of the image',
+        },
+    )
+
+    vpc = fields.String(
+        required=True,
+        metadata={
+            "example": '2995',
+            "description": 'id, uuid or name of the vpc',
+        },
+    )
+
+    subnet = fields.String(
+        required=True,
+        metadata={
+            "example": '10.102.167.90/24',
+            "description": 'subnet definition',
+        },
+    )
+
     security_group = fields.String(
         required=True,
-        example="2995",
-        description="id, uuid or name of the security group",
+        metadata={
+            "example": '2995',
+            "description": 'id, uuid or name of the security group',
+        },
     )
-    db_name = fields.String(required=True, example="dbtest", description="First app database name")
+
+    db_name = fields.String(
+        required=True,
+        metadata={
+            "example": 'dbtest',
+            "description": 'First app database name',
+        },
+    )
+
     # db_appuser_name = fields.String(required=True, example='usertest', description='First app user name')
     # db_appuser_password = fields.String(required=True, example='', description='First app user password')
+
     db_root_name = fields.String(
         required=False,
-        example="root",
-        missing="root",
-        description="The database admin account username",
+        load_default="root",
+        metadata={
+            "example": 'root',
+            "description": 'The database admin account username',
+        },
     )
+
     db_root_password = fields.String(
         required=False,
-        example="",
-        description="The database admin password",
         allow_none=True,
+        metadata={
+            "example": '',
+            "description": 'The database admin password',
+        },
     )
-    key_name = fields.String(required=False, example="", description="Openstack public key name")
-    version = fields.String(required=False, example="5.7", description="Database engine version")
-    engine = fields.String(required=False, example="mysql", description="Database engine")
-    root_disk_size = fields.Integer(required=False, example=40, missing=40, description="Size of root disk")
-    data_disk_size = fields.Integer(required=False, example=30, missing=30, description="Size of data disk")
+
+    key_name = fields.String(
+        required=False,
+        metadata={
+            "description": 'Openstack public key name',
+        },
+    )
+
+    version = fields.String(
+        required=False,
+        metadata={
+            "example": '5.7',
+            "description": 'Database engine version',
+        },
+    )
+
+    engine = fields.String(
+        required=False,
+        metadata={
+            "example": 'mysql',
+            "description": 'Database engine',
+        },
+    )
+
+    root_disk_size = fields.Integer(
+        required=False,
+        load_default=40,
+        metadata={
+            "example": 40,
+            "description": 'Size of root disk',
+        },
+    )
+
+    data_disk_size = fields.Integer(
+        required=False,
+        load_default=30,
+        metadata={
+            "example": 30,
+            "description": 'Size of data disk',
+        },
+    )
+
     geo_extension = fields.Bool(
         required=False,
-        example=False,
-        missing=False,
-        description="If True enable geographic extension. Use only with postgres",
+        load_default=False,
+        metadata={
+            "example": False,
+            "description": 'If True enable geographic extension. Use only with postgres',
+        },
     )
+
     resolve = fields.Boolean(
-        example=False,
-        missing=True,
+        load_default=True,
         required=False,
-        description="Define if stack instances must registered on the availability_zone dns zone",
+        metadata={
+            "example": False,
+            "description": 'Define if stack instances must registered on the availability_zone dns zone',
+        },
     )
 
     @validates_schema
@@ -200,13 +301,13 @@ class CreateStack(ProviderStack):
         "CreateStackRequestSchema": CreateStackRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateStackBodyRequestSchema)
     parameters_schema = CreateStackRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def post(self, controller, data, *args, **kwargs):
         """
-        Create sql_stack
         Create sql_stack
         """
         res = self.create_resource(controller, data)
@@ -230,13 +331,13 @@ class UpdateStack(ProviderStack):
         "UpdateStackRequestSchema": UpdateStackRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateStackBodyRequestSchema)
     parameters_schema = UpdateStackRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def put(self, controller, data, oid, *args, **kwargs):
         """
-        Update sql_stack
         Update sql_stack
         """
         return self.update_resource(controller, oid, data)
@@ -245,11 +346,19 @@ class UpdateStack(ProviderStack):
 class ActionStackParamRequestSchema(Schema):
     action = fields.String(
         required=True,
-        example="set-password",
-        description="Send and action to sql stack",
-        validate=OneOf(["set-password"]),
+        validate=OneOf(['set-password']),
+        metadata={
+            "example": 'set-password',
+            "description": 'Send and action to sql stack',
+        },
     )
-    params = fields.Dict(required=True, example={}, description="The action params")
+
+    params = fields.Dict(
+        required=True,
+        metadata={
+            "description": 'The action params',
+        },
+    )
 
 
 class ActionStackRequestSchema(Schema):
@@ -269,13 +378,13 @@ class ActionStack(ProviderStack):
         "ActionStackRequestSchema": ActionStackRequestSchema,
         "ActionStackResponseSchema": ActionStackResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(ActionStackBodyRequestSchema)
     parameters_schema = ActionStackRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": ActionStackResponseSchema}})
 
     def put(self, controller, data, oid, *args, **kwargs):
         """
-        Run sql_stack action
         Run sql_stack action
         """
         resource = self.get_resource_reference(controller, oid)
@@ -295,7 +404,6 @@ class DeleteStack(ProviderStack):
     def delete(self, controller, data, oid, *args, **kwargs):
         """
         Delete sql_stack
-        Delete sql_stack
         """
         return self.expunge_resource(controller, oid)
 
@@ -305,15 +413,12 @@ class GetStackCredentialsResponseSchema(Schema):
 
 
 class GetStackCredentials(ProviderStack):
-    definitions = {
-        "GetStackCredentialsResponseSchema": GetStackCredentialsResponseSchema,
-    }
+    definitions = {"GetStackCredentialsResponseSchema": GetStackCredentialsResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetStackResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
-        Get sql_stack credential
         Get sql_stack credential
         """
         resource = self.get_resource_reference(controller, oid)
@@ -325,14 +430,14 @@ class SetStackCredentialsRequestSchema(Schema):
     sql_stack_credentials = fields.List(
         fields.Dict,
         required=True,
-        description='List of dict like {"user: "root", "pwd":<pwd>}',
+        metadata={
+            "description": 'List of dict like {"user: "root", "pwd":<pwd>}',
+        },
     )
 
 
 class SetStackCredentials(ProviderStack):
-    definitions = {
-        "SetStackCredentialsRequestSchema": SetStackCredentialsRequestSchema,
-    }
+    definitions = {"SetStackCredentialsRequestSchema": SetStackCredentialsRequestSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({204: {"description": "success"}})
 
@@ -347,24 +452,37 @@ class SetStackCredentials(ProviderStack):
 
 
 class GetStackEngineResponseSchema(Schema):
-    engine = fields.String(required=True, example="mysql", description="Engine name")
-    version = fields.String(required=True, example="5.7", description="Engine version")
+    engine = fields.String(
+        required=True,
+        metadata={
+            "example": 'mysql',
+            "description": 'Engine name',
+        },
+    )
+
+    version = fields.String(
+        required=True,
+        metadata={
+            "example": '5.7',
+            "description": 'Engine version',
+        },
+    )
 
 
 class GetStackEnginesResponseSchema(Schema):
-    engines = fields.Nested(GetStackEngineResponseSchema, required=True)
+    engines = fields.Nested(
+        GetStackEngineResponseSchema,
+        required=True,
+    )
 
 
 class GetStackEngines(ProviderStack):
-    definitions = {
-        "GetStackEnginesResponseSchema": GetStackEnginesResponseSchema,
-    }
+    definitions = {"GetStackEnginesResponseSchema": GetStackEnginesResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetStackResponseSchema}})
 
     def get(self, controller, data, *args, **kwargs):
         """
-        Get sql_stack engines
         Get sql_stack engines
         """
         engines = SqlComputeStack.get_engines()

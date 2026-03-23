@@ -1,11 +1,14 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
-
-from marshmallow import fields, Schema
+# (C) Copyright 2018-2026 CSI-Piemonte
+from __future__ import annotations
+from datetime import datetime
+from typing import TYPE_CHECKING, Union
+from flasgger import fields, Schema
 from marshmallow.validate import OneOf, Range
-
-from beehive_resource.container import Resource
+from beecell.types.type_string import str2bool
+from beecell.swagger import SwaggerHelper
+from beehive_resource.container import Resource, ResourceLink
 from beehive_resource.controller import ResourceController
 from beehive_resource.container import Orchestrator
 from beehive.common.apimanager import (
@@ -25,8 +28,11 @@ from beehive.common.apimanager import (
     CrudApiJobResponseSchema,
     CrudApiObjectSimpleResponseSchema,
 )
-from beecell.swagger import SwaggerHelper
-from beecell.simple import str2bool
+from beehive_resource.container import Resource
+
+if TYPE_CHECKING:
+    from beehive_resource.controller import ResourceController
+    from beehive_resource.container import ResourceContainer
 
 
 class ResourceApiView(SwaggerApiView):
@@ -42,32 +48,34 @@ class ResourceApiView(SwaggerApiView):
         cache=True,
         *args,
         **kvargs,
-    ) -> Orchestrator:
+    ) -> "ResourceContainer":
         """
         Get container.
         """
-        objdef = self.containerclass.objdef
         container = controller.get_container(oid, connect=False, cache=cache)
-        if self.containerclass is not None and container.objdef != objdef:
+        if self.containerclass is not None and container.objdef != self.containerclass.objdef:
             raise ApiManagerError(
-                f"Container {oid} is not of type {objdef}",
+                f"Container {oid} is not of type {self.containerclass.objdef}",
                 code=400,
             )
         if connect is True:
             container.get_connection(*args, **kvargs)
         return container
 
-    def get_resource_reference(self, controller, oid, container=None, run_customize=True, cache=None):
+    def get_resource_reference(
+        self, controller: ResourceController, oid, container=None, run_customize=True, cache=None
+    ):
         """
         Get resource reference.
         """
-        resource_controller: ResourceController = controller
         filter_d = {}
         if container is not None:
             filter_d["container_id"] = container
         if cache is not None:
             filter_d["cache"] = cache
-        obj = resource_controller.get_resource(oid, entity_class=self.resclass, **filter_d)
+
+        # TODO fix. pass run_customize down to get_resource and check calls using run_customize=False keep working
+        obj = controller.get_resource(oid, entity_class=self.resclass, **filter_d)
         return obj
 
     def get_resource(self, controller: ResourceController, oid):
@@ -95,10 +103,8 @@ class ResourceApiView(SwaggerApiView):
         kvargs["resourcetags"] = tags
         kvargs["parents"] = None
         kvargs["filter_expired"] = False
-        resource_controller: ResourceController = controller
-        res, total = resource_controller.get_resources(
-            objdef=self.resclass.objdef, type=self.resclass.objdef, *args, **kvargs
-        )
+
+        res, total = controller.get_resources(objdef=self.resclass.objdef, type=self.resclass.objdef, *args, **kvargs)
         resp = [r.info() for r in res]
         return self.format_paginated_response(resp, self.resclass.objname + "s", total, **kvargs)
 
@@ -141,7 +147,7 @@ class ResourceApiView(SwaggerApiView):
         resp = [r.info() for r in res]
         return self.format_paginated_response(resp, self.resclass.objname + "s", total, **kvargs)
 
-    def create_resource(self, controller: ResourceController, data, check_name=True):
+    def create_resource(self, controller: ResourceController, data: dict, check_name=True):
         """
         Create resource.
         """
@@ -167,7 +173,7 @@ class ResourceApiView(SwaggerApiView):
         if self.parentclass is not None:
             parent_id = data.pop(self.parentclass.objname, None)
             if parent_id is not None:
-                self.logger.debug(f"Parent id: {parent_id}")
+                self.logger.debug("Parent id: %s", parent_id)
                 parent = controller.get_simple_resource(parent_id, entity_class=self.parentclass)
                 data["parent"] = parent.oid
             else:
@@ -205,7 +211,7 @@ class ResourceApiView(SwaggerApiView):
         if self.parentclass is not None:
             parent_id = data.pop(self.parentclass.objname, None)
             if parent_id is not None:
-                self.logger.debug(f"Parent id: {parent_id}")
+                self.logger.debug("Parent id: %s", parent_id)
                 parent = controller.get_simple_resource(parent_id, entity_class=self.parentclass)
                 data["parent"] = parent.oid
             else:
@@ -215,7 +221,7 @@ class ResourceApiView(SwaggerApiView):
         res = container.resource_clone_factory(self.resclass, **data)
         return res
 
-    def import_resource(self, controller: ResourceController, data):
+    def import_resource(self, controller: ResourceController, data, check_name=True):
         """
         Import Resource.
         """
@@ -226,21 +232,22 @@ class ResourceApiView(SwaggerApiView):
         cid = data.pop("container", None)
         container = self.get_container(controller, cid)
 
-        try:
-            obj = self.get_resource_reference(controller, data_name, container=container.oid)
-        except Exception:
-            obj = None
+        if check_name:
+            try:
+                obj = self.get_resource_reference(controller, data_name, container=container.oid)
+            except Exception:
+                obj = None
 
-        if obj is not None:
-            raise ApiManagerError(
-                "{objname} {data_name} already exists",
-                code=409,
-            )
+            if obj is not None:
+                raise ApiManagerError(
+                    f"{objname} {data_name} already exists",
+                    code=409,
+                )
 
         if self.parentclass is not None:
             parent_id = data.pop(self.parentclass.objname, None)
             if parent_id is not None:
-                self.logger.debug(f"Parent id: {parent_id}")
+                self.logger.debug("Parent id: %s", parent_id)
                 parent = controller.get_resource(parent_id, entity_class=self.parentclass)
                 data["parent"] = parent.oid
             else:
@@ -255,7 +262,7 @@ class ResourceApiView(SwaggerApiView):
         Update resource.
         """
         data = data.get(self.resclass.objname)
-        obj = controller.get_resource(oid, entity_class=self.resclass)
+        obj: "Resource" = controller.get_resource(oid, entity_class=self.resclass)
         res = obj.update(**data)
         return res
 
@@ -263,7 +270,7 @@ class ResourceApiView(SwaggerApiView):
         """
         Delete resource.
         """
-        obj = controller.get_resource(oid, entity_class=self.resclass)
+        obj: "Resource" = controller.get_resource(oid, entity_class=self.resclass)
         if obj.get_base_state() not in ["ACTIVE", "ERROR", "UNKNOWN"]:
             objname = self.resclass.objname
             raise ApiManagerError(
@@ -277,7 +284,7 @@ class ResourceApiView(SwaggerApiView):
         """
         Expunge resource.
         """
-        obj: Resource = controller.get_resource(oid, entity_class=self.resclass)
+        obj: "Resource" = controller.get_resource(oid, entity_class=self.resclass)
         if obj.get_base_state() not in ["ACTIVE", "ERROR", "UNKNOWN"]:
             objname = self.resclass.objname
             raise ApiManagerError(
@@ -291,47 +298,104 @@ class ResourceApiView(SwaggerApiView):
         """
         Expinge resource2.
         """
-        obj = controller.get_resource(oid, entity_class=self.resclass)
+        obj: "Resource" = controller.get_resource(oid, entity_class=self.resclass)
         res = obj.expunge2(**kvargs)
         return res
 
 
 class UpdateResourceTagDescRequestSchema(Schema):
-    cmd = fields.String(default="add", required=True)
-    values = fields.List(fields.String(default="test"), required=True)
+    cmd = fields.String(
+        required=True,
+        metadata={
+            "example": 'add',
+        },
+    )
+    values = fields.List(
+        fields.String(example='test'),
+        required=True,
+    )
 
 
 class SmallDataResponseSchema(Schema):
-    id = fields.Integer(required=False, default=1, example=1)
+    id = fields.Integer(
+        required=False,
+        metadata={
+            "example": 1,
+        },
+    )
     uuid = fields.UUID(
         required=False,
         allow_none=True,
-        default="6d960236-d280-46d2-817d-f3ce8f0aeff7",
-        example="6d960236-d280-46d2-817d-f3ce8f0aeff7",
+        metadata={
+            "example": '6d960236-d280-46d2-817d-f3ce8f0aeff7',
+        },
     )
-    name = fields.String(required=False, default="test", example="test", allow_none=True)
+    name = fields.String(
+        required=False,
+        dump_default="",
+        allow_none=True,
+        metadata={
+            "example": 'test',
+        },
+    )
 
 
 class ResourceSmallResponseSchema(ApiObjectSmallResponseSchema):
-    state = fields.String(required=True, default="ACTIVE", example="ACTIVE")
+    state = fields.String(
+        required=True,
+        dump_default="ACTIVE",
+        metadata={
+            "example": 'ACTIVE',
+        },
+    )
 
 
 class ResourceResponseSchema(ApiObjectResponseSchema):
-    details = fields.Dict(required=True, default={}, example={})
-    attributes = fields.Dict(required=True, default={}, example={})
+    details = fields.Dict(
+        required=True,
+        dump_default={},
+    )
+    attributes = fields.Dict(
+        required=True,
+        dump_default={},
+    )
     ext_id = fields.String(
         required=True,
         allow_none=True,
-        default="6d960236-d280-46d2-817d-f3ce8f0aeff7",
-        example="6d960236-d280-46d2-817d-f3ce8f0aeff7",
+        metadata={
+            "example": '6d960236-d280-46d2-817d-f3ce8f0aeff7',
+        },
     )
-    # parent = fields.Nested(SmallDataResponseSchema, required=True, allow_none=True)
-    # container = fields.Nested(SmallDataResponseSchema, required=True, allow_none=True)
-    parent = fields.Integer(required=True, allow_none=True)
-    container = fields.Integer(required=True, allow_none=True)
-    reuse = fields.Boolean(required=True, default=False, example=False)
-    state = fields.String(required=True, default="ACTIVE", example="ACTIVE")
-    child = fields.Integer(required=True, default=0, example=0)
+
+    parent = fields.Integer(
+        required=True,
+        allow_none=True,
+    )
+    container = fields.Integer(
+        required=True,
+        allow_none=True,
+    )
+    reuse = fields.Boolean(
+        required=True,
+        dump_default=False,
+        metadata={
+            "example": False,
+        },
+    )
+    state = fields.String(
+        required=True,
+        dump_default="ACTIVE",
+        metadata={
+            "example": 'ACTIVE',
+        },
+    )
+    child = fields.Integer(
+        required=True,
+        dump_default=0,
+        metadata={
+            "example": 0,
+        },
+    )
 
 
 class CreateResourceBaseRequestSchema(Schema):
@@ -341,14 +405,27 @@ class CreateResourceBaseRequestSchema(Schema):
     :tags: comma separated list of tags to assign
     """
 
-    name = fields.String(required=True, example="test", description="The security group name")
-    container = fields.String(required=True, default="10", description="Container id, uuid or name")
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'The security group name',
+        },
+    )
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '10',
+            "description": 'Container id, uuid or name',
+        },
+    )
     tags = fields.String(
         required=False,
-        default="",
-        example="tag1,tag2",
         allow_none=True,
-        description="comma separated list of tags to assign",
+        metadata={
+            "example": 'tag1,tag2',
+            "description": 'comma separated list of tags to assign',
+        },
     )
 
 
@@ -356,40 +433,113 @@ class CreateResourceBaseRequestSchema(Schema):
 # resource
 #
 class ListResourcesRequestSchema(PaginatedRequestQuerySchema):
-    uuids = fields.String(context="query", description="comma separated list of uuid")
-    tags = fields.String(context="query", description="comma separated list of tags")
-    type = fields.String(context="query", description="resource type complete syntax or %partial type%")
-    objid = fields.String(context="query", description="resource objid")
-    name = fields.String(context="query", description="resource name")
-    desc = fields.String(context="query", description="resource description")
-    ext_id = fields.String(context="query", description="resource remote physical id")
-    ext_ids = fields.String(context="query", description="list of resource remote physical ids")
-    container = fields.String(context="query", description="resource container id, uuid or name")
-    attribute = fields.String(context="query", description="resource attribute")
-    parent = fields.String(context="query", description="resource parent")
-    parent_list = fields.String(context="query", description="resource parent list")
+    uuids = fields.String(
+        context="query",
+        metadata={
+            "description": 'comma separated list of uuid',
+        },
+    )
+    tags = fields.String(
+        context="query",
+        metadata={
+            "description": 'comma separated list of tags',
+        },
+    )
+    type = fields.String(
+        context="query",
+        metadata={
+            "description": 'resource type complete syntax or %partial type%',
+        },
+    )
+    objid = fields.String(
+        context="query",
+        metadata={
+            "description": 'resource objid',
+        },
+    )
+    name = fields.String(
+        context="query",
+        metadata={
+            "description": 'resource name',
+        },
+    )
+    desc = fields.String(
+        context="query",
+        metadata={
+            "description": 'resource description',
+        },
+    )
+    ext_id = fields.String(
+        context="query",
+        metadata={
+            "description": 'resource remote physical id',
+        },
+    )
+    ext_ids = fields.String(
+        context="query",
+        metadata={
+            "description": 'list of resource remote physical ids',
+        },
+    )
+    container = fields.String(
+        context="query",
+        metadata={
+            "description": 'resource container id, uuid or name',
+        },
+    )
+    attribute = fields.String(
+        context="query",
+        metadata={
+            "description": 'resource attribute',
+        },
+    )
+    parent = fields.String(
+        context="query",
+        metadata={
+            "description": 'resource parent',
+        },
+    )
+    parent_list = fields.String(
+        context="query",
+        metadata={
+            "description": 'resource parent list',
+        },
+    )
     state = fields.String(
         context="query",
-        description="resource state like PENDING, BUILDING, ACTIVE, UPDATING, "
-        "ERROR, DELETING, DELETED, EXPUNGING, EXPUNGED, UNKNOWN, DISABLED",
+        metadata={
+            "description": (
+                'resource state like PENDING, BUILDING, ACTIVE, UPDATING, ERROR, DELETING, DELETED, EXPUNGING,'
+                'EXPUNGED, UNKNOWN, DISABLED'
+            ),
+        },
     )
     active = fields.Boolean(
         context="query",
         required=False,
-        example=True,
-        description="True if resource is active",
+        metadata={
+            "example": True,
+            "description": 'True if resource is active',
+        },
     )
     show_expired = fields.Boolean(
         context="query",
         required=False,
-        example=True,
-        missing=False,
-        description="If True show expired resources",
+        load_default=False,
+        metadata={
+            "example": True,
+            "description": 'If True show expired resources',
+        },
     )
 
 
 class ListResourcesResponseSchema(PaginatedResponseSchema):
-    resources = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
+    resources = fields.Nested(
+        ResourceResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListResources(ResourceApiView):
@@ -411,20 +561,136 @@ class ListResources(ResourceApiView):
         return self.format_paginated_response(res, "resources", total, **data)
 
 
+class ListSimpleResourcesRequestSchema(ListResourcesRequestSchema):
+    sg_info = fields.Boolean(
+        context="query",
+        required=False,
+    )
+    flavor_info = fields.Boolean(
+        context="query",
+        required=False,
+    )
+
+
+class ListSimpleResourcesResponseSchema(PaginatedResponseSchema):
+    resources = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
+
+
+class ListSimpleResources(ResourceApiView):
+    tags = ["resource"]
+    definitions = {
+        "ListSimpleResourcesResponseSchema": ListSimpleResourcesResponseSchema,
+    }
+    parameters = SwaggerHelper().get_parameters(ListSimpleResourcesRequestSchema)
+    parameters_schema = ListSimpleResourcesRequestSchema
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListSimpleResourcesResponseSchema}})
+
+    def get(self, controller: ResourceController, data, *args, **kwargs):
+        data_info = {}
+        sg_info = data.pop("sg_info", False)
+        data_info["sg_info"] = sg_info
+        flavor_info = data.pop("flavor_info", False)
+        data_info["flavor_info"] = flavor_info
+
+        tags = data.pop("tags", None)
+        data["resourcetags"] = tags
+        data["parents"] = {}
+        data["run_customize"] = False
+        resources, total = controller.get_resources(**data)
+
+        # res = [r.info() for r in resources]
+        res = []
+        for resource in resources:
+            from beehive_resource.plugins.provider.entity.instance import ComputeInstance
+            from beehive_resource.plugins.provider.entity.stack_v2 import ComputeStackV2
+            from beehive_resource.plugins.provider.entity.stack import ComputeStack
+
+            resource: Resource = resource
+
+            # self.logger.debug(f"fv - get - type(resource) {type(resource)}")
+            if type(resource) == ComputeStackV2:
+                # self.logger.debug(f"fv - get - resource.get_stack_type() {resource.get_stack_type()}")
+                if resource.get_stack_type() == "sql_stack":
+                    from beehive_resource.plugins.provider.entity.sql_stack_v2.sqlcomputestackv2 import SqlComputeStackV2
+                    sqlComputeStackV2 = SqlComputeStackV2(
+                        controller,
+                        oid=resource.oid,
+                        objid=resource.objid,
+                        name=resource.name,
+                        active=resource.active,
+                        desc=resource.desc,
+                        model=resource.model,
+                    )
+                    info = sqlComputeStackV2.simple_info(data_info)
+
+            elif type(resource) == ComputeStack:
+                # self.logger.debug(f"fv - get - resource.get_stack_type() {resource.get_stack_type()}")
+                if resource.get_stack_type() == "sql_stack":
+                    from beehive_resource.plugins.provider.entity.sql_stack import SqlComputeStack
+                    sqlComputeStack = SqlComputeStack(
+                        controller,
+                        oid=resource.oid,
+                        objid=resource.objid,
+                        name=resource.name,
+                        active=resource.active,
+                        desc=resource.desc,
+                        model=resource.model,
+                    )
+                    info = sqlComputeStack.simple_info(data_info)
+            else:
+                info = resource.simple_info(data_info)
+            res.append(info)
+        
+        return self.format_paginated_response(res, "resources", total, **data)
+
+
 class ListResourceTypesRequestSchema(Schema):
-    id = fields.Integer(default=23, context="query")
-    type = fields.String(default="resource", context="query")
+    id = fields.Integer(
+        context="query",
+        metadata={
+            "example": 23,
+        },
+    )
+    type = fields.String(
+        context="query",
+        metadata={
+            "example": 'resource',
+        },
+    )
 
 
 class ListResourceTypesParamsResponseSchema(Schema):
-    id = fields.Integer(required=True, default=23)
-    type = fields.String(required=True, default="resource")
-    resclass = fields.String(required=True, default="")
+    id = fields.Integer(
+        required=True,
+        metadata={
+            "example": 23,
+        },
+    )
+    type = fields.String(
+        required=True,
+        metadata={
+            "example": 'resource',
+        },
+    )
+    resclass = fields.String(
+        required=True,
+        dump_default="",
+    )
 
 
 class ListResourceTypesResponseSchema(Schema):
-    resourcetypes = fields.Nested(ListResourceTypesParamsResponseSchema, many=True, required=True, allow_none=True)
-    count = fields.Integer(required=True, default=1)
+    resourcetypes = fields.Nested(
+        ListResourceTypesParamsResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
+    count = fields.Integer(
+        required=True,
+        metadata={
+            "example": 1,
+        },
+    )
 
 
 class ListResourceTypes(ResourceApiView):
@@ -438,7 +704,7 @@ class ListResourceTypes(ResourceApiView):
         {200: {"description": "success", "schema": ListResourceTypesResponseSchema}}
     )
 
-    def get(self, controller, data, *args, **kwargs):
+    def get(self, controller: ResourceController, data, *args, **kwargs):
         res = controller.get_resource_types(oid=data.get("id", None), rfilter=data.get("type", None))
         resp = {"resourcetypes": res, "count": len(res)}
         return resp
@@ -452,13 +718,17 @@ class CountResources(ResourceApiView):
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ApiObjecCountResponseSchema}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: ResourceController, data, oid, *args, **kwargs):
         resp = controller.count_all_resources()
         return {"count": int(resp)}
 
 
 class GetResourceResponseSchema(Schema):
-    resource = fields.Nested(ResourceResponseSchema, required=True, allow_none=True)
+    resource = fields.Nested(
+        ResourceResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetResource(ResourceApiView):
@@ -469,38 +739,104 @@ class GetResource(ResourceApiView):
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetResourceResponseSchema}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
-        resource = controller.get_simple_resource(oid)
+    def get(self, controller: ResourceController, data, oid, *args, **kwargs):
+        resource: "Resource" = controller.get_simple_resource(oid)
         return {"resource": resource.detail()}
 
 
 class CheckResourcesRequestSchema(PaginatedRequestQuerySchema):
-    uuids = fields.String(context="query", description="comma separated list of uuid")
-    tags = fields.String(context="query", description="comma separated list of tags")
-    type = fields.String(context="query", description="resource type complete syntax or %partial type%")
-    objid = fields.String(context="query", description="resource objid")
-    name = fields.String(context="query", description="resource name")
-    ext_id = fields.String(context="query", description="resource remote physical id")
-    ext_ids = fields.String(context="query", description="list of resource remote physical ids")
-    container = fields.String(context="query", description="resource container id, uuid or name")
-    attribute = fields.String(context="query", description="resource attribute")
-    parent = fields.String(context="query", description="resource parent")
-    parent_list = fields.String(context="query", description="resource parent list")
+    uuids = fields.String(
+        context="query",
+        metadata={
+            "description": 'comma separated list of uuid',
+        },
+    )
+    tags = fields.String(
+        context="query",
+        metadata={
+            "description": 'comma separated list of tags',
+        },
+    )
+    type = fields.String(
+        context="query",
+        metadata={
+            "description": 'resource type complete syntax or %partial type%',
+        },
+    )
+    objid = fields.String(
+        context="query",
+        metadata={
+            "description": 'resource objid',
+        },
+    )
+    name = fields.String(
+        context="query",
+        metadata={
+            "description": 'resource name',
+        },
+    )
+    ext_id = fields.String(
+        context="query",
+        metadata={
+            "description": 'resource remote physical id',
+        },
+    )
+    ext_ids = fields.String(
+        context="query",
+        metadata={
+            "description": 'list of resource remote physical ids',
+        },
+    )
+    container = fields.String(
+        context="query",
+        metadata={
+            "description": 'resource container id, uuid or name',
+        },
+    )
+    attribute = fields.String(
+        context="query",
+        metadata={
+            "description": 'resource attribute',
+        },
+    )
+    parent = fields.String(
+        context="query",
+        metadata={
+            "description": 'resource parent',
+        },
+    )
+    parent_list = fields.String(
+        context="query",
+        metadata={
+            "description": 'resource parent list',
+        },
+    )
     state = fields.String(
         context="query",
-        description="resource state like PENDING, BUILDING, ACTIVE, UPDATING, "
-        "ERROR, DELETING, DELETED, EXPUNGING, EXPUNGED, UNKNOWN, DISABLED",
+        metadata={
+            "description": (
+                'resource state like PENDING, BUILDING, ACTIVE, UPDATING, ERROR, DELETING, DELETED, EXPUNGING,'
+                'EXPUNGED, UNKNOWN, DISABLED'
+            ),
+        },
     )
     active = fields.Boolean(
         context="query",
         required=False,
-        example=True,
-        description="True if resource is active",
+        metadata={
+            "example": True,
+            "description": 'True if resource is active',
+        },
     )
 
 
 class CheckResourcesResponseSchema(PaginatedResponseSchema):
-    resources = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
+    resources = fields.Nested(
+        ResourceResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class CheckResources(ResourceApiView):
@@ -512,7 +848,7 @@ class CheckResources(ResourceApiView):
     parameters_schema = CheckResourcesRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": CheckResourcesResponseSchema}})
 
-    def get(self, controller, data, *args, **kwargs):
+    def get(self, controller: ResourceController, data, *args, **kwargs):
         tags = data.pop("tags", None)
         data["resourcetags"] = tags
         data["parents"] = {}
@@ -524,7 +860,6 @@ class CheckResources(ResourceApiView):
             item = r.info()
             item["check"] = check
             res.append(item)
-        self.logger.warn(3)
         return self.format_paginated_response(res, "resources", total, **data)
 
 
@@ -533,7 +868,12 @@ class CheckResourceRequestSchema(GetApiObjectRequestSchema):
 
 
 class CheckResourceResponseSchema(PaginatedResponseSchema):
-    resource = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
+    resource = fields.Nested(
+        ResourceResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class CheckResource(ResourceApiView):
@@ -544,10 +884,10 @@ class CheckResource(ResourceApiView):
     }
     parameters = SwaggerHelper().get_parameters(CheckResourceRequestSchema)
     parameters_schema = CheckResourceRequestSchema
-    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": CheckResourcesResponseSchema}})
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": CheckResourceResponseSchema}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
-        resource = controller.get_simple_resource(oid)
+    def get(self, controller: ResourceController, data, oid, *args, **kwargs):
+        resource: "Resource" = controller.get_simple_resource(oid)
         check = resource.check()
         item = resource.info()
         item["check"] = check
@@ -567,22 +907,42 @@ class GetResourcePerms(ResourceApiView):
     parameters_schema = PaginatedRequestQuerySchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ApiObjectPermsResponseSchema}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
-        resource = controller.get_simple_resource(oid)
+    def get(self, controller: ResourceController, data, oid, *args, **kwargs):
+        resource: "Resource" = controller.get_simple_resource(oid)
         res, total = resource.authorization(**data)
         return self.format_paginated_response(res, "perms", total, **data)
 
 
 class GetResourceJobParamsResponseSchema(Schema):
-    job = fields.String(required=True, default="4cdf0ea4-159a-45aa-96f2-708e461130e1")
-    name = fields.String(required=True, default="test_job")
-    params = fields.Dict(required=True, default={})
-    timestamp = fields.DateTime(required=True, default="1990-12-31T23:59:59Z")
+    job = fields.String(
+        required=True,
+        metadata={"example": "4cdf0ea4-159a-45aa-96f2-708e461130e1"},
+    )
+    name = fields.String(
+        required=True,
+        metadata={"example": 'test_job'},
+    )
+    params = fields.Dict(
+        required=True,
+        dump_default={},
+    )
+    timestamp = fields.DateTime(
+        required=True,
+        dump_default=datetime(1990, 12, 31, 23, 59, 59),
+    )
 
 
 class GetResourceJobResponseSchema(Schema):
-    resourcejobs = fields.Nested(GetResourceJobParamsResponseSchema, required=True, many=True, allow_none=True)
-    count = fields.Integer(required=True, default=0)
+    resourcejobs = fields.Nested(
+        GetResourceJobParamsResponseSchema,
+        required=True,
+        many=True,
+        allow_none=True,
+    )
+    count = fields.Integer(
+        required=True,
+        dump_default=0,
+    )
 
 
 class GetResourceJobs(ResourceApiView):
@@ -594,22 +954,33 @@ class GetResourceJobs(ResourceApiView):
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetResourceJobResponseSchema}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
-        resource = controller.get_simple_resource(oid)
-        res, total = resource.get_jobs()
+    def get(self, controller: ResourceController, data, oid, *args, **kwargs):
+        resource: "Resource" = controller.get_simple_resource(oid)
+        res, total = controller.get_jobs(resource=resource)
         resp = {"resourcejobs": res, "count": total}
         return resp
 
 
 class GetResourceErrorsParamsResponseSchema(Schema):
-    # job = fields.String(required=True, default='4cdf0ea4-159a-45aa-96f2-708e461130e1')
-    # timestamp = fields.DateTime(required=True, default='1990-12-31T23:59:59Z')
-    error = fields.String(required=True, default="some error")
+    # job = fields.String(required=True, dump_default='4cdf0ea4-159a-45aa-96f2-708e461130e1')
+    # timestamp = fields.DateTime(required=True, dump_default='1990-12-31T23:59:59Z')
+    error = fields.String(
+        required=True,
+        dump_default="some error",
+    )
 
 
 class GetResourceErrorsResponseSchema(Schema):
-    resource_errors = fields.Nested(GetResourceErrorsParamsResponseSchema, required=True, many=True, allow_none=True)
-    count = fields.Integer(required=True, default=0)
+    resource_errors = fields.Nested(
+        GetResourceErrorsParamsResponseSchema,
+        required=True,
+        many=True,
+        allow_none=True,
+    )
+    count = fields.Integer(
+        required=True,
+        dump_default=0,
+    )
 
 
 class GetResourceErrors(ResourceApiView):
@@ -621,39 +992,45 @@ class GetResourceErrors(ResourceApiView):
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetResourceJobResponseSchema}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
-        resource = controller.get_simple_resource(oid)
+    def get(self, controller: ResourceController, data, oid, *args, **kwargs):
+        resource: "Resource" = controller.get_simple_resource(oid)
         res = resource.get_errors()
         resp = {"resource_errors": res, "count": len(res)}
         return resp
 
-
-class GetResourceTreeParamsRequestSchema(Schema):
-    parent = fields.Boolean(required=False, default=True)
-    link = fields.Boolean(required=False, default=True)
-
-
-class GetResourceTreeRequestSchema(GetApiObjectRequestSchema, GetResourceTreeParamsRequestSchema):
-    pass
+class GetResourceTreeRequestSchema(GetApiObjectRequestSchema):
+    parent = fields.Boolean(
+        required=False,
+        context="query",
+        load_default=True,
+    ) # this parameter is unused
+    link = fields.Boolean(
+        required=False,
+        context="query",
+        load_default=True,
+    )
 
 
 class GetResourceTreeResponseSchema(Schema):
-    resourcetree = fields.Dict(required=True)
+    resourcetree = fields.Dict(
+        required=True,
+    )
 
 
 class GetResourceTree(ResourceApiView):
     tags = ["resource"]
     definitions = {
-        "GetResourceTreeParamsRequestSchema": GetResourceTreeParamsRequestSchema,
+        "GetResourceTreeRequestSchema": GetResourceTreeRequestSchema,
         "GetResourceTreeResponseSchema": GetResourceTreeResponseSchema,
     }
     parameters = SwaggerHelper().get_parameters(GetResourceTreeRequestSchema)
     parameters_schema = GetResourceTreeRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetResourceTreeResponseSchema}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
-        resource: Resource = controller.get_resource(oid)
+    def get(self, controller: ResourceController, data, oid, *args, **kwargs):
+        resource: "Resource" = controller.get_resource(oid)
         data.pop("oid")
+        #raise Exception("%s" % data)
         res = resource.tree(**data)
         resp = {"resourcetree": res}
         return resp
@@ -666,11 +1043,22 @@ class GetLinkedResourcesRequestSchema2(PaginatedRequestQuerySchema):
 
 
 class GetLinkedResourcesRequestSchema(GetLinkedResourcesRequestSchema2):
-    oid = fields.String(required=True, description="id, uuid", context="path")
+    oid = fields.String(
+        required=True,
+        context="path",
+        metadata={
+            "description": 'id, uuid',
+        },
+    )
 
 
 class GetLinkedResourcesResponseSchema(PaginatedResponseSchema):
-    resources = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
+    resources = fields.Nested(
+        ResourceResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetLinkedResources(ResourceApiView):
@@ -684,8 +1072,8 @@ class GetLinkedResources(ResourceApiView):
         {200: {"description": "success", "schema": GetLinkedResourcesResponseSchema}}
     )
 
-    def get(self, controller, data, oid, *args, **kwargs):
-        resource = controller.get_simple_resource(oid)
+    def get(self, controller: ResourceController, data, oid, *args, **kwargs):
+        resource: "Resource" = controller.get_simple_resource(oid)
         data["parents"] = {}
         data.pop("oid")
         resources, total = resource.get_linked_resources(**data)
@@ -694,22 +1082,55 @@ class GetLinkedResources(ResourceApiView):
 
 
 class CreateResourceParamRequestSchema(Schema):
-    name = fields.String(required=True, default="test")
-    desc = fields.String(required=False, default="test")
-    ext_id = fields.String(default="", allow_none=True)
-    attribute = fields.Dict(default={}, allow_none=True)
-    parent = fields.String(default="", allow_none=True)
-    container = fields.String(required=True, default="10")
-    resclass = fields.String(required=True, default="Openstack.Domain")
-    tags = fields.String(default="", allow_none=True)
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+        },
+    )
+    desc = fields.String(
+        required=False,
+        metadata={
+            "example": 'test',
+        },
+    )
+    ext_id = fields.String(
+        allow_none=True,
+    )
+    attribute = fields.Dict(
+        allow_none=True,
+    )
+    parent = fields.String(
+        allow_none=True,
+    )
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": 10,
+        },
+    )
+    resclass = fields.String(
+        required=True,
+        metadata={
+            "example": 'Openstack.Domain',
+        },
+    )
+    tags = fields.String(
+        allow_none=True,
+    )
 
 
 class CreateResourceRequestSchema(Schema):
-    resource = fields.Nested(CreateResourceParamRequestSchema)
+    resource = fields.Nested(
+        CreateResourceParamRequestSchema,
+    )
 
 
 class CreateResourceBodyRequestSchema(Schema):
-    body = fields.Nested(CreateResourceRequestSchema, context="body")
+    body = fields.Nested(
+        CreateResourceRequestSchema,
+        context="body",
+    )
 
 
 class CreateResource(ResourceApiView):
@@ -728,7 +1149,7 @@ class CreateResource(ResourceApiView):
         }
     )
 
-    def post(self, controller, data, *args, **kwargs):
+    def post(self, controller: ResourceController, data, *args, **kwargs):
         data = data.get("resource")
         cid = data.pop("container")
         container = self.get_container(controller, cid)
@@ -738,16 +1159,51 @@ class CreateResource(ResourceApiView):
 
 
 class ImportResourceParamRequestSchema(Schema):
-    name = fields.String(required=True, default="test")
-    desc = fields.String(required=True, default="test")
-    ext_id = fields.String(default="", missing=None)
-    attribute = fields.Dict(default={}, allow_none=True)
-    parent = fields.String(default="")
-    container = fields.String(required=True, default="10")
-    resclass = fields.String(required=True, default="Openstack.Domain")
-    tags = fields.String(default="")
-    physical_id = fields.String(missing=None, default="", description="Physical resource id")
-    configs = fields.Dict(missing={}, default={}, description="Custom configurations")
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+        },
+    )
+    desc = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+        },
+    )
+    ext_id = fields.String(
+        load_default=None,
+    )
+    attribute = fields.Dict(
+        allow_none=True,
+    )
+    parent = fields.String()
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '10',
+        },
+    )
+    resclass = fields.String(
+        required=True,
+        metadata={
+            "example": 'Openstack.Domain',
+        },
+    )
+    tags = fields.String()
+
+    physical_id = fields.String(
+        load_default=None,
+        metadata={
+            "description": 'Physical resource id',
+        },
+    )
+    configs = fields.Dict(
+        load_default={},
+        metadata={
+            "description": 'Custom configurations',
+        },
+    )
 
 
 class ImportResourceRequestSchema(Schema):
@@ -774,7 +1230,7 @@ class ImportResource(ResourceApiView):
         }
     )
 
-    def post(self, controller, data, *args, **kwargs):
+    def post(self, controller: ResourceController, data, *args, **kwargs):
         data = data.get("resource")
         cid = data.pop("container")
         container = self.get_container(controller, cid)
@@ -784,17 +1240,56 @@ class ImportResource(ResourceApiView):
 
 
 class UpdateResourceParamRequestSchema(Schema):
-    name = fields.String(default="test")
-    desc = fields.String(default="test")
-    ext_id = fields.String(default="345t6", allow_none=True)
-    active = fields.Boolean(default=True)
-    attribute = fields.Dict(default={})
-    # parent_id = fields.String(default='10')
-    state = fields.String(default="ACTIVE")
-    tags = fields.Nested(UpdateResourceTagDescRequestSchema, allow_none=True)
-    force = fields.Boolean(default=False)
-    enable_quotas = fields.Boolean(example=True, missing=None, description="enable resource quotas discover")
-    disable_quotas = fields.Boolean(example=True, missing=None, description="disable resource quotas discover")
+    name = fields.String(
+        metadata={
+            "example": 'test',
+        },
+    )
+    desc = fields.String(
+        metadata={
+            "example": 'test',
+        },
+    )
+    ext_id = fields.String(
+        allow_none=True,
+        metadata={
+            "example": '345t6',
+        },
+    )
+    active = fields.Boolean(
+        metadata={
+            "example": True,
+        },
+    )
+    attribute = fields.Dict()
+
+    # parent_id = fields.String(dump_default='10')
+    state = fields.String(
+        metadata={
+            "example": 'ACTIVE',
+        },
+    )
+    tags = fields.Nested(
+        UpdateResourceTagDescRequestSchema,
+        allow_none=True,
+    )
+    force = fields.Boolean(
+        load_default=False,
+    ) # TODO check
+    enable_quotas = fields.Boolean(
+        load_default=None,
+        metadata={
+            "example": True,
+            "description": 'enable resource quotas discover',
+        },
+    )
+    disable_quotas = fields.Boolean(
+        load_default=None,
+        metadata={
+            "example": True,
+            "description": 'disable resource quotas discover',
+        },
+    )
 
 
 class UpdateResourceRequestSchema(Schema):
@@ -802,7 +1297,10 @@ class UpdateResourceRequestSchema(Schema):
 
 
 class UpdateResourceBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateResourceRequestSchema, context="body")
+    body = fields.Nested(
+        UpdateResourceRequestSchema,
+        context="body",
+    )
 
 
 class UpdateResource(ResourceApiView):
@@ -822,7 +1320,7 @@ class UpdateResource(ResourceApiView):
     )
 
     def put(self, controller: ResourceController, data, oid, *args, **kwargs):
-        resource: Resource = controller.get_resource(oid, cache=False)
+        resource: "Resource" = controller.get_resource(oid, cache=False)
         data = data.get("resource")
 
         # update tags
@@ -850,11 +1348,18 @@ class UpdateResource(ResourceApiView):
 
 
 class PatchResourceRequestSchema(Schema):
-    resource = fields.Dict(description="Custom key value params")
+    resource = fields.Dict(
+        metadata={
+            "description": 'Custom key value params',
+        },
+    )
 
 
 class PatchResourceBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(PatchResourceRequestSchema, context="body")
+    body = fields.Nested(
+        PatchResourceRequestSchema,
+        context="body",
+    )
 
 
 class PatchResource(ResourceApiView):
@@ -873,8 +1378,8 @@ class PatchResource(ResourceApiView):
         }
     )
 
-    def patch(self, controller, data, oid, *args, **kwargs):
-        resource = controller.get_resource(oid)
+    def patch(self, controller: ResourceController, data, oid, *args, **kwargs):
+        resource: "Resource" = controller.get_resource(oid)
         data = data.get("resource")
         resp = resource.patch(**data)
         return resp
@@ -883,13 +1388,17 @@ class PatchResource(ResourceApiView):
 class DeleteResourceRequest2Schema(Schema):
     force = fields.Boolean(
         context="query",
-        description="if true force delete with all the resource state",
-        missing=False,
+        load_default=False,
+        metadata={
+            "description": 'if true force delete with all the resource state',
+        },
     )
     deep = fields.Boolean(
         context="query",
-        description="if True run deep delete. If False delete only resource",
-        missing=True,
+        load_default=True,
+        metadata={
+            "description": 'if True run deep delete. If False delete only resource',
+        },
     )
 
 
@@ -912,8 +1421,8 @@ class DeleteResource(ResourceApiView):
         }
     )
 
-    def delete(self, controller, data, oid, *args, **kwargs):
-        resource = controller.get_resource(oid)
+    def delete(self, controller: ResourceController, data, oid, *args, **kwargs):
+        resource: "Resource" = controller.get_resource(oid)
         if str2bool(data.get("deep")) is False:
             resp = resource.expunge_internal()
             return resp
@@ -929,19 +1438,42 @@ class DeleteResource(ResourceApiView):
 
 
 class MetricParamsResponseSchema(Schema):
-    key = fields.String(required=True)
-    value = fields.String(required=True)
-    unit = fields.String(required=True)
-    type = fields.Integer(required=True)
+    key = fields.String(
+        required=True,
+    )
+    value = fields.String(
+        required=True,
+    )
+    unit = fields.String(
+        required=True,
+    )
+    type = fields.Integer(
+        required=True,
+    )
 
 
 class GetResourceMetricsParamsResponseSchema(Schema):
-    metrics = fields.Nested(MetricParamsResponseSchema, required=True, many=True, allow_none=True)
-    id = fields.String(required=True)
-    uuid = fields.String(required=True)
-    type = fields.String(required=True)
-    extraction_date = fields.DateTime(required=True)
-    resource_uuid = fields.String(required=True)
+    metrics = fields.Nested(
+        MetricParamsResponseSchema,
+        required=True,
+        many=True,
+        allow_none=True,
+    )
+    id = fields.String(
+        required=True,
+    )
+    uuid = fields.String(
+        required=True,
+    )
+    type = fields.String(
+        required=True,
+    )
+    extraction_date = fields.DateTime(
+        required=True,
+    )
+    resource_uuid = fields.String(
+        required=True,
+    )
 
 
 class GetResourceMetricsResponseSchema(Schema):
@@ -962,7 +1494,7 @@ class GetResourceMetrics(ResourceApiView):
         {200: {"description": "success", "schema": GetResourceMetricsResponseSchema}}
     )
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: ResourceController, data, oid, *args, **kwargs):
         """
         Get resource metrics
         Get resource metrics
@@ -997,13 +1529,13 @@ class GetResourceMetrics(ResourceApiView):
         }]
         }
         """
-        res = controller.get_resource(oid)
+        res: "Resource" = controller.get_resource(oid)
         resource_metrics = res.get_metrics()
         return {"resource": resource_metrics}
 
 
 class GetResourceConfigResponseSchema(Schema):
-    config = fields.Dict(equired=True)
+    config = fields.Dict(required=True)
 
 
 class GetResourceConfig(ResourceApiView):
@@ -1016,14 +1548,25 @@ class GetResourceConfig(ResourceApiView):
         {200: {"description": "success", "schema": GetResourceConfigResponseSchema}}
     )
 
-    def get(self, controller, data, oid, *args, **kwargs):
-        resource = controller.get_simple_resource(oid)
+    def get(self, controller: ResourceController, data, oid, *args, **kwargs):
+        resource: "Resource" = controller.get_simple_resource(oid)
         return {"config": resource.get_attribs()}
 
 
 class UpdateResourceConfigParamRequestSchema(Schema):
-    key = fields.String(default="test", required=True)
-    value = fields.String(default="test", required=False, missing=None)
+    key = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+        },
+    )
+    value = fields.String(
+        required=False,
+        load_default=None,
+        metadata={
+            "example": 'test',
+        },
+    )
 
 
 class UpdateResourceConfigRequestSchema(Schema):
@@ -1036,7 +1579,10 @@ class UpdateResourceConfigRequestSchema(Schema):
 
 
 class UpdateResourceConfigBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateResourceConfigRequestSchema, context="body")
+    body = fields.Nested(
+        UpdateResourceConfigRequestSchema,
+        context="body",
+    )
 
 
 class UpdateResourceConfig(ResourceApiView):
@@ -1051,8 +1597,8 @@ class UpdateResourceConfig(ResourceApiView):
         {200: {"description": "success", "schema": GetResourceConfigResponseSchema}}
     )
 
-    def put(self, controller, data, oid, *args, **kwargs):
-        resource: Resource = controller.get_simple_resource(oid)
+    def put(self, controller: ResourceController, data, oid, *args, **kwargs):
+        resource: "Resource" = controller.get_simple_resource(oid)
         if data.get("config").get("value") is None:
             resource.unset_configs(key=data.get("config").get("key"))
         else:
@@ -1063,13 +1609,18 @@ class UpdateResourceConfig(ResourceApiView):
 class UpdateResourceStateRequestSchema(Schema):
     state = fields.String(
         required=True,
-        description="Resource state to set",
-        validate=OneOf(["ACTIVE", "ERROR", "DISABLED"]),
+        validate=OneOf(['ACTIVE', 'ERROR', 'DISABLED']),
+        metadata={
+            "description": 'Resource state to set',
+        },
     )
 
 
 class UpdateResourceStateBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateResourceStateRequestSchema, context="body")
+    body = fields.Nested(
+        UpdateResourceStateRequestSchema,
+        context="body",
+    )
 
 
 class UpdateResourceState(ResourceApiView):
@@ -1085,7 +1636,7 @@ class UpdateResourceState(ResourceApiView):
     )
 
     def put(self, controller: ResourceController, data, oid, *args, **kwargs):
-        resource: Resource = controller.get_simple_resource(oid)
+        resource: "Resource" = controller.get_simple_resource(oid)
         resource.set_state(data.get("state"))
         return {"state": data.get("state")}
 
@@ -1100,7 +1651,7 @@ class GetResourceCache(ResourceApiView):
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": CrudApiObjectResponseSchema}})
 
     def get(self, controller: ResourceController, data, oid, *args, **kwargs):
-        resource: Resource = controller.get_simple_resource(oid)
+        resource: "Resource" = controller.get_simple_resource(oid)
         res = resource.get_cache()
         return res
 
@@ -1115,7 +1666,7 @@ class CleanResourceCache(ResourceApiView):
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": CrudApiObjectResponseSchema}})
 
     def put(self, controller: ResourceController, data, oid, *args, **kwargs):
-        resource: Resource = controller.get_simple_resource(oid)
+        resource: "Resource" = controller.get_simple_resource(oid)
         resource.clean_cache()
         return {"uuid": resource.uuid}
 
@@ -1124,22 +1675,59 @@ class CleanResourceCache(ResourceApiView):
 # container
 #
 class ListContainersRequestSchema(PaginatedRequestQuerySchema):
-    tags = fields.String(context="query")
-    container_type = fields.String(context="query", example="provider")
-    container_type_name = fields.String(
-        context="query", description="container type name", required=False, example="Zabbix"
+    tags = fields.String(
+        context="query",
     )
-    name = fields.String(context="query", description="container name", required=False, example="Podto1Elk")
+    container_type = fields.String(
+        context="query",
+        metadata={
+            "example": 'provider',
+        },
+    )
+    container_type_name = fields.String(
+        context="query",
+        required=False,
+        metadata={
+            "example": 'Zabbix',
+            "description": 'container type name',
+        },
+    )
+    name = fields.String(
+        context="query",
+        required=False,
+        metadata={
+            "example": 'Podto1Elk',
+            "description": 'container name',
+        },
+    )
 
 
 class ListContainersParamsResponseSchema(ApiObjectResponseSchema):
-    category = fields.String(required=True, default="provider")
-    state = fields.String(required=True, default="ACTIVE")
-    conn = fields.Dict(required=True, default={})
+    category = fields.String(
+        required=True,
+        metadata={
+            "example": 'provider',
+        },
+    )
+    state = fields.String(
+        required=True,
+        metadata={
+            "example": 'ACTIVE',
+        },
+    )
+    conn = fields.Dict(
+        required=True,
+        dump_default={},
+    )
 
 
 class ListContainersResponseSchema(PaginatedResponseSchema):
-    resourcecontainers = fields.Nested(ListContainersParamsResponseSchema, many=True, required=True, allow_none=True)
+    resourcecontainers = fields.Nested(
+        ListContainersParamsResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListContainers(ResourceApiView):
@@ -1167,15 +1755,30 @@ class CountContainers(ResourceApiView):
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ApiObjecCountResponseSchema}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: ResourceController, data, oid, *args, **kwargs):
         resp = controller.count_all_containers()
         return {"count": int(resp)}
 
 
 class ListContainerTypesParamsResponseSchema(Schema):
-    category = fields.String(required=True, default="Openstack")
-    type = fields.String(required=True, default="orchestrator")
-    id = fields.Integer(required=True, default=1)
+    category = fields.String(
+        required=True,
+        metadata={
+            "example": 'Openstack',
+        },
+    )
+    type = fields.String(
+        required=True,
+        metadata={
+            "example": 'orchestrator',
+        },
+    )
+    id = fields.Integer(
+        required=True,
+        metadata={
+            "example": 1,
+        },
+    )
 
 
 class ListContainerTypesResponseSchema(Schema):
@@ -1185,7 +1788,12 @@ class ListContainerTypesResponseSchema(Schema):
         required=True,
         allow_none=True,
     )
-    count = fields.Integer(required=True, default=1)
+    count = fields.Integer(
+        required=True,
+        metadata={
+            "example": 1,
+        },
+    )
 
 
 class ListContainerTypes(ResourceApiView):
@@ -1197,21 +1805,43 @@ class ListContainerTypes(ResourceApiView):
         {200: {"description": "success", "schema": ListContainerTypesResponseSchema}}
     )
 
-    def get(self, controller, data, *args, **kwargs):
+    def get(self, controller: ResourceController, data, *args, **kwargs):
         res = controller.get_container_types()
         resp = {"resourcecontainertypes": res, "count": len(res)}
         return resp
 
 
 class GetContainerParamsResponseSchema(ApiObjectResponseSchema):
-    category = fields.String(required=True, default="provider")
-    state = fields.String(required=True, default="ACTIVE")
-    conn = fields.Dict(required=True, default={})
-    resources = fields.Integer(required=True, default=10)
+    category = fields.String(
+        required=True,
+        metadata={
+            "example": 'provider',
+        },
+    )
+    state = fields.String(
+        required=True,
+        metadata={
+            "example": 'ACTIVE',
+        },
+    )
+    conn = fields.Dict(
+        required=True,
+        dump_default={},
+    )
+    resources = fields.Integer(
+        required=True,
+        metadata={
+            "example": 10,
+        },
+    )
 
 
 class GetContainerResponseSchema(Schema):
-    resourcecontainer = fields.Nested(GetContainerParamsResponseSchema, required=True, allow_none=True)
+    resourcecontainer = fields.Nested(
+        GetContainerParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetContainer(ResourceApiView):
@@ -1222,7 +1852,7 @@ class GetContainer(ResourceApiView):
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetContainerResponseSchema}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: ResourceController, data, oid, *args, **kwargs):
         container = self.get_container(controller, oid, cache=False)
         return {"resourcecontainer": container.detail()}
 
@@ -1237,15 +1867,25 @@ class GetContainerPerms(ResourceApiView):
     parameters_schema = PaginatedRequestQuerySchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ApiObjectPermsResponseSchema}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: ResourceController, data, oid, *args, **kwargs):
         container = self.get_container(controller, oid)
         res, total = container.authorization(**data)
         return self.format_paginated_response(res, "perms", total, **data)
 
 
 class PingContainerResponseSchema(Schema):
-    uuid = fields.UUID(required=True, default="6d960236-d280-46d2-817d-f3ce8f0aeff7")
-    ping = fields.Boolean(required=True, default=True)
+    uuid = fields.UUID(
+        required=True,
+        metadata={
+            "example": '6d960236-d280-46d2-817d-f3ce8f0aeff7',
+        },
+    )
+    ping = fields.Boolean(
+        required=True,
+        metadata={
+            "example": True,
+        },
+    )
 
 
 class PingContainer(ResourceApiView):
@@ -1256,7 +1896,7 @@ class PingContainer(ResourceApiView):
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": PingContainerResponseSchema}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: ResourceController, data, oid, *args, **kwargs):
         container = self.get_container(controller, oid, connect=False)
         return {"uuid": container.uuid, "ping": container.ping()}
 
@@ -1279,18 +1919,40 @@ class GetContainerRoles(ResourceApiView):
 
 
 class CreateContainerParamRequestSchema(Schema):
-    type = fields.String(required=True, default="Provider")
-    name = fields.String(required=True, default="test")
-    desc = fields.String(required=True, default="test")
-    conn = fields.Dict(required=True, default={})
+    type = fields.String(
+        required=True,
+        metadata={
+            "example": 'Provider',
+        },
+    )
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+        },
+    )
+    desc = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+        },
+    )
+    conn = fields.Dict(
+        required=True,
+    )
 
 
 class CreateContainerRequestSchema(Schema):
-    resourcecontainer = fields.Nested(CreateContainerParamRequestSchema)
+    resourcecontainer = fields.Nested(
+        CreateContainerParamRequestSchema,
+    )
 
 
 class CreateContainerBodyRequestSchema(Schema):
-    body = fields.Nested(CreateContainerRequestSchema, context="body")
+    body = fields.Nested(
+        CreateContainerRequestSchema,
+        context="body",
+    )
 
 
 class CreateContainer(ResourceApiView):
@@ -1303,27 +1965,50 @@ class CreateContainer(ResourceApiView):
     parameters_schema = CreateContainerRequestSchema
     responses = SwaggerApiView.setResponses({201: {"description": "success", "schema": CrudApiObjectResponseSchema}})
 
-    def post(self, controller, data, *args, **kwargs):
-        resourceController: ResourceController = controller
-        resp = resourceController.add_container(**data.get("resourcecontainer"))
+    def post(self, controller: ResourceController, data, *args, **kwargs):
+        resp = controller.add_container(**data.get("resourcecontainer"))
         return ({"uuid": resp}, 201)
 
 
 class UpdateContainerParamRequestSchema(Schema):
-    name = fields.String(default="test")
-    desc = fields.String(default="test")
-    active = fields.Boolean(default=True)
-    conn = fields.Dict(default={})
-    state = fields.Integer(default=0)
-    tags = fields.Nested(UpdateResourceTagDescRequestSchema, allow_none=True)
+    name = fields.String(
+        metadata={
+            "example": 'test',
+        },
+    )
+    desc = fields.String(
+        metadata={
+            "example": 'test',
+        },
+    )
+    active = fields.Boolean(
+        metadata={
+            "example": True,
+        },
+    )
+    conn = fields.Dict()
+    state = fields.Integer(
+        metadata={
+            "example": 0,
+        },
+    )
+    tags = fields.Nested(
+        UpdateResourceTagDescRequestSchema,
+        allow_none=True,
+    )
 
 
 class UpdateContainerRequestSchema(Schema):
-    resourcecontainer = fields.Nested(UpdateContainerParamRequestSchema)
+    resourcecontainer = fields.Nested(
+        UpdateContainerParamRequestSchema,
+    )
 
 
 class UpdateContainerBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateContainerRequestSchema, context="body")
+    body = fields.Nested(
+        UpdateContainerRequestSchema,
+        context="body",
+    )
 
 
 class UpdateContainer(ResourceApiView):
@@ -1336,7 +2021,7 @@ class UpdateContainer(ResourceApiView):
     parameters_schema = UpdateContainerRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": CrudApiObjectResponseSchema}})
 
-    def put(self, controller, data, oid, *args, **kwargs):
+    def put(self, controller: ResourceController, data, oid, *args, **kwargs):
         container = self.get_container(controller, oid)
         data = data.get("resourcecontainer")
         tags = data.pop("tags", None)
@@ -1355,7 +2040,12 @@ class UpdateContainer(ResourceApiView):
 
 
 class DeleteContainerRequestSchema(Schema):
-    force = fields.Boolean(context="query", description="If True force removal")
+    force = fields.Boolean(
+        context="query",
+        metadata={
+            "description": 'If True force removal',
+        },
+    )
 
 
 class DeleteContainer2RequestSchema(GetApiObjectRequestSchema, DeleteContainerRequestSchema):
@@ -1369,30 +2059,74 @@ class DeleteContainer(ResourceApiView):
     parameters_schema = DeleteContainerRequestSchema
     responses = SwaggerApiView.setResponses({204: {"description": "no response"}})
 
-    def delete(self, controller, data, oid, *args, **kwargs):
+    def delete(self, controller: ResourceController, data, oid, *args, **kwargs):
         container = self.get_container(controller, oid, connect=False)
         resp = container.expunge(**data)
         return resp, 204
 
 
 class GetContainerJobRequestSchema(GetApiObjectRequestSchema):
-    jobstatus = fields.String(required=False, default="SUCCESS", context="query")
+    jobstatus = fields.String(
+        required=False,
+        context="query",
+        metadata={
+            "example": 'SUCCESS',
+        },
+    )
 
 
 class GetContainerJobParamsResponseSchema(Schema):
-    job = fields.String(required=True, default="4cdf0ea4-159a-45aa-96f2-708e461130e1")
-    name = fields.String(required=True, default="test_job")
-    params = fields.Dict(required=True, default={})
-    timestamp = fields.DateTime(required=True, default="1990-12-31T23:59:59Z")
-    status = fields.String(required=True, default="SUCCESS")
-    worker = fields.String(required=True, default="")
-    children = fields.Integer(required=True, default=0)
-    elapsed = fields.Float(required=True, default=0.0)
+    job = fields.String(
+        required=True,
+        metadata={
+            "example": '4cdf0ea4-159a-45aa-96f2-708e461130e1',
+        },
+    )
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test_job',
+        },
+    )
+    params = fields.Dict(
+        required=True,
+        dump_default={},
+    )
+    timestamp = fields.DateTime(
+        required=True,
+        dump_default=datetime(1990, 12, 31, 23, 59, 59),
+    )
+    status = fields.String(
+        required=True,
+        metadata={
+            "example": 'SUCCESS',
+        },
+    ) # TODO check
+    worker = fields.String(
+        required=True,
+        dump_default="",
+    )
+    children = fields.Integer(
+        required=True,
+        dump_default=0,
+    )
+    elapsed = fields.Float(
+        required=True,
+        dump_default=0.0,
+    )
 
 
 class GetContainerJobResponseSchema(Schema):
-    resourcejobs = fields.Nested(GetContainerJobParamsResponseSchema, required=True, many=True, allow_none=True)
-    count = fields.Integer(required=True, default=0)
+    resourcejobs = fields.Nested(
+        GetContainerJobParamsResponseSchema,
+        required=True,
+        many=True,
+        allow_none=True,
+    )
+    count = fields.Integer(
+        required=True,
+        dump_default=0,
+    )
 
 
 class GetContainerJobs(ResourceApiView):
@@ -1405,7 +2139,7 @@ class GetContainerJobs(ResourceApiView):
     parameters_schema = GetContainerJobRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetContainerJobResponseSchema}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: ResourceController, data, oid, *args, **kwargs):
         container = self.get_container(controller, oid, connect=False)
         res, total = container.get_jobs(**data)
         resp = {"containerjobs": res, "count": total}
@@ -1413,26 +2147,74 @@ class GetContainerJobs(ResourceApiView):
 
 
 class DiscoverRequestSchema(GetApiObjectRequestSchema):
-    type = fields.String(required=False, context="query", example="Dummy.SyncResource")
+    type = fields.String(
+        required=False,
+        context="query",
+        metadata={
+            "example": 'Dummy.SyncResource',
+        },
+    )
 
 
 class DiscoverParamsDetailsResponseSchema(Schema):
-    type = fields.String(example="beehive_resource.plugins.dummy.controller.DummySyncResource")
-    id = fields.String(example="15")
-    parent = fields.String(example="10", allow_none=True)
-    type = fields.String(example="DummySyncResource")
-    name = fields.String(example="test")
+    type = fields.String(
+        metadata={
+            "example": 'beehive_resource.plugins.dummy.controller.DummySyncResource',
+        },
+    )
+    id = fields.String(
+        metadata={
+            "example": '15',
+        },
+    )
+    parent = fields.String(
+        allow_none=True,
+        metadata={
+            "example": '10',
+        },
+    )
+    type = fields.String(
+        metadata={
+            "example": 'DummySyncResource',
+        },
+    )
+    name = fields.String(
+        metadata={
+            "example": 'test',
+        },
+    )
     # level = fields.Integer(example=0)
 
 
 class DiscoverParamsResponseSchema(Schema):
-    new = fields.Nested(DiscoverParamsDetailsResponseSchema, required=True, many=True, allow_none=True)
-    died = fields.Nested(DiscoverParamsDetailsResponseSchema, required=True, many=True, allow_none=True)
-    changed = fields.Nested(DiscoverParamsDetailsResponseSchema, required=True, many=True, allow_none=True)
+    new = fields.Nested(
+        DiscoverParamsDetailsResponseSchema,
+        required=True,
+        many=True,
+        allow_none=True,
+    )
+
+    died = fields.Nested(
+        DiscoverParamsDetailsResponseSchema,
+        required=True,
+        many=True,
+        allow_none=True,
+    )
+
+    changed = fields.Nested(
+        DiscoverParamsDetailsResponseSchema,
+        required=True,
+        many=True,
+        allow_none=True,
+    )
 
 
 class DiscoverResponseSchema(Schema):
-    discover_resources = fields.Nested(DiscoverParamsResponseSchema, required=True, allow_none=True)
+    discover_resources = fields.Nested(
+        DiscoverParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class Discover(ResourceApiView):
@@ -1444,7 +2226,7 @@ class Discover(ResourceApiView):
     parameters_schema = DiscoverRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": DiscoverResponseSchema}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: ResourceController, data, oid, *args, **kwargs):
         container = self.get_container(controller, oid)
         restype = data.get("type")
         if restype is None:
@@ -1457,8 +2239,20 @@ class Discover(ResourceApiView):
 
 
 class DiscoverRemoteRequestSchema(GetApiObjectRequestSchema):
-    type = fields.String(required=False, context="query", example="Dummy.SyncResource")
-    name = fields.String(required=False, context="query", default=None, description="optional name or name pattern")
+    type = fields.String(
+        required=False,
+        context="query",
+        metadata={
+            "example": 'Dummy.SyncResource',
+        },
+    )
+    name = fields.String(
+        required=False,
+        context="query",
+        metadata={
+            "description": 'optional name or name pattern',
+        },
+    )
 
 
 class DiscoverRemote(ResourceApiView):
@@ -1470,7 +2264,7 @@ class DiscoverRemote(ResourceApiView):
     parameters_schema = DiscoverRemoteRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": DiscoverResponseSchema}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: ResourceController, data, oid, *args, **kwargs):
         container = self.get_container(controller, oid)
         restype = data.get("type")
         resname = data.get("name")
@@ -1496,7 +2290,7 @@ class DiscoverType(ResourceApiView):
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": DiscoverTypeResponseSchema}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: ResourceController, data, oid, *args, **kwargs):
         """
         Discover resource classes
         """
@@ -1508,22 +2302,48 @@ class DiscoverType(ResourceApiView):
 
 
 class SynchronizeResourcesParamRequestSchema(Schema):
-    types = fields.String(default="test")
-    ext_id = fields.String(default="test", description="id of the physical entity")
-    new = fields.Boolean(default=True, description="if True add new physical entity not already in cmp")
-    died = fields.Boolean(
-        default=True,
-        description="if True remove not alive physical entity already in cmp",
+    types = fields.String(
+        metadata={
+            "example": 'test',
+        },
     )
-    changed = fields.Boolean(default=True, description="if True update physical entity in cmp")
+    ext_id = fields.String(
+        metadata={
+            "example": 'test',
+            "description": 'id of the physical entity',
+        },
+    )
+    new = fields.Boolean(
+        load_default=True,
+        metadata={
+            "description": 'if True add new physical entity not already in cmp',
+        },
+    )
+    died = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": 'if True remove not alive physical entity already in cmp',
+        },
+    )
+    changed = fields.Boolean(
+        load_default=False,
+        metadata={
+            "description": 'if True update physical entity in cmp',
+        },
+    )
 
 
 class SynchronizeResourcesRequestSchema(Schema):
-    synchronize = fields.Nested(SynchronizeResourcesParamRequestSchema)
+    synchronize = fields.Nested(
+        SynchronizeResourcesParamRequestSchema,
+    )
 
 
 class SynchronizeResourcesBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(SynchronizeResourcesRequestSchema, context="body")
+    body = fields.Nested(
+        SynchronizeResourcesRequestSchema,
+        context="body",
+    )
 
 
 class SynchronizeResources(ResourceApiView):
@@ -1536,7 +2356,7 @@ class SynchronizeResources(ResourceApiView):
     parameters_schema = SynchronizeResourcesRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiJobResponseSchema}})
 
-    def put(self, controller, data, oid, *args, **kwargs):
+    def put(self, controller: ResourceController, data, oid, *args, **kwargs):
         """
         Synchronize resource by classes
         Synchronize resource by classes
@@ -1552,22 +2372,31 @@ class GetScheduler(ResourceApiView):
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({204: {"description": "no response"}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: ResourceController, data, oid, *args, **kwargs):
         container = self.get_container(controller, oid)
         resp = container.get_discover_scheduler()
         return resp
 
 
 class CreateSchedulerParamRequestSchema(Schema):
-    minutes = fields.Integer(default=5)
+    minutes = fields.Integer(
+        metadata={
+            "example": 5,
+        },
+    )
 
 
 class CreateSchedulerRequestSchema(Schema):
-    scheduler = fields.Nested(CreateSchedulerParamRequestSchema)
+    scheduler = fields.Nested(
+        CreateSchedulerParamRequestSchema,
+    )
 
 
 class CreateSchedulerBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(CreateSchedulerRequestSchema, context="body")
+    body = fields.Nested(
+        CreateSchedulerRequestSchema,
+        context="body",
+    )
 
 
 class CreateScheduler(ResourceApiView):
@@ -1580,7 +2409,7 @@ class CreateScheduler(ResourceApiView):
     parameters_schema = CreateSchedulerRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": CrudApiObjectResponseSchema}})
 
-    def post(self, controller, data, oid, *args, **kwargs):
+    def post(self, controller: ResourceController, data, oid, *args, **kwargs):
         container = self.get_container(controller, oid)
         minutes = data.get("minutes", 5)
         resp = container.add_discover_scheduler(minutes)
@@ -1593,7 +2422,7 @@ class RemoveScheduler(ResourceApiView):
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({204: {"description": "no response"}})
 
-    def delete(self, controller, data, oid, *args, **kwargs):
+    def delete(self, controller: ResourceController, data, oid, *args, **kwargs):
         container = self.get_container(controller, oid)
         resp = container.remove_discover_scheduler()
         return resp, 204
@@ -1608,30 +2437,70 @@ class ListLinksRequestSchema(PaginatedRequestQuerySchema):
     resource = fields.String(context="query")
     type = fields.String(context="query")
     tags = fields.String(context="query")
+
     size = fields.Integer(
-        default=20,
-        example=20,
-        missing=20,
+        load_default=20,
         context="query",
-        description="entities list page size. -1 to get all the records",
-        validate=Range(min=-1, max=1000, error="Size is out from range"),
+        validate=Range(min=-1, max=1000, error='Size is out from range'),
+        metadata={
+            "example": 20,
+            "description": 'entities list page size. -1 to get all the records',
+        },
     )
-    objid = fields.String(context="query", description="resource objid")
+    objid = fields.String(
+        context="query",
+        metadata={
+            "description": 'resource objid',
+        },
+    )
+    name = fields.String(
+        context="query",
+        metadata={
+            "description": 'link name like',
+        },
+    )
 
 
 class ListLinksParamsDetailsResponseSchema(Schema):
-    type = fields.String(required=True, default="relation")
-    attributes = fields.Dict(required=True, default={})
-    start_resource = fields.Nested(ResourceSmallResponseSchema, required=True, allow_none=True)
-    end_resource = fields.Nested(ResourceSmallResponseSchema, required=True, allow_none=True)
+    type = fields.String(
+        required=True,
+        metadata={
+            "example": 'relation',
+        },
+    )
+
+    attributes = fields.Dict(
+        required=True,
+        dump_default={},
+    )
+
+    start_resource = fields.Nested(
+        ResourceSmallResponseSchema,
+        required=True,
+        allow_none=True,
+    )
+
+    end_resource = fields.Nested(
+        ResourceSmallResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListLinksParamsResponseSchema(ApiObjectResponseSchema):
-    details = fields.Nested(ListLinksParamsDetailsResponseSchema, allow_none=True)
+    details = fields.Nested(
+        ListLinksParamsDetailsResponseSchema,
+        allow_none=True,
+    )
 
 
 class ListLinksResponseSchema(PaginatedResponseSchema):
-    resourcelinks = fields.Nested(ListLinksParamsResponseSchema, many=True, required=True, allow_none=True)
+    resourcelinks = fields.Nested(
+        ListLinksParamsResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListLinks(ResourceApiView):
@@ -1659,24 +2528,51 @@ class CountLinks(ResourceApiView):
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ApiObjecCountResponseSchema}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: ResourceController, data, oid, *args, **kwargs):
         resp = controller.count_all_links()
         return {"count": int(resp)}
 
 
 class GetLinkParamsDetailsResponseSchema(Schema):
-    type = fields.String(required=True, default="relation")
-    attributes = fields.Dict(required=True, default={})
-    start_resource = fields.Nested(ResourceSmallResponseSchema, required=True, allow_none=True)
-    end_resource = fields.Nested(ResourceSmallResponseSchema, required=True, allow_none=True)
+    type = fields.String(
+        required=True,
+        metadata={
+            "example": 'relation',
+        },
+    )
+
+    attributes = fields.Dict(
+        required=True,
+        dump_default={},
+    )
+
+    start_resource = fields.Nested(
+        ResourceSmallResponseSchema,
+        required=True,
+        allow_none=True,
+    )
+
+    end_resource = fields.Nested(
+        ResourceSmallResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetLinkParamsResponseSchema(ApiObjectResponseSchema):
-    details = fields.Nested(ListLinksParamsDetailsResponseSchema, required=True, allow_none=True)
+    details = fields.Nested(
+        ListLinksParamsDetailsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetLinkResponseSchema(Schema):
-    resourcelink = fields.Nested(GetLinkParamsResponseSchema, required=True, allow_none=True)
+    resourcelink = fields.Nested(
+        GetLinkParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetLink(ResourceApiView):
@@ -1687,7 +2583,7 @@ class GetLink(ResourceApiView):
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetLinkResponseSchema}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: ResourceController, data, oid, *args, **kwargs):
         link = controller.get_link(oid)
         return {"resourcelink": link.detail()}
 
@@ -1702,26 +2598,56 @@ class GetLinkPerms(SwaggerApiView):
     parameters_schema = PaginatedRequestQuerySchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ApiObjectPermsResponseSchema}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: ResourceController, data, oid, *args, **kwargs):
         link = controller.get_link(oid)
         res, total = link.authorization(**data)
         return self.format_paginated_response(res, "perms", total, **data)
 
 
 class CreateLinkParamRequestSchema(Schema):
-    type = fields.String(required=True, default="relation")
-    name = fields.String(required=True, default="1")
-    attributes = fields.Dict(required=True, default={})
-    start_resource = fields.String(required=True, default="2")
-    end_resource = fields.String(required=True, default="3")
+    type = fields.String(
+        required=True,
+        metadata={
+            "example": 'relation',
+        },
+    )
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": '1',
+        },
+    )
+
+    attributes = fields.Dict(
+        required=True,
+    )
+
+    start_resource = fields.String(
+        required=True,
+        metadata={
+            "example": '2',
+        },
+    )
+    end_resource = fields.String(
+        required=True,
+        metadata={
+            "example": '3',
+        },
+    )
 
 
 class CreateLinkRequestSchema(Schema):
-    resourcelink = fields.Nested(CreateLinkParamRequestSchema)
+    resourcelink = fields.Nested(
+        CreateLinkParamRequestSchema,
+    )
 
 
 class CreateLinkBodyRequestSchema(Schema):
-    body = fields.Nested(CreateLinkRequestSchema, context="body")
+    body = fields.Nested(
+        CreateLinkRequestSchema,
+        context="body",
+    )
 
 
 class CreateLink(ResourceApiView):
@@ -1734,26 +2660,56 @@ class CreateLink(ResourceApiView):
     parameters_schema = CreateLinkRequestSchema
     responses = SwaggerApiView.setResponses({201: {"description": "success", "schema": CrudApiObjectResponseSchema}})
 
-    def post(self, controller, data, *args, **kwargs):
+    def post(self, controller: ResourceController, data, *args, **kwargs):
         resp = controller.add_link(**data.get("resourcelink"))
         return {"uuid": resp}, 201
 
 
 class UpdateLinkParamRequestSchema(Schema):
-    type = fields.String(default="relation")
-    name = fields.String(default="1")
-    attributes = fields.Dict(default={})
-    start_resource = fields.String(default="2")
-    end_resource = fields.String(default="3")
-    tags = fields.Nested(UpdateResourceTagDescRequestSchema, allow_none=True)
+    type = fields.String(
+        metadata={
+            "example": 'relation',
+        },
+    )
+
+    name = fields.String(
+        metadata={
+            "example": '1',
+        },
+    )
+
+    attributes = fields.Dict(
+        load_default={},
+    )
+    start_resource = fields.String(
+        metadata={
+            "example": '2',
+        },
+    )
+
+    end_resource = fields.String(
+        metadata={
+            "example": '3',
+        },
+    )
+
+    tags = fields.Nested(
+        UpdateResourceTagDescRequestSchema,
+        allow_none=True,
+    )
 
 
 class UpdateLinkRequestSchema(Schema):
-    resourcelink = fields.Nested(UpdateLinkParamRequestSchema)
+    resourcelink = fields.Nested(
+        UpdateLinkParamRequestSchema,
+    )
 
 
 class UpdateLinkBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateLinkRequestSchema, context="body")
+    body = fields.Nested(
+        UpdateLinkRequestSchema,
+        context="body",
+    )
 
 
 class UpdateLink(ResourceApiView):
@@ -1766,7 +2722,7 @@ class UpdateLink(ResourceApiView):
     parameters_schema = UpdateLinkRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": CrudApiObjectResponseSchema}})
 
-    def put(self, controller, data, oid, *args, **kwargs):
+    def put(self, controller: ResourceController, data, oid, *args, **kwargs):
         link = controller.get_link(oid)
         data = data.get("resourcelink")
         tags = data.pop("tags", None)
@@ -1790,30 +2746,79 @@ class DeleteLink(ResourceApiView):
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({204: {"description": "no response"}})
 
-    def delete(self, controller, data, oid, *args, **kwargs):
+    def delete(self, controller: ResourceController, data, oid, *args, **kwargs):
         link = controller.get_link(oid)
         resp = link.expunge()
         return resp, 204
+
+
+class UpdateLinkRegisterRequestSchema(Schema):
+    pass
+
+
+class UpdateLinkRegisterBodyRequestSchema(Schema):
+    pass
+
+
+class UpdateLinkRegisterResponseSchema(Schema):
+    pass
+
+
+class UpdateLinkRegister(ResourceApiView):
+    tags = ["resource"]
+    definitions = {
+        "UpdateLinkRegisterRequestSchema": UpdateLinkRegisterRequestSchema,
+        "UpdateLinkRegisterResponseSchema": UpdateLinkRegisterResponseSchema,
+    }
+    parameters = SwaggerHelper().get_parameters(UpdateLinkRegisterBodyRequestSchema)
+    parameters_schema = UpdateLinkRegisterRequestSchema
+    responses = SwaggerApiView.setResponses(
+        {200: {"description": "success", "schema": UpdateLinkRegisterResponseSchema}}
+    )
+
+    def put(self, controller: ResourceController, data, oid, *args, **kwargs):
+        link: ResourceLink = controller.get_link(oid)
+        objids = link.objid.split("//")
+        link.register_object_permtags(objids)
 
 
 #
 # tags
 #
 class ListTagsRequestSchema(PaginatedRequestQuerySchema):
-    value = fields.String(context="query")
-    container = fields.String(context="query")
-    resource = fields.String(context="query")
-    link = fields.String(context="query")
+    name = fields.String(
+        context="query",
+    )
+    container = fields.String(
+        context="query",
+    )
+    resource = fields.String(
+        context="query",
+    )
+    link = fields.String(
+        context="query",
+    )
 
 
 class ListTagsParamsResponseSchema(ApiObjectResponseSchema):
-    containers = fields.Integer(default=0)
-    resources = fields.Integer(default=0)
-    links = fields.Integer(default=0)
+    containers = fields.Integer(
+        dump_default=0,
+    )
+    resources = fields.Integer(
+        dump_default=0,
+    )
+    links = fields.Integer(
+        dump_default=0,
+    )
 
 
 class ListTagsResponseSchema(PaginatedResponseSchema):
-    resourcetags = fields.Nested(ListTagsParamsResponseSchema, many=True, required=True, allow_none=True)
+    resourcetags = fields.Nested(
+        ListTagsParamsResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListTags(ResourceApiView):
@@ -1825,9 +2830,8 @@ class ListTags(ResourceApiView):
     parameters_schema = ListTagsRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListTagsResponseSchema}})
 
-    def get(self, controller, data, *args, **kwargs):
-        resource_controller: ResourceController = controller
-        tags, total = resource_controller.get_tags(**data)
+    def get(self, controller: ResourceController, data, *args, **kwargs):
+        tags, total = controller.get_tags(**data)
         res = [r.info() for r in tags]
         return self.format_paginated_response(res, "resourcetags", total, **data)
 
@@ -1840,18 +2844,29 @@ class CountTags(ResourceApiView):
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ApiObjecCountResponseSchema}})
 
-    def get(self, controller, data, *args, **kwargs):
+    def get(self, controller: ResourceController, data, *args, **kwargs):
         resp = controller.count_all_tags()
         return {"count": int(resp)}
 
 
 class GetTagParamsResponseSchema(ApiObjectResponseSchema):
-    resources = fields.List(fields.Dict, required=True)
-    containers = fields.List(fields.Dict, required=True)
+    resources = fields.List(
+        fields.Dict,
+        required=True,
+    )
+
+    containers = fields.List(
+        fields.Dict,
+        required=True,
+    )
 
 
 class GetTagResponseSchema(Schema):
-    resourcetag = fields.Nested(GetTagParamsResponseSchema, required=True, allow_none=True)
+    resourcetag = fields.Nested(
+        GetTagParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetTag(ResourceApiView):
@@ -1862,7 +2877,7 @@ class GetTag(ResourceApiView):
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetTagResponseSchema}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: ResourceController, data, oid, *args, **kwargs):
         tag = controller.get_tag(oid)
         return {"resourcetag": tag.detail()}
 
@@ -1877,7 +2892,7 @@ class GetTagPerms(ResourceApiView):
     parameters_schema = PaginatedRequestQuerySchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ApiObjectPermsResponseSchema}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: ResourceController, data, oid, *args, **kwargs):
         tag = controller.get_tag(oid)
         res, total = tag.authorization(**data)
         return self.format_paginated_response(res, "perms", total, **data)
@@ -1950,97 +2965,6 @@ class DeleteTag(ResourceApiView):
         return (resp, 204)
 
 
-#
-# jobs
-#
-class JobResponseSchema(Schema):
-    id = fields.String(required=True, default="c518fa8b-1247-4f9f-9d73-785bcc24b8c7")
-    name = fields.String(required=True, default="beehive.module.scheduler.tasks.jobtest")
-    params = fields.String(required=True, default="...")
-    start_time = fields.String(required=True, default="16-06-2017 14:58:50.352286")
-    stop_time = fields.String(required=True, default="16-06-2017 14:58:50.399747")
-    status = fields.String(required=True, default="SUCCESS")
-    worker = fields.String(required=True, default="celery@tst-beehive-02")
-    # tasks = fields.Integer(required=True, default=1)
-    # jobs = fields.Integer(required=True, default=0)
-    elapsed = fields.Float(required=True, default=0.0474607944)
-    resource = fields.Integer(required=True, default=0)
-    container = fields.Integer(required=True, default=0)
-
-
-class ListJobsResponseSchema(Schema):
-    jobs = fields.Nested(JobResponseSchema, many=True, required=True, allow_none=True)
-    count = fields.Integer(required=True, default=1)
-
-
-class ListJobsRequestSchema(Schema):
-    size = fields.Integer(
-        required=False,
-        allow_none=True,
-        default=10,
-        example=10,
-        missing=10,
-        description="max number of jobs listed",
-    )
-    jobstatus = fields.String(
-        required=False,
-        allow_none=True,
-        default="SUCCESS",
-        example="SUCCESS",
-        description="job status",
-    )
-    job = fields.String(
-        required=False,
-        allow_none=True,
-        default="SUCCESS",
-        example="SUCCESS",
-        description="job id",
-    )
-    name = fields.String(
-        required=False,
-        allow_none=True,
-        default="SUCCESS",
-        example="SUCCESS",
-        description="job name",
-    )
-    container = fields.String(
-        required=False,
-        allow_none=True,
-        default="4cdf0ea4-159a-45aa-96f2-708e461130e1",
-        example="4cdf0ea4-159a-45aa-96f2-708e461130e1",
-        description="container name or uuid",
-    )
-    resources = fields.String(
-        required=False,
-        allow_none=True,
-        default="4cdf0ea4-159a-45aa-96f2-708e461130e1",
-        example="4cdf0ea4-159a-45aa-96f2-708e461130e1",
-        description="list of resources name or uuid comma separated",
-    )
-    from_date = fields.DateTime(
-        required=False,
-        allow_none=True,
-        default="1990-12-31T23:59:59Z",
-        example="1990-12-31T23:59:59Z",
-        description="Filter creation date > from_date",
-    )
-
-
-class ListJobs(ResourceApiView):
-    tags = ["resource"]
-    definitions = {
-        "ListJobsRequestSchema": ListJobsRequestSchema,
-        "ListJobsResponseSchema": ListJobsResponseSchema,
-    }
-    parameters = SwaggerHelper().get_parameters(ListJobsRequestSchema)
-    parameters_schema = ListJobsRequestSchema
-    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListJobsResponseSchema}})
-
-    def get(self, controller, data, *args, **kwargs):
-        jobs, count = controller.get_jobs(**data)
-        return {"jobs": jobs, "count": count}
-
-
 class DeleteCacheContainerRequestSchema(Schema):
     pass
 
@@ -2053,7 +2977,7 @@ class DeleteCacheContainer(ResourceApiView):
     responses = SwaggerApiView.setResponses({204: {"description": "no response"}})
 
     def delete(self, controller: ResourceController, data, *args, **kwargs):
-        self.logger.debug(f"controller.containers: {controller.containers}")
+        self.logger.debug("controller.containers: %s", controller.containers)
         controller.containers = {}
         return 204
 
@@ -2113,6 +3037,7 @@ class ResourceAPI(ApiView):
                 RemoveScheduler,
                 {},
             ),
+            (f"{mbp}/simple_entities", "GET", ListSimpleResources, {}),
             (f"{mbp}/entities", "GET", ListResources, {}),
             (f"{mbp}/entities", "POST", CreateResource, {}),
             (f"{mbp}/entities/import", "POST", ImportResource, {}),
@@ -2176,6 +3101,7 @@ class ResourceAPI(ApiView):
             (f"{mbp}/links/<oid>", "DELETE", DeleteLink, {}),
             (f"{mbp}/links/<oid>", "PUT", UpdateLink, {}),
             (f"{mbp}/links/<oid>/perms", "GET", GetLinkPerms, {}),
+            (f"{mbp}/links/<oid>/register", "PUT", UpdateLinkRegister, {}),
             (f"{mbp}/tags", "GET", ListTags, {}),
             (f"{mbp}/tags", "POST", CreateTag, {}),
             (f"{mbp}/tags/count", "GET", CountTags, {}),
@@ -2183,7 +3109,7 @@ class ResourceAPI(ApiView):
             (f"{mbp}/tags/<oid>", "PUT", UpdateTag, {}),
             (f"{mbp}/tags/<oid>", "DELETE", DeleteTag, {}),
             (f"{mbp}/tags/<oid>/perms", "GET", GetTagPerms, {}),
-            (f"{mbp}/jobs", "GET", ListJobs, {}),
+            #(f"{mbp}/jobs", "GET", ListJobs, {}),
         ]
 
         ApiView.register_api(module, rules, **kwargs)

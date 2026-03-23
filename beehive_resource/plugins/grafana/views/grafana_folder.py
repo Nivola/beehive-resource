@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
@@ -10,17 +10,21 @@ from beehive.common.apimanager import (
     CrudApiObjectJobResponseSchema,
     ApiView,
 )
+
 from beehive_resource.plugins.grafana.entity.grafana_folder import GrafanaFolder
+
 from beehive_resource.plugins.provider.views import (
     ResourceApiView,
     CreateProviderResourceRequestSchema,
     UpdateProviderResourceRequestSchema,
 )
+
 from beehive_resource.view import (
     ListResourcesRequestSchema,
     ResourceResponseSchema,
     ResourceSmallResponseSchema,
 )
+
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
 from beehive_resource.plugins.grafana.views import GrafanaAPI, GrafanaApiView
@@ -52,11 +56,14 @@ class ListGrafanaFoldersResponseSchema(PaginatedResponseSchema):
 class ListGrafanaFolders(GrafanaFolderView):
     summary = "List folders"
     description = "List folders"
+
     definitions = {
         "ListGrafanaFoldersResponseSchema": ListGrafanaFoldersResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(ListGrafanaFoldersRequestSchema)
     parameters_schema = ListGrafanaFoldersRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": ListGrafanaFoldersResponseSchema}}
     )
@@ -67,21 +74,34 @@ class ListGrafanaFolders(GrafanaFolderView):
 
 
 class GetGrafanaFolderParamsResponseSchema(ResourceResponseSchema):
-    folders = fields.Nested(ResourceSmallResponseSchema, required=True, many=True, allow_none=True)
+    folders = fields.Nested(
+        ResourceSmallResponseSchema,
+        required=True,
+        many=True,
+        allow_none=True,
+    )
 
 
 class GetGrafanaFolderResponseSchema(Schema):
-    folder = fields.Nested(GetGrafanaFolderParamsResponseSchema, required=True, allow_none=True)
+    folder = fields.Nested(
+        GetGrafanaFolderParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetGrafanaFolder(GrafanaFolderView):
     summary = "Get folder"
     description = "Get folder"
+
     definitions = {
         "GetGrafanaFolderResponseSchema": GetGrafanaFolderResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetGrafanaFolderResponseSchema}})
+    responses = SwaggerApiView.setResponses({
+        200: {"description": "success", "schema": GetGrafanaFolderResponseSchema}
+    })
 
     def get(self, controller, data, oid, *args, **kwargs):
         """Get Grafana folder"""
@@ -89,33 +109,58 @@ class GetGrafanaFolder(GrafanaFolderView):
 
 
 class CreateGrafanaFolderParamRequestSchema(CreateProviderResourceRequestSchema):
-    container = fields.String(required=True, example="12", description="Container id, uuid or name")
-    name = fields.String(required=True, example="test-name-folder", default="", description="Folder name")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'Container id, uuid or name',
+        },
+    )
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test-name-folder',
+            "description": 'Folder name',
+        },
+    )
+
     desc = fields.String(
         required=False,
-        example="test-desc-folder",
-        description="The resource description",
+        metadata={
+            "example": 'test-desc-folder',
+            "description": 'The resource description',
+        },
     )
 
 
 class CreateGrafanaFolderRequestSchema(Schema):
-    folder = fields.Nested(CreateGrafanaFolderParamRequestSchema)
+    folder = fields.Nested(
+        CreateGrafanaFolderParamRequestSchema,
+    )
 
 
 class CreateGrafanaFolderBodyRequestSchema(Schema):
-    body = fields.Nested(CreateGrafanaFolderRequestSchema, context="body")
+    body = fields.Nested(
+        CreateGrafanaFolderRequestSchema,
+        context="body",
+    )
 
 
 class CreateGrafanaFolder(GrafanaFolderView):
     summary = "Create folder"
     description = "Create folder"
+
     definitions = {
         "CreateGrafanaFolderRequestSchema": CreateGrafanaFolderRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateGrafanaFolderBodyRequestSchema)
     parameters_schema = CreateGrafanaFolderRequestSchema
-    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
+    responses = SwaggerApiView.setResponses({
+        202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}
+    })
 
     def post(self, controller, data, *args, **kwargs):
         """Add new folder to Grafana"""
@@ -123,12 +168,20 @@ class CreateGrafanaFolder(GrafanaFolderView):
 
 
 class UpdateGrafanaFolderTemplateRequestSchema(Schema):
-    name = fields.String(required=True, example="Test folder", default="", description="Folder name")
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'Test folder',
+            "description": 'Folder name',
+        },
+    )
+
     desc = fields.String(
         required=False,
-        example="This is the test folder",
-        default="",
-        description="Folder description",
+        metadata={
+            "example": 'This is the test folder',
+            "description": 'Folder description',
+        },
     )
 
 
@@ -137,26 +190,35 @@ class UpdateGrafanaFolderParamRequestSchema(UpdateProviderResourceRequestSchema)
         UpdateGrafanaFolderTemplateRequestSchema,
         required=False,
         many=True,
-        description="list of orchestrator folders to link",
         allow_none=True,
+        metadata={
+            "description": 'list of orchestrator folders to link',
+        },
     )
 
 
 class UpdateGrafanaFolderRequestSchema(Schema):
-    folder = fields.Nested(UpdateGrafanaFolderParamRequestSchema)
+    folder = fields.Nested(
+        UpdateGrafanaFolderParamRequestSchema,
+    )
 
 
 class UpdateGrafanaFolderBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateGrafanaFolderRequestSchema, context="body")
+    body = fields.Nested(
+        UpdateGrafanaFolderRequestSchema,
+        context="body",
+    )
 
 
 class UpdateGrafanaFolder(GrafanaFolderView):
     summary = "Update folder"
     description = "Update folder"
+
     definitions = {
         "UpdateGrafanaFolderRequestSchema": UpdateGrafanaFolderRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateGrafanaFolderBodyRequestSchema)
     parameters_schema = UpdateGrafanaFolderRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})

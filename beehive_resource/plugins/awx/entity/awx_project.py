@@ -1,10 +1,13 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import logging
 from beecell.simple import id_gen
 from beehive_resource.plugins.awx.entity import AwxResource
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ..controller import AwxContainer
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +32,7 @@ class AwxProject(AwxResource):
     # discover, synchronize
     #
     @staticmethod
-    def discover_new(container, ext_id, res_ext_ids):
+    def discover_new(container: 'AwxContainer', ext_id, res_ext_ids):
         """Discover method used when synchronize beehive container with remote platform.
 
         :param container: client used to communicate with remote platform
@@ -63,7 +66,7 @@ class AwxProject(AwxResource):
         return res
 
     @staticmethod
-    def discover_died(container):
+    def discover_died(container: 'AwxContainer'):
         """Discover method used when check if resource already exists in remote platform or was been modified.
 
         :param container: client used to comunicate with remote platform
@@ -80,7 +83,7 @@ class AwxProject(AwxResource):
         return items
 
     @staticmethod
-    def synchronize(container, entity):
+    def synchronize(container: 'AwxContainer', entity):
         """Discover method used when synchronize beehive container with remote platform.
 
         :param container: instance of resource container
@@ -114,7 +117,7 @@ class AwxProject(AwxResource):
     # internal list, get, create, update, delete
     #
     @staticmethod
-    def customize_list(controller, entities, container, *args, **kvargs):
+    def customize_list(controller, entities, container: 'AwxContainer', *args, **kvargs):
         """Post list function. Extend this function to execute some operation after entity was created. Used only for
         synchronous creation.
 
@@ -152,7 +155,7 @@ class AwxProject(AwxResource):
         self.set_physical_entity(ext_obj)
 
     @staticmethod
-    def pre_create(controller, container, *args, **kvargs):
+    def pre_create(controller, container: 'AwxContainer', *args, **kvargs):
         """Check input params before resource creation. This function is used in container resource_factory method.
 
         :param controller: resource controller instance

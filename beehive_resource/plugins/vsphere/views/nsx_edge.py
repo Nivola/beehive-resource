@@ -1,18 +1,20 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 import ipaddress
 from marshmallow import validates, ValidationError
 
 from beehive_resource.plugins.vsphere.views import VsphereAPI, VsphereApiView
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
+
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
     GetApiObjectRequestSchema,
     CrudApiObjectTaskResponseSchema,
 )
+
 from beehive_resource.view import ResourceResponseSchema, ListResourcesRequestSchema
 from beehive_resource.plugins.vsphere.entity.nsx_manager import NsxManager
 from beehive_resource.plugins.vsphere.entity.nsx_edge import NsxEdge
@@ -39,9 +41,7 @@ class ListNsxEdgesResponseSchema(PaginatedResponseSchema):
 class ListNsxEdges(VsphereNsxEdgeApiView):
     summary = "List nsx_edge"
     description = "List nsx_edge"
-    definitions = {
-        "ListNsxEdgesResponseSchema": ListNsxEdgesResponseSchema,
-    }
+    definitions = {"ListNsxEdgesResponseSchema": ListNsxEdgesResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListNsxEdgesRequestSchema)
     parameters_schema = ListNsxEdgesRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListNsxEdgesResponseSchema}})
@@ -57,9 +57,7 @@ class GetNsxEdgeResponseSchema(Schema):
 class GetNsxEdge(VsphereNsxEdgeApiView):
     summary = "Get nsx_edge"
     description = "Get nsx_edge"
-    definitions = {
-        "GetNsxEdgeResponseSchema": GetNsxEdgeResponseSchema,
-    }
+    definitions = {"GetNsxEdgeResponseSchema": GetNsxEdgeResponseSchema,}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetNsxEdgeResponseSchema}})
 
@@ -68,25 +66,126 @@ class GetNsxEdge(VsphereNsxEdgeApiView):
 
 
 class CreateNsxEdgeParamRequestSchema(Schema):
-    container = fields.String(required=True, example="12", description="container id, uuid or name")
-    name = fields.String(required=True, example="test", description="edge name")
-    desc = fields.String(required=True, example="test", description="edge description")
-    datacenter = fields.String(required=True, example="123", description="datacenter id")
-    cluster = fields.String(required=True, example="123", description="cluster id")
-    datastore = fields.String(required=True, example="123", description="datastore id")
-    uplink_dvpg = fields.String(required=True, example="123", description="uplink dvpg id")
-    uplink_subnet_pool = fields.String(required=False, example="123", description="uplink ip pool mor id")
-    uplink_ipaddress = fields.String(required=False, example="10.102.34.90", description="uplink address")
-    uplink_gateway = fields.String(required=False, example="10.102.34.1", description="uplink gateway")
-    uplink_prefix = fields.String(required=False, example="24", missing="24", description="uplink prefix")
-    pwd = fields.String(required=True, example="test", description="admin user password")
-    dns = fields.String(required=False, example="8.8.8.8 8.8.4.4", description="dns name server list")
-    domain = fields.String(required=False, example="site01.nivolapiemonte.it", description="dns zone")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'container id, uuid or name',
+        },
+    )
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'edge name',
+        },
+    )
+
+    desc = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'edge description',
+        },
+    )
+
+    datacenter = fields.String(
+        required=True,
+        metadata={
+            "example": '123',
+            "description": 'datacenter id',
+        },
+    )
+
+    cluster = fields.String(
+        required=True,
+        metadata={
+            "example": '123',
+            "description": 'cluster id',
+        },
+    )
+
+    datastore = fields.String(
+        required=True,
+        metadata={
+            "example": '123',
+            "description": 'datastore id',
+        },
+    )
+
+    uplink_dvpg = fields.String(
+        required=True,
+        metadata={
+            "example": '123',
+            "description": 'uplink dvpg id',
+        },
+    )
+
+    uplink_subnet_pool = fields.String(
+        required=False,
+        metadata={
+            "example": '123',
+            "description": 'uplink ip pool mor id',
+        },
+    )
+
+    uplink_ipaddress = fields.String(
+        required=False,
+        metadata={
+            "example": '10.102.34.90',
+            "description": 'uplink address',
+        },
+    )
+
+    uplink_gateway = fields.String(
+        required=False,
+        metadata={
+            "example": '10.102.34.1',
+            "description": 'uplink gateway',
+        },
+    )
+
+    uplink_prefix = fields.String(
+        required=False,
+        load_default="24",
+        metadata={
+            "example": '24',
+            "description": 'uplink prefix',
+        },
+    )
+
+    pwd = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'admin user password',
+        },
+    )
+
+    dns = fields.String(
+        required=False,
+        metadata={
+            "example": '8.8.8.8 8.8.4.4',
+            "description": 'dns name server list',
+        },
+    )
+
+    domain = fields.String(
+        required=False,
+        metadata={
+            "example": 'site01.nivolapiemonte.it',
+            "description": 'dns zone',
+        },
+    )
+
     size = fields.String(
         required=False,
-        example="compact",
-        missing="compact",
-        description="appliance size",
+        load_default="compact",
+        metadata={
+            "example": 'compact',
+            "description": 'appliance size',
+        },
     )
 
     @validates("uplink_ipaddress")
@@ -123,12 +222,15 @@ class CreateNsxEdgeBodyRequestSchema(Schema):
 class CreateNsxEdge(VsphereNsxEdgeApiView):
     summary = "Create nsx_edge"
     description = "Create nsx_edge"
+
     definitions = {
         "CreateNsxEdgeRequestSchema": CreateNsxEdgeRequestSchema,
         "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateNsxEdgeBodyRequestSchema)
     parameters_schema = CreateNsxEdgeRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
@@ -138,9 +240,23 @@ class CreateNsxEdge(VsphereNsxEdgeApiView):
 
 
 class UpdateNsxEdgeParamRequestSchema(Schema):
-    name = fields.String(default="test")
-    desc = fields.String(default="test")
-    enabled = fields.Boolean(default=True)
+    name = fields.String(
+        metadata={
+            "example": 'test',
+        },
+    )
+
+    desc = fields.String(
+        metadata={
+            "example": 'test',
+        },
+    )
+
+    enabled = fields.Boolean(
+        metadata={
+            "example": True,
+        },
+    )
 
 
 class UpdateNsxEdgeRequestSchema(Schema):
@@ -154,18 +270,21 @@ class UpdateNsxEdgeBodyRequestSchema(GetApiObjectRequestSchema):
 class UpdateNsxEdge(VsphereNsxEdgeApiView):
     summary = "Update nsx_edge"
     description = "Update nsx_edge"
+
     definitions = {
         "UpdateNsxEdgeRequestSchema": UpdateNsxEdgeRequestSchema,
         "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateNsxEdgeBodyRequestSchema)
     parameters_schema = UpdateNsxEdgeRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
 
     def put(self, controller, data, oid, *args, **kwargs):
-        return self.update_resource(controller, data)
+        return self.update_resource(controller, oid, data)
 
 
 class DeleteNsxEdge(VsphereNsxEdgeApiView):
@@ -173,6 +292,7 @@ class DeleteNsxEdge(VsphereNsxEdgeApiView):
     description = "Delete nsx_edge"
     definitions = {"CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )

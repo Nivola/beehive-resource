@@ -1,14 +1,17 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beecell.simple import dict_get
 from beedrones.awx.client import AwxManager
+from beehive.common.apimanager import ApiManagerError
 from beehive.common.task_v2 import task_step
-from beehive.common.task_v2.manager import task_manager
+from beehive.common.task_v2.manager import get_task_manager
 from beehive_resource.plugins.awx.entity.awx_job_template import AwxJobTemplate
 from beehive_resource.task_v2 import AbstractResourceTask
-
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ..controller import AwxContainer
 
 class AwxJobTemplateTask(AbstractResourceTask):
     """AwxJobTemplate task"""
@@ -18,7 +21,7 @@ class AwxJobTemplateTask(AbstractResourceTask):
 
     @staticmethod
     @task_step()
-    def awx_job_template_create_physical_step(task, step_id, params, *args, **kvargs):
+    def awx_job_template_create_physical_step(task: 'AwxJobTemplateTask', step_id, params, *args, **kvargs):
         """Create physical resource
 
         :param task: parent celery task
@@ -37,12 +40,12 @@ class AwxJobTemplateTask(AbstractResourceTask):
         verbosity = params.get("add").get("verbosity")
         task.progress(step_id, msg="Get configuration params")
 
-        from beedrones.awx.client import AwxManager
-        from beehive_resource.plugins.awx.controller import AwxContainer
+        # from beedrones.awx.client import AwxManager
+        # from beehive_resource.plugins.awx.controller import AwxContainer
 
         container = task.get_container(cid)
-        awxContainer: AwxContainer = container
-        conn: AwxManager = awxContainer.conn
+        awxContainer: 'AwxContainer' = container
+        conn = awxContainer.conn
         res = conn.job_template.add(
             "TEMP-" + name,
             "run",
@@ -69,7 +72,7 @@ class AwxJobTemplateTask(AbstractResourceTask):
 
     @staticmethod
     @task_step()
-    def awx_job_template_launch_step(task, step_id, params, *args, **kvargs):
+    def awx_job_template_launch_step(task: 'AwxJobTemplateTask', step_id, params, *args, **kvargs):
         """Launch job_template
 
         :param task: parent celery task
@@ -79,7 +82,7 @@ class AwxJobTemplateTask(AbstractResourceTask):
         """
         awxJobTemplateTask: AwxJobTemplateTask = task
 
-        container: AwxContainer = awxJobTemplateTask.get_data("container")
+        container: 'AwxContainer' = task.get_data("container")
         job_template = params.get("ext_id")
         creds = []
         ssh_creds = params.get("launch").get("ssh_creds_id")
@@ -101,9 +104,9 @@ class AwxJobTemplateTask(AbstractResourceTask):
 
         # check job status
         def job_event_msg():
-            awxJobTemplateTask.logger.info("+++++ job_event_msg - job_id: %s" % job_id)
+            task.logger.debug("+++++ job_event_msg - job_id: %s" % job_id)
             job_events = conn.job.events(job_id, query={"failed": True})
-            awxJobTemplateTask.logger.info("+++++ job_event_msg - job_events: %s" % job_events)
+            task.logger.debug("+++++ job_event_msg - job_events: %s" % job_events)
 
             job_event_msg = ""
             # check job has failed events (log lines)
@@ -112,22 +115,24 @@ class AwxJobTemplateTask(AbstractResourceTask):
                 for job_event in job_events:
                     msg = dict_get(job_event, "event_data.res.msg")
                     if msg is not None:
-                        job_event_msg += msg + "\n"
+                        safe_msg = msg.encode('ascii', 'replace').decode('ascii')
+                        job_event_msg += safe_msg + "\n"
 
             else:
                 # all stdout events
                 job_events = conn.job.events(job_id, query={})
-                awxJobTemplateTask.logger.info("+++++ job_event_msg - job_events: %s" % job_events)
+                task.logger.debug("+++++ job_event_msg - job_events: %s" % job_events)
                 for job_event in job_events:
                     stdout = dict_get(job_event, "stdout")
                     if stdout is not None:
-                        job_event_msg += stdout + "\n"
+                        safe_stdout = stdout.encode('ascii', 'replace').decode('ascii')
+                        job_event_msg += safe_stdout + "\n"
 
             return job_event_msg
 
         # get job stdout
         def job_success_stdout():
-            awxJobTemplateTask.logger.info("+++++ job_success_stdout - job_id: %s" % job_id)
+            task.logger.debug("+++++ job_success_stdout - job_id: %s" % job_id)
             res = conn.job.stdout(job_id)
             content = res.get("content").split("\n")
             job_output = ""
@@ -144,27 +149,43 @@ class AwxJobTemplateTask(AbstractResourceTask):
                     continue
                 job_output += i.replace("\x1b[", "").replace("0m", "")
 
-            awxJobTemplateTask.logger.info(
+            task.logger.debug(
                 "+++++ job_success_stdout - job_id: %s - job_output: %s" % (job_id, job_output)
             )
             return job_output
 
-        from beehive_resource.plugins.awx.controller import AwxContainer
+        # from beehive_resource.plugins.awx.controller import AwxContainer
 
-        awxContainer: AwxContainer = container
-        stdout: str = awxContainer.wait_for_awx_job(
-            conn.job.get, job_id, delta=2, job_error_func=job_event_msg, job_success_func=job_success_stdout
-        )
-        awxJobTemplateTask.set_stdout_data(stdout)
+        awxContainer: 'AwxContainer' = container
+        stdout: str = None
+        try:
+            stdout = awxContainer.wait_for_awx_job(
+                conn.job.get, job_id, delta=2, job_error_func=job_event_msg, job_success_func=job_success_stdout
+            )
+            params["job_id"] = job_id
+        except ApiManagerError as ame:
+            if ame.value is not None and ame.value.find("Connection timed out during banner exchange") >= 0:
+                task.logger.info("+++++ awx_job_template_launch_step - relaunch job_id: %s" % (job_id))
+                task.progress(step_id, msg="Relaunch awx job %s" % job_id)
+                new_job_id = conn.job.relaunch(job_id)
 
-        params["job_id"] = job_id
+                task.logger.info("+++++ awx_job_template_launch_step - new_job_id: %s" % (new_job_id))
+                task.progress(step_id, msg="New awx job %s" % new_job_id)
 
+                stdout = awxContainer.wait_for_awx_job(
+                    conn.job.get, new_job_id, delta=2, job_error_func=job_event_msg, job_success_func=job_success_stdout
+                )
+                params["job_id"] = new_job_id
+            else:
+                raise ame
+
+        task.set_stdout_data(stdout)
         return True, params
 
     # useless - commented everywhere!
     @staticmethod
     @task_step()
-    def awx_job_report_step(task, step_id, params, *args, **kvargs):
+    def awx_job_report_step(task: 'AwxJobTemplateTask', step_id, params, *args, **kvargs):
         """Gather job standard output
 
         :param task: parent celery task
@@ -244,5 +265,4 @@ class AwxJobTemplateTask(AbstractResourceTask):
 
         return oid, params
 
-
-task_manager.tasks.register(AwxJobTemplateTask())
+get_task_manager().register_task(AwxJobTemplateTask())

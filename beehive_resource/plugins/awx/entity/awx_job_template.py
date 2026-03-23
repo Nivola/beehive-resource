@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import logging
 from beecell.simple import id_gen, dict_get, truncate
@@ -8,6 +8,9 @@ from beehive_resource.plugins.awx.entity import AwxResource
 from beehive_resource.plugins.awx.entity.awx_project import AwxProject
 
 logger = logging.getLogger(__name__)
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ..controller import AwxContainer
 
 
 class AwxJobTemplate(AwxResource):
@@ -27,7 +30,7 @@ class AwxJobTemplate(AwxResource):
     # discover, synchronize
     #
     @staticmethod
-    def discover_new(container, ext_id, res_ext_ids):
+    def discover_new(container: 'AwxContainer', ext_id, res_ext_ids):
         """Discover method used when synchronize beehive container with remote platform.
 
         :param container: client used to communicate with remote platform
@@ -63,7 +66,7 @@ class AwxJobTemplate(AwxResource):
         return res
 
     @staticmethod
-    def discover_died(container):
+    def discover_died(container: 'AwxContainer'):
         """Discover method used when check if resource already exists in remote platform or was been modified.
 
         :param container: client used to comunicate with remote platform
@@ -79,7 +82,7 @@ class AwxJobTemplate(AwxResource):
         return items
 
     @staticmethod
-    def synchronize(container, entity):
+    def synchronize(container: 'AwxContainer', entity):
         """Discover method used when synchronize beehive container with remote platform.
 
         :param container: instance of resource container
@@ -151,7 +154,7 @@ class AwxJobTemplate(AwxResource):
         self.set_physical_entity(ext_obj)
 
     @staticmethod
-    def pre_create(controller, container, *args, **kvargs):
+    def pre_create(controller, container:'AwxContainer', *args, **kvargs):
         """Check input params before resource creation. This function is used in container resource_factory method.
 
         :param controller: resource controller instance
@@ -181,7 +184,7 @@ class AwxJobTemplate(AwxResource):
         :return: kvargs
         :raise ApiManagerError:
         """
-        from beedrones.awx.client import AwxManager
+        # from beedrones.awx.client import AwxManager
 
         # job_template_type
         # - machine_only: use ssh credentials and inventory to execute playbook on remote machines
@@ -211,7 +214,7 @@ class AwxJobTemplate(AwxResource):
                 password = None
                 # ssh_key_unlock = True
 
-            awxManager: AwxManager = container.conn
+            awxManager = container.conn
             res = awxManager.credential.add_ssh(
                 name,
                 organization,
@@ -225,7 +228,7 @@ class AwxJobTemplate(AwxResource):
             return ext_id
 
         def check_is_vault_credentials(vault_cred_id):
-            awxManager: AwxManager = container.conn
+            awxManager = container.conn
             res = awxManager.credential.get(vault_cred_id)
             if res.get("kind") != "vault":
                 raise Exception(
@@ -251,10 +254,10 @@ class AwxJobTemplate(AwxResource):
             # add common empty inventory "EMPTY_INVENTORY"
             # used e.g. for staas since it's mandatory to give an inventory
             # even if not used
-            awxManager: AwxManager = container.conn
+            awxManager = container.conn
             res = awxManager.inventory.list(name="EMPTY_INVENTORY")
-            if (len(res)) == 0:
-                return add_inventory(organization, "", "EMPTY_INVENTORY")
+            if(len(res))==0:
+                return add_inventory(organization, rand = "", full_name = "EMPTY_INVENTORY")
             else:
                 return res[0].get("id")
 
@@ -312,19 +315,21 @@ class AwxJobTemplate(AwxResource):
                     add_hosts(hosts, inventory_ext_id)
                 kvargs["add"]["inventory"] = inventory_ext_id
                 kvargs["launch"]["ssh_creds_id"] = ssh_creds_ext_id
-            elif job_template_type == "remote_only":
-                vault_creds_ext_id = kvargs.get("launch").pop("vault_cred_id", 11)  # None TODO update in cmp
+            elif job_template_type=="remote_only":
+                vault_creds_ext_id = kvargs.get("launch").pop("vault_cred_id")
                 if vault_creds_ext_id is not None:
                     kvargs["launch"]["vault_creds_id"] = check_is_vault_credentials(vault_creds_ext_id)
                 kvargs["add"]["inventory"] = get_add_empty_inventory(org_ext_id)
             # create comma-separated list of job tags
-            job_tags = ",".join(job_tag for job_tag in job_tags)
+            job_tags_str = ""
+            if job_tags is not None:
+                job_tags_str = ",".join(job_tag for job_tag in job_tags)
         except Exception as ex:
             logger.error(ex, exc_info=True)
             raise Exception(ex)
 
         kvargs["add"]["project"] = project_ext_id
-        kvargs["add"]["job_tags"] = job_tags
+        kvargs["add"]["job_tags"] = job_tags_str
 
         kvargs["launch"]["extra_vars"] = to_dict(extra_vars)
 

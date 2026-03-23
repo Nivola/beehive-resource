@@ -1,21 +1,24 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 from copy import deepcopy
 
 from beehive_resource.plugins.provider.entity.rule import ComputeRule
 from beehive_resource.plugins.provider.entity.security_group import SecurityGroup
 from beehive_resource.plugins.provider.entity.zone import ComputeZone
 from beehive_resource.view import ListResourcesRequestSchema, ResourceResponseSchema
+
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
     GetApiObjectRequestSchema,
     CrudApiObjectJobResponseSchema,
 )
+
 from beecell.swagger import SwaggerHelper
 from flasgger import fields, Schema
+
 from beehive_resource.plugins.provider.views import (
     ProviderAPI,
     LocalProviderApiView,
@@ -30,22 +33,45 @@ class ProviderRule(LocalProviderApiView):
 
 
 class ListRulesRequestSchema(ListResourcesRequestSchema):
-    compute_zone = fields.String(context="query", description="super zone id or uuid")
-    security_groups = fields.String(context="query", description="list of comma separated security group id or uuid")
+    compute_zone = fields.String(
+        context="query",
+        metadata={
+            "description": 'super zone id or uuid',
+        },
+    )
+
+    security_groups = fields.String(
+        context="query",
+        metadata={
+            "description": 'list of comma separated security group id or uuid',
+        },
+    )
+
     source = fields.String(
+        context="query",
         required=False,
         allow_none=True,
-        description="a dictionary with source type and value. " "Syntax SecurityGroup:<uuid> or Cidr:<uuid>",
+        metadata={
+            "description": 'a dictionary with source type and value. Syntax SecurityGroup:<uuid> or Cidr:<uuid>',
+        },
     )
+
     destination = fields.String(
+        context="query",
         required=False,
         allow_none=True,
-        description="a dictionary with destination type and value. " "Syntax SecurityGroup:<uuid> or Cidr:<uuid>",
+        metadata={
+            "description": 'a dictionary with destination type and value. Syntax SecurityGroup:<uuid> or Cidr:<uuid>',
+        },
     )
+
     service = fields.String(
+        context="query",
         required=False,
         allow_none=True,
-        description="describe protocol and ports to use in rule." "Syntax <proto>:<port>",
+        metadata={
+            "description": 'describe protocol and ports to use in rule.Syntax <proto>:<port>',
+        },
     )
 
 
@@ -54,20 +80,22 @@ class ListRulesParamsResponseSchema(ResourceResponseSchema):
 
 
 class ListRulesResponseSchema(PaginatedResponseSchema):
-    rules = fields.Nested(ListRulesParamsResponseSchema, many=True, required=True, allow_none=True)
+    rules = fields.Nested(
+        ListRulesParamsResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListRules(ProviderRule):
-    definitions = {
-        "ListRulesResponseSchema": ListRulesResponseSchema,
-    }
+    definitions = {"ListRulesResponseSchema": ListRulesResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListRulesRequestSchema)
     parameters_schema = ListRulesRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListRulesResponseSchema}})
 
     def get(self, controller, data, *args, **kwargs):
         """
-        List rules
         List rules
         <p>**filter by**: tags, super_zone, security_group</p>
         <p>**Attributes** params:</p>
@@ -161,9 +189,7 @@ class GetRuleResponseSchema(Schema):
 
 
 class GetRule(ProviderRule):
-    definitions = {
-        "GetRuleResponseSchema": GetRuleResponseSchema,
-    }
+    definitions = {"GetRuleResponseSchema": GetRuleResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetRuleResponseSchema}})
 
@@ -197,63 +223,117 @@ class GetRule(ProviderRule):
 class CreateRuleSourceRequestSchema(Schema):
     type = fields.String(
         required=True,
-        example="SecurityGroup",
-        description="Source/destination type supported: SecurityGroup, Instance, Cidr",
+        metadata={
+            "example": 'SecurityGroup',
+            "description": 'Source/destination type supported: SecurityGroup, Instance, Cidr',
+        },
     )
+
     value = fields.String(
         required=True,
-        example="3151",
-        description="value is the id of the object 3151 or a cidr 10.102.185.0/24",
+        metadata={
+            "example": '3151',
+            "description": 'value is the id of the object 3151 or a cidr 10.102.185.0/24',
+        },
     )
 
 
 class CreateRuleServiceRequestSchema(Schema):
     port = fields.String(
         required=False,
-        example="*",
-        description="can be an integer between 0 and 65535 or a range "
-        "with start and end in the same interval. Range format is <start>-<end>",
+        metadata={
+            "example": '*',
+            "description": (
+                'can be an integer between 0 and 65535 or a range with start and end in the same interval. Range'
+                'format is <start>-<end>'
+            ),
+        },
     )
+
     protocol = fields.String(
         required=False,
-        example="*",
-        description="Supported **protocol** are only 6 [tcp], 17 [udp], 1 [icmp], * [all]",
+        metadata={
+            "example": '*',
+            "description": 'Supported **protocol** are only 6 [tcp], 17 [udp], 1 [icmp], * [all]',
+        },
     )
-    subprotocol = fields.String(required=False, example=17, description="use this param with icmp")
+
+    subprotocol = fields.String(
+        required=False,
+        metadata={
+            "example": '17',
+            "description": 'use this param with icmp',
+        },
+    )
 
 
 class CreateRuleParamRequestSchema(CreateProviderResourceRequestSchema):
-    compute_zone = fields.String(required=True, example="1", description="parent compute zone id or uuid")
+    compute_zone = fields.String(
+        required=True,
+        metadata={
+            "example": '1',
+            "description": 'parent compute zone id or uuid',
+        },
+    )
+
     source = fields.Nested(
         CreateRuleSourceRequestSchema,
         required=True,
         allow_none=True,
-        description="a dictionary with source type and value.",
+        metadata={
+            "description": 'a dictionary with source type and value.',
+        },
     )
+
     destination = fields.Nested(
         CreateRuleSourceRequestSchema,
         required=True,
         allow_none=True,
-        description="a dictionary with destination type and value.",
+        metadata={
+            "description": 'a dictionary with destination type and value.',
+        },
     )
+
+    direction = fields.String(
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": 'traffic flow: ingress or egress',
+        },
+    )
+
     service = fields.Nested(
         CreateRuleServiceRequestSchema,
         required=True,
         allow_none=True,
-        description="describe protocol and ports to use in rule",
+        metadata={
+            "description": 'describe protocol and ports to use in rule',
+        },
     )
+
     reserved = fields.Boolean(
         required=False,
-        missing=False,
-        description="Flag to use when rule must be reserved to admin management",
+        load_default=False,
+        metadata={
+            "description": 'Flag to use when rule must be reserved to admin management',
+        },
     )
+
+    logging = fields.Boolean(
+        required=False,
+        load_default=False,
+        metadata={
+            "description": 'rule logging',
+        },
+    )
+
     rule_orchestrator_types = fields.List(
-        fields.String(
-            example="vsphere",
-        ),
+        fields.String(example='vsphere'),
         required=False,
         allow_none=True,
-        description="networking and security platform(s) where sg rules will be defined",
+        metadata={
+            "description": 'networking and security platform(s) where sg rules will be defined',
+        },
     )
 
 
@@ -262,7 +342,10 @@ class CreateRuleRequestSchema(Schema):
 
 
 class CreateRuleBodyRequestSchema(Schema):
-    body = fields.Nested(CreateRuleRequestSchema, context="body")
+    body = fields.Nested(
+        CreateRuleRequestSchema,
+        context="body",
+    )
 
 
 class CreateRule(ProviderRule):
@@ -270,13 +353,13 @@ class CreateRule(ProviderRule):
         "CreateRuleRequestSchema": CreateRuleRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateRuleBodyRequestSchema)
     parameters_schema = CreateRuleRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def post(self, controller, data, *args, **kwargs):
         """
-        Create rule
         Create rule
 
         - **reserved**: use True to manage rule from business service that only admin can remove
@@ -317,13 +400,13 @@ class UpdateRule(ProviderRule):
         "UpdateRuleRequestSchema": UpdateRuleRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateRuleBodyRequestSchema)
     parameters_schema = UpdateRuleRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def put(self, controller, data, oid, *args, **kwargs):
         """
-        Update rule
         Update rule
         """
         return self.update_resource(controller, oid, data)
@@ -337,7 +420,6 @@ class DeleteRule(ProviderRule):
 
     def delete(self, controller, data, oid, *args, **kwargs):
         """
-        Delete rule
         Delete rule
         """
         return self.expunge_resource(controller, oid)

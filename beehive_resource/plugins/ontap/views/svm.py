@@ -1,14 +1,16 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
+
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
     GetApiObjectRequestSchema,
 )
+
 from beehive_resource.plugins.ontap.entity.svm import OntapNetappSvm
 from beehive_resource.plugins.ontap.views import OntapNetappApiView, OntapNetappAPI
 from beehive_resource.view import ResourceResponseSchema, ListResourcesRequestSchema, DiscoverResponseSchema
@@ -28,16 +30,23 @@ class ListSvmsParamsResponseSchema(ResourceResponseSchema):
 
 
 class ListSvmsResponseSchema(PaginatedResponseSchema):
-    svms = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
+    svms = fields.Nested(
+        ResourceResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListSvms(OntapNetappSvmApiView):
     summary = "List Svms"
     description = "List Svms"
     tags = ["ontap_netapp"]
+
     definitions = {
         "ListSvmsResponseSchema": ListSvmsResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(ListSvmsRequestSchema)
     parameters_schema = ListSvmsRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListSvmsResponseSchema}})
@@ -47,16 +56,22 @@ class ListSvms(OntapNetappSvmApiView):
 
 
 class GetSvmResponseSchema(Schema):
-    svm = fields.Nested(ResourceResponseSchema, required=True, allow_none=True)
+    svm = fields.Nested(
+        ResourceResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetSvm(OntapNetappSvmApiView):
     summary = "Get svm"
     description = "Get svm"
     tags = ["ontap_netapp"]
+
     definitions = {
         "GetSvmResponseSchema": GetSvmResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetSvmResponseSchema}})
 

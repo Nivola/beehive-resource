@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beecell.simple import id_gen
 from beehive_resource.plugins.openstack.entity.ops_subnet import OpenstackSubnet
@@ -9,6 +9,7 @@ from beehive_resource.plugins.openstack.entity import OpenstackResource, get_tas
 
 
 class OpenstackNetwork(OpenstackResource):
+    """ OpenstackNetwork """
     objdef = "Openstack.Domain.Project.Network"
     objuri = "networks"
     objname = "network"
@@ -90,15 +91,15 @@ class OpenstackNetwork(OpenstackResource):
         ext_id = entity[1]
         parent_id = entity[2]
         name = entity[4]
-        level = entity[5]
+        # level = entity[5]
 
         # get parent project
         if parent_id is not None:
             parent = container.get_resource_by_extid(parent_id)
-            objid = "%s//%s" % (parent.objid, id_gen())
+            objid = f"{parent.objid}//{id_gen()}"
             parent_id = parent.oid
         else:
-            objid = "%s//none//none//%s" % (container.objid, id_gen())
+            objid = f"{container.objid}//none//none//{id_gen()}"
             parent_id = None
 
         res = {
@@ -310,10 +311,11 @@ class OpenstackNetwork(OpenstackResource):
         # get parent project
         project = controller.get_resource(parent)
 
+        net_name = kvargs["name"]
         # set additional params
         params = {
             "parent_ext_id": project.ext_id,
-            "desc": "Network %s" % kvargs["name"],
+            "desc": f"Network {net_name}",
         }
         kvargs.update(params)
 
@@ -391,7 +393,7 @@ class OpenstackNetwork(OpenstackResource):
 
         if self.ext_obj is not None:
             # get allocated ports
-            ports, total = self.controller.get_resources(parent=self.oid, type=OpenstackPort.objdef, details=False)
+            _, total = self.controller.get_resources(parent=self.oid, type=OpenstackPort.objdef, details=False)
 
             data = {}
             data["provider_network_type"] = self.ext_obj.get("provider:network_type", None)
@@ -408,6 +410,9 @@ class OpenstackNetwork(OpenstackResource):
         return info
 
     def get_vlan(self):
+        """
+        Get vlan.
+        """
         vlan = None
         if self.ext_obj is not None:
             vlan = self.ext_obj.get("provider:segmentation_id", None)
@@ -462,4 +467,17 @@ class OpenstackNetwork(OpenstackResource):
         if subnet is not None:
             private_subnet = self.container.get_resource(subnet)
             pool = private_subnet.get_allocation_pool()
+        return pool
+
+    def get_available_pool_counter(self):
+        """Get available pool counter
+
+        :return:
+        :raise ApiManagerError:
+        """
+        pool = None
+        subnet = self.get_attribs(key="subnet")
+        if subnet is not None:
+            private_subnet = self.container.get_resource(subnet)
+            pool = private_subnet.get_available_pool_counter()
         return pool

@@ -1,13 +1,14 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import logging
 from beehive.common.task_v2 import task_step
 from beehive_resource.plugins.elk.entity.elk_role_mapping import ElkRoleMapping
 from beehive_resource.plugins.elk.controller import ElkContainer
-from beehive_resource.task_v2 import AbstractResourceTask, task_manager
+from beehive_resource.task_v2 import AbstractResourceTask
+from beehive.common.task_v2.manager import get_task_manager
 
 
 class ElkRoleMappingTask(AbstractResourceTask):
@@ -129,4 +130,4 @@ class ElkRoleMappingTask(AbstractResourceTask):
         return oid, params
 
 
-task_manager.tasks.register(ElkRoleMappingTask())
+get_task_manager().register_task(ElkRoleMappingTask())

@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beecell.simple import truncate, id_gen, dict_get
 from beecell.types.type_id import token_gen
 from json import dumps
+from beedrones.vsphere.client import VsphereManager
 from beehive.common.apimanager import ApiManagerError
-from beehive.common.task_v2 import run_async
 from beehive_resource.plugins.vsphere.entity import VsphereResource
 from beehive.common.data import trace, operation
 from beehive_resource.plugins.vsphere.entity.vs_cluster import VsphereCluster
@@ -255,8 +255,11 @@ class VsphereServer(VsphereResource):
         """
         try:
             self.ext_obj = self.container.conn.server.get_by_morid(self.ext_id)
+            if self.ext_obj is None:
+                msg = f"Unable to get server ext_obj for vsphere server {self.ext_id} with parent {self.parent_id}"
+                self.logger.error(msg)
         except Exception as ex:
-            self.logger.warn(ex)
+            self.logger.error(ex)
 
     @staticmethod
     def pre_create(controller, container, *args, **kvargs):
@@ -695,7 +698,8 @@ class VsphereServer(VsphereResource):
         info = VsphereResource.info(self)
         details = info["details"]
         if self.ext_obj is not None:
-            details.update(self.container.conn.server.info(self.ext_obj))
+            vsphereManager: VsphereManager = self.container.conn
+            details.update(vsphereManager.server.info(self.ext_obj))
         return info
 
     def detail(self):
@@ -922,8 +926,13 @@ class VsphereServer(VsphereResource):
 
         res = None
         try:
-            if self.ext_obj is not None:
-                res = self.container.conn.server.get_status(self.ext_obj)
+            ext_obj = self.ext_obj
+            if ext_obj is not None:
+                vsphereManager: VsphereManager = self.container.conn
+                res = vsphereManager.server.get_status(ext_obj)
+            if res is None:
+                msg = f"Unable to get server status for resource {self.uuid}; ext_obj={ext_obj}"
+                self.logger.error(msg)
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex, code=400)
@@ -1488,7 +1497,7 @@ class VsphereServer(VsphereResource):
             res = self.container.conn.server.snapshot.list(self.ext_obj)
         except Exception as ex:
             self.logger.error(ex, exc_info=True)
-            raise ApiManagerError(ex, code=ex.code)
+            raise ApiManagerError(ex, code=getattr(ex, "code", 500))
 
         resp = [
             {
@@ -1532,10 +1541,12 @@ class VsphereServer(VsphereResource):
         self.verify_permisssions("use")
         try:
             sgs = self.container.conn.server.security_groups(self.ext_obj)
+            if not sgs:
+                sgs = []
             if isinstance(sgs, dict):
                 sgs = [sgs]
-            res = []
 
+            res = []
             for sg in sgs:
                 res.append(self.container.get_resource_by_extid(sg["objectId"]))
 
@@ -1734,6 +1745,11 @@ class VsphereServer(VsphereResource):
         def check(*args, **kvargs):
             security_group = self.container.get_simple_resource(kvargs["security_group"], entity_class=NsxSecurityGroup)
             if self.has_security_group(security_group.oid) is True:
+                # check to avoid let server without security group
+                sgs = self.get_security_groups()
+                if len(sgs) == 1:
+                    raise ApiManagerError("Can't delete security group. Vsphere server %s must have al least one security group" % (self.oid))
+
                 kvargs["security_group"] = security_group.oid
                 return kvargs
             else:

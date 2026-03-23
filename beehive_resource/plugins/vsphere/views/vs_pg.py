@@ -1,17 +1,19 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_resource.plugins.vsphere.entity.vs_pg import VspherePg
 from beehive_resource.plugins.vsphere.views import VsphereAPI, VsphereApiView
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
+
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
     GetApiObjectRequestSchema,
     CrudApiObjectJobResponseSchema,
 )
+
 from beehive_resource.view import ResourceResponseSchema, ListResourcesRequestSchema
 from beehive_resource.plugins.vsphere.entity.vs_folder import VsphereFolder
 
@@ -31,13 +33,16 @@ class ListPgsParamsResponseSchema(ResourceResponseSchema):
 
 
 class ListPgsResponseSchema(PaginatedResponseSchema):
-    pgs = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
+    pgs = fields.Nested(
+        ResourceResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListPgs(VspherePgApiView):
-    definitions = {
-        "ListPgsResponseSchema": ListPgsResponseSchema,
-    }
+    definitions = {"ListPgsResponseSchema": ListPgsResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListPgsRequestSchema)
     parameters_schema = ListPgsRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListPgsResponseSchema}})
@@ -45,26 +50,26 @@ class ListPgs(VspherePgApiView):
     def get(self, controller, data, *args, **kwargs):
         """
         List pg
-        List pg
         """
         return self.get_resources(controller, **data)
 
 
 ## get
 class GetPgResponseSchema(Schema):
-    pg = fields.Nested(ResourceResponseSchema, required=True, allow_none=True)
+    pg = fields.Nested(
+        ResourceResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetPg(VspherePgApiView):
-    definitions = {
-        "GetPgResponseSchema": GetPgResponseSchema,
-    }
+    definitions = {"GetPgResponseSchema": GetPgResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetPgResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
-        Get pg
         Get pg
         """
         return self.get_resource(controller, oid)
@@ -72,14 +77,50 @@ class GetPg(VspherePgApiView):
 
 ## create
 class CreatePgParamRequestSchema(Schema):
-    container = fields.String(required=True, example="12", description="container id, uuid or name")
-    name = fields.String(required=True, default="test")
-    desc = fields.String(required=True, default="test")
-    domain_id = fields.String(required=True, default="default")
-    enabled = fields.Boolean(default=True)
-    is_domain = fields.Boolean(default=False)
-    parent = fields.String(default="")
-    tags = fields.String(default="")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'container id, uuid or name',
+        },
+    )
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+        },
+    )
+
+    desc = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+        },
+    )
+
+    domain_id = fields.String(
+        required=True,
+        metadata={
+            "example": 'default',
+        },
+    )
+
+    enabled = fields.Boolean(
+        metadata={
+            "example": True,
+        },
+    )
+
+    is_domain = fields.Boolean(
+        metadata={
+            "example": False,
+        },
+    )
+
+    parent = fields.String()
+
+    tags = fields.String()
 
 
 class CreatePgRequestSchema(Schema):
@@ -95,6 +136,7 @@ class CreatePg(VspherePgApiView):
         "CreatePgRequestSchema": CreatePgRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreatePgBodyRequestSchema)
     parameters_schema = CreatePgRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
@@ -102,16 +144,15 @@ class CreatePg(VspherePgApiView):
     def post(self, controller, data, oid, *args, **kwargs):
         """
         Create pg
-        Create pg
         """
         return self.create_resource(controller, oid, data)
 
 
 ## update
 class UpdatePgParamRequestSchema(Schema):
-    name = fields.String(default="test")
-    desc = fields.String(default="test")
-    enabled = fields.Boolean(default=True)
+    name = fields.String(load_default="test")
+    desc = fields.String(load_default="test")
+    enabled = fields.Boolean(load_default=True)
 
 
 class UpdatePgRequestSchema(Schema):
@@ -127,6 +168,7 @@ class UpdatePg(VspherePgApiView):
         "UpdatePgRequestSchema": UpdatePgRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdatePgBodyRequestSchema)
     parameters_schema = UpdatePgRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
@@ -134,9 +176,8 @@ class UpdatePg(VspherePgApiView):
     def put(self, controller, data, oid, *args, **kwargs):
         """
         Update pg
-        Update pg
         """
-        return self.update_resource(controller, data)
+        return self.update_resource(controller, oid, data)
 
 
 ## delete

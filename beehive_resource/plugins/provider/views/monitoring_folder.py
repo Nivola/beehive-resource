@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2021-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     ApiManagerError,
@@ -10,22 +10,30 @@ from beehive.common.apimanager import (
     SwaggerApiView,
     GetApiObjectRequestSchema,
     CrudApiObjectTaskResponseSchema,
+
 )
+
 from beehive_resource.plugins.provider.entity.monitoring_folder import (
     ComputeMonitoringFolder,
+
 )
+
 from beehive_resource.plugins.provider.entity.zone import ComputeZone
+
 from beehive_resource.plugins.provider.views import (
     ProviderAPI,
     LocalProviderApiView,
     CreateProviderResourceRequestSchema,
 )
+
 from beehive_resource.plugins.provider.views.instance import ProviderInstance
+
 from beehive_resource.view import (
     ListResourcesRequestSchema,
     ResourceResponseSchema,
     ResourceSmallResponseSchema,
 )
+
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
 
@@ -39,7 +47,12 @@ class ProviderMonitoringFolder(LocalProviderApiView):
 
 
 class ListMonitoringFoldersRequestSchema(ListResourcesRequestSchema):
-    instance = fields.String(context="query", description="instance id, uuid or name")
+    instance = fields.String(
+        context="query",
+        metadata={
+            "description": 'instance id, uuid or name',
+        },
+    )
 
 
 class ListMonitoringFoldersResponseSchema(PaginatedResponseSchema):
@@ -49,11 +62,10 @@ class ListMonitoringFoldersResponseSchema(PaginatedResponseSchema):
 class ListMonitoringFolders(ProviderMonitoringFolder):
     summary = "List monitoring folders"
     description = "List monitoring folders"
-    definitions = {
-        "ListMonitoringFoldersResponseSchema": ListMonitoringFoldersResponseSchema,
-    }
+    definitions = {"ListMonitoringFoldersResponseSchema": ListMonitoringFoldersResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListMonitoringFoldersRequestSchema)
     parameters_schema = ListMonitoringFoldersRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": ListMonitoringFoldersResponseSchema}}
     )
@@ -66,20 +78,28 @@ class ListMonitoringFolders(ProviderMonitoringFolder):
 
 
 class GetMonitoringFolderParamsResponseSchema(ResourceResponseSchema):
-    applied = fields.Nested(ResourceSmallResponseSchema, required=True, many=False, allow_none=True)
+    applied = fields.Nested(
+        ResourceSmallResponseSchema,
+        required=True,
+        many=False,
+        allow_none=True,
+    )
 
 
 class GetMonitoringFolderResponseSchema(Schema):
-    monitoring_folder = fields.Nested(GetMonitoringFolderParamsResponseSchema, required=True, allow_none=True)
+    monitoring_folder = fields.Nested(
+        GetMonitoringFolderParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetMonitoringFolder(ProviderMonitoringFolder):
     summary = "Get monitoring folder"
     description = "Get monitoring folder"
-    definitions = {
-        "GetMonitoringFolderResponseSchema": GetMonitoringFolderResponseSchema,
-    }
+    definitions = {"GetMonitoringFolderResponseSchema": GetMonitoringFolderResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": GetMonitoringFolderResponseSchema}}
     )
@@ -89,26 +109,62 @@ class GetMonitoringFolder(ProviderMonitoringFolder):
 
 
 class CreateMonitoringFolderGrafanaFolderRequestSchema(Schema):
-    # container = fields.String(required=True, example='12', description='Container id, uuid or name')
-    # folder_id = fields.String(required=True, example='test-folder', default='', description='Folder id')
-    name = fields.String(required=True, example="Test folder", default="", description="Folder name")
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'Test folder',
+            "description": 'Folder name',
+        },
+    )
+
     desc = fields.String(
         required=True,
-        example="This is the test folder",
-        default="",
-        description="Folder description",
+        metadata={
+            "example": 'This is the test folder',
+            "description": 'Folder description',
+        },
     )
 
 
 class CreateMonitoringFolderParamRequestSchema(CreateProviderResourceRequestSchema):
-    name = fields.String(required=True, example="test", description="monitoring_folder name")
-    desc = fields.String(required=True, example="test", description="monitoring_folder description")
-    compute_zone = fields.String(required=True, example="1", description="parent compute zone id or uuid")
-    norescreate = fields.Boolean(required=False, allow_none=True, description="don't create physical resource")
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'monitoring_folder name',
+        },
+    )
+
+    desc = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'monitoring_folder description',
+        },
+    )
+
+    compute_zone = fields.String(
+        required=True,
+        metadata={
+            "example": '1',
+            "description": 'parent compute zone id or uuid',
+        },
+    )
+
+    norescreate = fields.Boolean(
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": "don't create physical resource",
+        },
+    )
+
     grafana_folder = fields.Nested(
         CreateMonitoringFolderGrafanaFolderRequestSchema,
         required=True,
-        description="grafana folder parameters",
+        metadata={
+            "description": 'grafana folder parameters',
+        },
     )
 
 
@@ -123,12 +179,15 @@ class CreateMonitoringFolderBodyRequestSchema(Schema):
 class CreateMonitoringFolder(ProviderMonitoringFolder):
     summary = "Create monitoring folder"
     description = "Create monitoring folder"
+
     definitions = {
         "CreateMonitoringFolderRequestSchema": CreateMonitoringFolderRequestSchema,
         "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateMonitoringFolderBodyRequestSchema)
     parameters_schema = CreateMonitoringFolderRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
@@ -142,6 +201,7 @@ class DeleteMonitoringFolder(ProviderMonitoringFolder):
     description = "Delete monitoring folder"
     definitions = {"CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
@@ -154,48 +214,80 @@ class SendMonitoringFolderActionParamsDashboardRequestSchema(Schema):
     dashboard_folder_from = fields.String(
         required=False,
         allow_none=True,
-        example="default",
-        description="folder from copy dashboard",
+        metadata={
+            "example": 'default',
+            "description": 'folder from copy dashboard',
+        },
     )
+
     dashboard_to_search = fields.String(
         required=True,
-        example="dashboard-to-search",
-        description="dashboard name to add",
+        metadata={
+            "example": 'dashboard-to-search',
+            "description": 'dashboard name to add',
+        },
     )
-    dash_tag = fields.String(required=False, allow_none=True, example="abc,def", description="tags dashboard")
+
+    dash_tag = fields.String(
+        required=False,
+        allow_none=True,
+        metadata={
+            "example": 'abc,def',
+            "description": 'tags dashboard',
+        },
+    )
+
     organization = fields.String(
         required=False,
-        example="organization",
-        description="organization to replace in dashboard",
+        metadata={
+            "example": 'organization',
+            "description": 'organization to replace in dashboard',
+        },
     )
+
     division = fields.String(
         required=False,
-        example="division",
-        description="division to replace in dashboard",
+        metadata={
+            "example": 'division',
+            "description": 'division to replace in dashboard',
+        },
     )
-    account = fields.String(required=False, example="account", description="account to replace in dashboard")
+
+    account = fields.String(
+        required=False,
+        metadata={
+            "example": 'account',
+            "description": 'account to replace in dashboard',
+        },
+    )
 
 
 class SendMonitoringFolderActionParamsDeleteDashboardRequestSchema(Schema):
     dashboard_to_search = fields.String(
         required=True,
-        example="dashboard-to-search",
-        description="dashboard name to add",
+        metadata={
+            "example": 'dashboard-to-search',
+            "description": 'dashboard name to add',
+        },
     )
 
 
 class SendMonitoringFolderActionParamsPermissionRequestSchema(Schema):
-    # folder_id_from = fields.String(required=False, allow_none=True, example='default', description='folder from copy dashboard')
     team_viewer = fields.String(
         required=True,
-        example="team_01",
-        description="team viewer name to add permission",
+        metadata={
+            "example": 'team_01',
+            "description": 'team viewer name to add permission',
+        },
     )
+
     team_editor = fields.String(
         required=False,
         allow_none=True,
-        example="team_02",
-        description="team editor name to add permission",
+        metadata={
+            "example": 'team_02',
+            "description": 'team editor name to add permission',
+        },
     )
 
 
@@ -204,28 +296,42 @@ class SendMonitoringFolderActionParamsRequestSchema(Schema):
         SendMonitoringFolderActionParamsDashboardRequestSchema,
         required=False,
         allow_none=True,
-        description="add dashboard to folder",
+        metadata={
+            "description": 'add dashboard to folder',
+        },
     )
+
     delete_dashboard = fields.Nested(
         SendMonitoringFolderActionParamsDeleteDashboardRequestSchema,
         required=False,
         allow_none=True,
-        description="delete dashboard to folder",
+        metadata={
+            "description": 'delete dashboard to folder',
+        },
     )
+
     add_permission = fields.Nested(
         SendMonitoringFolderActionParamsPermissionRequestSchema,
         required=False,
         allow_none=True,
-        description="add permission to folder",
+        metadata={
+            "description": 'add permission to folder',
+        },
     )
 
 
 class SendMonitoringFolderActionRequestSchema(Schema):
-    action = fields.Nested(SendMonitoringFolderActionParamsRequestSchema, required=True)
+    action = fields.Nested(
+        SendMonitoringFolderActionParamsRequestSchema,
+        required=True,
+    )
+
     schedule = fields.Dict(
         required=False,
-        missing=None,
-        description="schedule to use when you want to run a scheduled action",
+        load_default=None,
+        metadata={
+            "description": 'schedule to use when you want to run a scheduled action',
+        },
     )
 
 
@@ -236,10 +342,12 @@ class SendMonitoringFolderActionBodyRequestSchema(GetApiObjectRequestSchema):
 class SendMonitoringFolderAction(ProviderMonitoringFolder):
     summary = "Send server action"
     description = "Send server action"
+
     definitions = {
         "SendMonitoringFolderActionRequestSchema": SendMonitoringFolderActionRequestSchema,
         "CrudApiTaskResponseSchema": CrudApiTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(SendMonitoringFolderActionBodyRequestSchema)
     parameters_schema = SendMonitoringFolderActionRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiTaskResponseSchema}})

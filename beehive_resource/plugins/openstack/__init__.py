@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from .controller import OpenstackContainer
 from beehive_resource.plugins.openstack.views.ops_system import OpenstackSystemAPI

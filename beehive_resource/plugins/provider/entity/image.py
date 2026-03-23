@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
+from typing import TYPE_CHECKING
 from beecell.simple import get_value
-
 # from beedrones.cmp.client import CmpApiManagerError
 from beehive.common.apimanager import ApiManagerError
 from beehive_resource.container import Resource
@@ -13,7 +13,9 @@ from beehive_resource.plugins.provider.entity.aggregate import ComputeProviderRe
 from beehive_resource.plugins.provider.entity.site import Site
 from beehive_resource.plugins.provider.entity.zone import AvailabilityZoneChildResource, AvailabilityZone
 from beehive_resource.plugins.vsphere.entity.vs_server import VsphereServer
-
+if TYPE_CHECKING:
+    from beehive_resource.controller import ResourceController
+    from beehive_resource.container import ResourceContainer
 
 class ComputeImage(ComputeProviderResource):
     """Compute image"""
@@ -57,7 +59,7 @@ class ComputeImage(ComputeProviderResource):
         return os_ver.split(".")[0]
 
     @staticmethod
-    def customize_list(controller, entities, *args, **kvargs):
+    def customize_list(controller: 'ResourceController', entities, *args, **kvargs):
         """Post list function. Extend this function to execute some operation after entity was created. Used only for
         synchronous creation.
 
@@ -89,18 +91,18 @@ class ComputeImage(ComputeProviderResource):
         )
 
         for entity in entities:
-            controller.logger.warn(entity.name)
-            controller.logger.warn(entity.oid)
             entity_resource_zones = resource_zones.get(entity.oid, [])
             for resource_zone in entity_resource_zones:
                 remote_entities2 = remote_entities.get(resource_zone.oid)
                 hypervisors = []
-                for remote_entity in remote_entities2:
-                    if remote_entity.objdef == OpenstackImage.objdef:
-                        hypervisors.append("openstack")
-                    elif remote_entity.objdef == VsphereServer.objdef:
-                        hypervisors.append("vsphere")
+                if remote_entities2 is not None:
+                    for remote_entity in remote_entities2:
+                        if remote_entity.objdef == OpenstackImage.objdef:
+                            hypervisors.append("openstack")
+                        elif remote_entity.objdef == VsphereServer.objdef:
+                            hypervisors.append("vsphere")
                 hypervisors.sort()
+                
                 temp = resource_zone.name.find("-avz")
                 site_id = int(resource_zone.name[temp + 4 :])
                 item = {"name": sites.get(site_id).name, "hypervisors": hypervisors}
@@ -143,7 +145,7 @@ class ComputeImage(ComputeProviderResource):
             self.availability_zones.append(item)
 
     @staticmethod
-    def pre_create(controller, container, *args, **kvargs):
+    def pre_create(controller: 'ResourceController', container: 'ResourceContainer', *args, **kvargs):
         """Check input params before resource creation. This function is used in container resource_factory method.
 
         :param kvargs.controller: resource controller instance
@@ -408,6 +410,12 @@ Don't delete image to avoid losing links to vm {self.oid} \
 
         return kvargs
 
+    def get_quotas(self):
+        quotas = {
+            "compute.images": 1
+        }
+        return quotas
+
 
 class Image(AvailabilityZoneChildResource):
     """Availability Zone Image"""
@@ -422,7 +430,7 @@ class Image(AvailabilityZoneChildResource):
         AvailabilityZoneChildResource.__init__(self, *args, **kvargs)
 
     @staticmethod
-    def pre_create(controller, container, *args, **kvargs):
+    def pre_create(controller: 'ResourceController', container: 'ResourceContainer', *args, **kvargs):
         """Check input kvargs before resource creation. This function is used
         in container resource_factory method.
 
@@ -583,3 +591,4 @@ class Image(AvailabilityZoneChildResource):
         if tot > 0:
             return res[0]
         return None
+

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_resource.plugins.vsphere.entity.vs_datastore import VsphereDatastore
 from beehive_resource.plugins.vsphere.views import VsphereAPI, VsphereApiView
@@ -30,7 +30,12 @@ class ListDatastoresParamsResponseSchema(ResourceResponseSchema):
 
 
 class ListDatastoresResponseSchema(PaginatedResponseSchema):
-    datastores = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
+    datastores = fields.Nested(
+        ResourceResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListDatastores(VsphereDatastoreApiView):
@@ -51,7 +56,11 @@ class ListDatastores(VsphereDatastoreApiView):
 
 ## get
 class GetDatastoreResponseSchema(Schema):
-    datastore = fields.Nested(ResourceResponseSchema, required=True, allow_none=True)
+    datastore = fields.Nested(
+        ResourceResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetDatastore(VsphereDatastoreApiView):

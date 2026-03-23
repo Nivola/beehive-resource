@@ -1,16 +1,19 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
+from beehive_resource.plugins.vsphere.controller import VsphereContainer
 from beehive_resource.plugins.vsphere.entity.nsx_dfw import NsxDfw
 from beehive_resource.plugins.vsphere.views import VsphereAPI, VsphereApiView
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
+
 from beehive.common.apimanager import (
     SwaggerApiView,
     ApiManagerError,
     CrudApiJobResponseSchema,
 )
+
 from re import match
 
 
@@ -23,65 +26,206 @@ class NsxDfwApiView(VsphereApiView):
 class GetContainerRequestSchema(Schema):
     container = fields.String(
         required=True,
-        example="12",
-        description="Container id, uuid or name",
         context="query",
+        metadata={
+            "example": '12',
+            "description": 'Container id, uuid or name',
+        },
     )
 
 
 class RuleResponseSchema(Schema):
-    disabled = fields.String(required=True, example="false")
-    id = fields.String(required=True, example="133069")
-    logged = fields.String(required=True, example="false")
-    action = fields.String(required=True, example="allow")
+    disabled = fields.String(
+        required=True,
+        metadata={
+            "example": 'false',
+        },
+    )
+
+    id = fields.String(
+        required=True,
+        metadata={
+            "example": '133069',
+        },
+    )
+
+    logged = fields.String(
+        required=True,
+        metadata={
+            "example": 'false',
+        },
+    )
+
+    action = fields.String(
+        required=True,
+        metadata={
+            "example": 'allow',
+        },
+    )
+
     appliedToList = fields.Dict(required=False)
     sources = fields.Dict(required=False)
     destinations = fields.Dict(required=False)
-    direction = fields.String(required=True, example="inout")
-    name = fields.String(required=True, example="prova_section-rule-01")
-    packetType = fields.String(required=True, example="any")
-    precedence = fields.String(required=False, example="example")
-    sectionId = fields.String(required=False, example="1024")
+
+    direction = fields.String(
+        required=True,
+        metadata={
+            "example": 'inout',
+        },
+    )
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'prova_section-rule-01',
+        },
+    )
+
+    packetType = fields.String(
+        required=True,
+        metadata={
+            "example": 'any',
+        },
+    )
+
+    precedence = fields.String(
+        required=False,
+        metadata={
+            "example": 'example',
+        },
+    )
+
+    sectionId = fields.String(
+        required=False,
+        metadata={
+            "example": '1024',
+        },
+    )
 
 
 class SectionResponseSchema(Schema):
-    generationNumber = fields.String(required=True, example="1459337065205")
-    id = fields.String(required=True, example="1024")
-    name = fields.String(required=True, example="prova_section")
-    timestamp = fields.String(required=True, example="1459337065205")
-    type = fields.String(required=True, example="LAYER3")
-    rules = fields.Nested(RuleResponseSchema, required=True, allow_none=True, many=True)
+    generationNumber = fields.String(
+        required=True,
+        metadata={
+            "example": '1459337065205',
+        },
+    )
+
+    id = fields.String(
+        required=True,
+        metadata={
+            "example": '1024',
+        },
+    )
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'prova_section',
+        },
+    )
+
+    timestamp = fields.String(
+        required=True,
+        metadata={
+            "example": '1459337065205',
+        },
+    )
+
+    type = fields.String(
+        required=True,
+        metadata={
+            "example": 'LAYER3',
+        },
+    )
+
+    rules = fields.Nested(
+        RuleResponseSchema,
+        required=True,
+        allow_none=True,
+        many=True,
+    )
 
 
 class ServiceResponseSchema(Schema):
-    id = fields.String(required=True, example="application-5")
-    name = fields.String(required=True, example="OC4J Forms / Reports Instance (8889)")
-    ports = fields.String(required=True, example="8889", allow_none=True)
-    proto = fields.String(required=True, example="TCP")
+    id = fields.String(
+        required=True,
+        metadata={
+            "example": 'application-5',
+        },
+    )
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'OC4J Forms / Reports Instance (8889)',
+        },
+    )
+
+    ports = fields.String(
+        required=True,
+        allow_none=True,
+        metadata={
+            "example": '8889',
+        },
+    )
+
+    proto = fields.String(
+        required=True,
+        metadata={
+            "example": 'TCP',
+        },
+    )
 
 
 class GetDfwConfigResponseSchema(Schema):
-    timestamp = fields.String(required=True, example="1457281010450")
-    contextId = fields.String(required=True, example="globalroot-0")
-    generationNumber = fields.String(required=True, example="1459337065205")
-    layer2Sections = fields.List(fields.Dict, required=True)
-    layer3RedirectSections = fields.List(fields.Dict, required=True)
-    layer3Sections = fields.List(fields.Dict, required=True)
+    timestamp = fields.String(
+        required=True,
+        metadata={
+            "example": '1457281010450',
+        },
+    )
+
+    contextId = fields.String(
+        required=True,
+        metadata={
+            "example": 'globalroot-0',
+        },
+    )
+
+    generationNumber = fields.String(
+        required=True,
+        metadata={
+            "example": '1459337065205',
+        },
+    )
+
+    layer2Sections = fields.List(
+        fields.Dict,
+        required=True,
+    )
+
+    layer3RedirectSections = fields.List(
+        fields.Dict,
+        required=True,
+    )
+
+    layer3Sections = fields.List(
+        fields.Dict,
+        required=True,
+    )
 
 
 class GetDfwConfig(NsxDfwApiView):
     """TODO gestire schema per section"""
 
-    definitions = {
-        "GetDfwConfigResponseSchema": GetDfwConfigResponseSchema,
-    }
+    definitions = {"GetDfwConfigResponseSchema": GetDfwConfigResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetContainerRequestSchema)
     parameters_schema = GetContainerRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetDfwConfigResponseSchema}})
 
     def get(self, controller, data, *args, **kwargs):
         """
-        Get dfw configuration
         Get dfw configuration
         """
         cid = data.get("container")
@@ -92,14 +236,21 @@ class GetDfwConfig(NsxDfwApiView):
 
 
 class GetDfwSectionRequestSchema(GetContainerRequestSchema):
-    sid = fields.String(required=True, description="Section id", context="path")
-    level = fields.String(required=True, description="Section type: l2, l3, l3r", context="path")
+    sid = fields.String(
+        required=True,
+        context="path",
+        metadata={"description": 'Section id'},
+    )
+
+    level = fields.String(
+        required=True,
+        context="path",
+        metadata={"description": 'Section type: l2, l3, l3r'},
+    )
 
 
 class GetDfwSection(NsxDfwApiView):
-    definitions = {
-        "SectionResponseSchema": SectionResponseSchema,
-    }
+    definitions = {"SectionResponseSchema": SectionResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetDfwSectionRequestSchema)
     parameters_schema = GetContainerRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": SectionResponseSchema}})
@@ -120,28 +271,50 @@ class GetDfwSection(NsxDfwApiView):
 
 
 class CreateDfwSectionParamRequestSchema(Schema):
-    container = fields.String(required=True, example="12", description="Container id, uuid or name")
-    name = fields.String(required=True, example="test")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'Container id, uuid or name',
+        },
+    )
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+        },
+    )
+
     action = fields.String(
         required=False,
-        example="allow",
-        default="allow",
-        description="Action value. Ie: allow, deny, reject",
+        metadata={
+            "example": 'allow',
+            "description": 'Action value. Ie: allow, deny, reject',
+        },
     )
+
     logged = fields.String(
         required=False,
-        example="true",
-        default="true",
-        description="If True rule is logged",
+        metadata={
+            "example": 'true',
+            "description": 'If True rule is logged',
+        },
     )
 
 
 class CreateDfwSectionRequestSchema(Schema):
-    dfw_section = fields.Nested(CreateDfwSectionParamRequestSchema, required=True)
+    dfw_section = fields.Nested(
+        CreateDfwSectionParamRequestSchema,
+        required=True,
+    )
 
 
 class CreateDfwSectionBodyRequestSchema(Schema):
-    body = fields.Nested(CreateDfwSectionRequestSchema, context="body")
+    body = fields.Nested(
+        CreateDfwSectionRequestSchema,
+        context="body",
+    )
 
 
 class CreateDfwSection(NsxDfwApiView):
@@ -149,6 +322,7 @@ class CreateDfwSection(NsxDfwApiView):
         "CreateDfwSectionRequestSchema": CreateDfwSectionRequestSchema,
         "CrudApiJobResponseSchema": CrudApiJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateDfwSectionBodyRequestSchema)
     parameters_schema = CreateDfwSectionRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiJobResponseSchema}})
@@ -168,16 +342,35 @@ class CreateDfwSection(NsxDfwApiView):
 
 
 class DeleteDfwSectionParamRequestSchema(Schema):
-    container = fields.String(required=True, example="12", description="Container id, uuid or name")
-    sectionid = fields.String(required=True, example=12, description="section id")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'Container id, uuid or name',
+        },
+    )
+
+    sectionid = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'section id',
+        },
+    )
 
 
 class DeleteDfwSectionRequestSchema(Schema):
-    dfw_section = fields.Nested(DeleteDfwSectionParamRequestSchema, required=True)
+    dfw_section = fields.Nested(
+        DeleteDfwSectionParamRequestSchema,
+        required=True,
+    )
 
 
 class DeleteDfwSectionBodyRequestSchema(Schema):
-    body = fields.Nested(DeleteDfwSectionRequestSchema, context="body")
+    body = fields.Nested(
+        DeleteDfwSectionRequestSchema,
+        context="body",
+    )
 
 
 class DeleteDfwSection(NsxDfwApiView):
@@ -185,6 +378,7 @@ class DeleteDfwSection(NsxDfwApiView):
         "DeleteDfwSectionRequestSchema": DeleteDfwSectionRequestSchema,
         "CrudApiJobResponseSchema": CrudApiJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(DeleteDfwSectionBodyRequestSchema)
     parameters_schema = DeleteDfwSectionRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiJobResponseSchema}})
@@ -199,12 +393,30 @@ class DeleteDfwSection(NsxDfwApiView):
 
 
 class GetDfwRuleRequestSchema(GetContainerRequestSchema):
-    sid = fields.String(required=True, description="Section id", context="path")
-    rid = fields.String(required=True, description="Rule id", context="path")
+    sid = fields.String(
+        required=True,
+        context="path",
+        metadata={
+            "description": 'Section id',
+        },
+    )
+
+    rid = fields.String(
+        required=True,
+        context="path",
+        metadata={
+            "description": 'Rule id',
+        },
+    )
 
 
 class GetDfwRuleResponseSchema(Schema):
-    rule = fields.Nested(RuleResponseSchema, required=True, allow_none=True, many=False)
+    rule = fields.Nested(
+        RuleResponseSchema,
+        required=True,
+        allow_none=True,
+        many=False,
+    )
 
 
 class GetDfwRule(NsxDfwApiView):
@@ -212,6 +424,7 @@ class GetDfwRule(NsxDfwApiView):
         "GetDfwRuleRequestSchema": GetDfwRuleRequestSchema,
         "GetDfwRuleResponseSchema": GetDfwRuleResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(GetDfwRuleRequestSchema)
     parameters_schema = GetContainerRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetDfwRuleResponseSchema}})
@@ -225,25 +438,93 @@ class GetDfwRule(NsxDfwApiView):
 
 
 class CreateDfwRuleParamRequestSchema(Schema):
-    container = fields.String(required=True, example="12", description="Container id, uuid or name")
-    sectionid = fields.String(required=True, example="1024")
-    name = fields.String(required=True, example="prova_section-rule-01")
-    action = fields.String(required=True, example="allow")
-    direction = fields.String(required=True, example="inout", description="rule direction: in, out, inout")
-    logged = fields.String(required=False, example="true", default="true")
-    sources = fields.List(fields.Dict, required=False, allow_none=True)
-    destinations = fields.List(fields.Dict, required=False, allow_none=True)
-    services = fields.Raw(required=False, allow_none=True)
-    appliedto = fields.List(fields.Dict, required=False, allow_none=True)
-    precedence = fields.String(required=False, example="default", default="default")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'Container id, uuid or name',
+        },
+    )
+
+    sectionid = fields.String(
+        required=True,
+        metadata={
+            "example": '1024',
+        },
+    )
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'prova_section-rule-01',
+        },
+    )
+
+    action = fields.String(
+        required=True,
+        metadata={
+            "example": 'allow',
+        },
+    )
+
+    direction = fields.String(
+        required=True,
+        metadata={
+            "example": 'inout',
+            "description": 'rule direction: in, out, inout',
+        },
+    )
+
+    logged = fields.String(
+        required=False,
+        metadata={
+            "example": 'true',
+        },
+    )
+
+    sources = fields.List(
+        fields.Dict,
+        required=False,
+        allow_none=True,
+    )
+
+    destinations = fields.List(
+        fields.Dict,
+        required=False,
+        allow_none=True,
+    )
+
+    services = fields.Raw(
+        required=False,
+        allow_none=True,
+    )
+
+    appliedto = fields.List(
+        fields.Dict,
+        required=False,
+        allow_none=True,
+    )
+
+    precedence = fields.String(
+        required=False,
+        metadata={
+            "example": 'default',
+        },
+    )
 
 
 class CreateDfwRuleRequestSchema(Schema):
-    dfw_rule = fields.Nested(CreateDfwRuleParamRequestSchema, required=True)
+    dfw_rule = fields.Nested(
+        CreateDfwRuleParamRequestSchema,
+        required=True,
+    )
 
 
 class CreateDfwRuleBodyRequestSchema(Schema):
-    body = fields.Nested(CreateDfwRuleRequestSchema, context="body")
+    body = fields.Nested(
+        CreateDfwRuleRequestSchema,
+        context="body",
+    )
 
 
 class CreateDfwRule(NsxDfwApiView):
@@ -251,13 +532,13 @@ class CreateDfwRule(NsxDfwApiView):
         "CreateDfwRuleRequestSchema": CreateDfwRuleRequestSchema,
         "CrudApiJobResponseSchema": CrudApiJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateDfwRuleBodyRequestSchema)
     parameters_schema = CreateDfwRuleRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiJobResponseSchema}})
 
     def post(self, controller, data, *args, **kwargs):
         """
-        Create new rule
         Create new rule
         <p>- **action** (optional): action value. Ex: allow, deny, reject</p>
         <p>- **logged** (example=true): If 'true' rule is logged</p>
@@ -300,42 +581,83 @@ class CreateDfwRule(NsxDfwApiView):
 
 
 class UpdateDfwRuleParamRequestSchema(Schema):
-    container = fields.String(required=True, example="12", description="Container id, uuid or name")
-    sectionid = fields.String(required=True, example=1024, description="section id")
-    ruleid = fields.String(required=True, example=1024, description="rule id")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'Container id, uuid or name',
+        },
+    )
+
+    sectionid = fields.String(
+        required=True,
+        metadata={
+            "example": '1024',
+            "description": 'section id',
+        },
+    )
+
+    ruleid = fields.String(
+        required=True,
+        metadata={
+            "example": '1024',
+            "description": 'rule id',
+        },
+    )
+
     ruleafter = fields.String(
         required=False,
-        example=1024,
-        description="rule id, put rule after this. Use with move=True",
+        metadata={
+            "example": '1024',
+            "description": 'rule id, put rule after this. Use with move=True',
+        },
     )
+
     name = fields.String(
         required=False,
-        example="prova_section-rule-01",
-        description="rule name. Use with move=False",
+        metadata={
+            "example": 'prova_section-rule-01',
+            "description": 'rule name. Use with move=False',
+        },
     )
+
     action = fields.String(
         required=False,
-        example="allow",
-        description="action value. Ie: allow, deny, reject. Use with move=False",
+        metadata={
+            "example": 'allow',
+            "description": 'action value. Ie: allow, deny, reject. Use with move=False',
+        },
     )
+
     disable = fields.Boolean(
         required=False,
-        example=True,
-        description="True if rule is disabled. Use with move=False",
+        metadata={
+            "example": True,
+            "description": 'True if rule is disabled. Use with move=False',
+        },
     )
+
     move = fields.Boolean(
         required=False,
-        example=True,
-        description='True if rule must be moved after "ruleafter"',
+        metadata={
+            "example": True,
+            "description": 'True if rule must be moved after "ruleafter"',
+        },
     )
 
 
 class UpdateDfwRuleRequestSchema(Schema):
-    dfw_rule = fields.Nested(UpdateDfwRuleParamRequestSchema, required=True)
+    dfw_rule = fields.Nested(
+        UpdateDfwRuleParamRequestSchema,
+        required=True,
+    )
 
 
 class UpdateDfwRuleBodyRequestSchema(Schema):
-    body = fields.Nested(UpdateDfwRuleRequestSchema, context="body")
+    body = fields.Nested(
+        UpdateDfwRuleRequestSchema,
+        context="body",
+    )
 
 
 class UpdateDfwRule(NsxDfwApiView):
@@ -343,13 +665,13 @@ class UpdateDfwRule(NsxDfwApiView):
         "UpdateDfwRuleRequestSchema": UpdateDfwRuleRequestSchema,
         "CrudApiJobResponseSchema": CrudApiJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateDfwRuleBodyRequestSchema)
     parameters_schema = UpdateDfwRuleRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiJobResponseSchema}})
 
     def put(self, controller, data, *args, **kwargs):
         """
-        Update / move rule
         Update / move rule
 
         Update
@@ -377,9 +699,27 @@ class UpdateDfwRule(NsxDfwApiView):
 
 
 class DeleteDfwRuleParamRequestSchema(Schema):
-    container = fields.String(required=True, example="12", description="Container id, uuid or name")
-    sectionid = fields.String(required=True, example=1024)
-    ruleid = fields.String(required=True, example=102434)
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'Container id, uuid or name',
+        },
+    )
+
+    sectionid = fields.String(
+        required=True,
+        metadata={
+            "example": '1024',
+        },
+    )
+
+    ruleid = fields.String(
+        required=True,
+        metadata={
+            "example": '102434',
+        },
+    )
 
 
 class DeleteDfwRuleRequestSchema(Schema):
@@ -395,6 +735,7 @@ class DeleteDfwRule(NsxDfwApiView):
         "DeleteDfwRuleRequestSchema": DeleteDfwRuleRequestSchema,
         "CrudApiJobResponseSchema": CrudApiJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(DeleteDfwRuleBodyRequestSchema)
     parameters_schema = DeleteDfwRuleRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiJobResponseSchema}})
@@ -402,12 +743,11 @@ class DeleteDfwRule(NsxDfwApiView):
     def delete(self, controller, data, *args, **kwargs):
         """
         Delete rule
-        Delete rule
         """
         data = data.get("dfw_rule")
         cid = data.get("container")
-        container = controller.get_container(cid)
-        dfw = container.get_nsx_dfw()
+        container: VsphereContainer = controller.get_container(cid)
+        dfw: NsxDfw = container.get_nsx_dfw()
         res = dfw.delete_rule(data)
         return res
 
@@ -417,11 +757,10 @@ class GetDfwExclusionListResponseSchema(Schema):
 
 
 class GetDfwExclusionList(NsxDfwApiView):
-    definitions = {
-        "GetDfwExclusionListResponseSchema": GetDfwExclusionListResponseSchema,
-    }
+    definitions = {"GetDfwExclusionListResponseSchema": GetDfwExclusionListResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetContainerRequestSchema)
     parameters_schema = GetContainerRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": GetDfwExclusionListResponseSchema}}
     )
@@ -435,15 +774,19 @@ class GetDfwExclusionList(NsxDfwApiView):
 
 
 class GetDfwServiceListResponseSchema(Schema):
-    dfw_services = fields.Nested(ServiceResponseSchema, many=True, required=True, allow_none=True)
+    dfw_services = fields.Nested(
+        ServiceResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetDfwServiceList(NsxDfwApiView):
-    definitions = {
-        "GetDfwServiceListResponseSchema": GetDfwServiceListResponseSchema,
-    }
+    definitions = {"GetDfwServiceListResponseSchema": GetDfwServiceListResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetContainerRequestSchema)
     parameters_schema = GetContainerRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": GetDfwServiceListResponseSchema}}
     )
@@ -461,16 +804,29 @@ class GetDfwServiceList(NsxDfwApiView):
 
 
 class GetDfwServiceResponseSchema(Schema):
-    dfw_service = fields.Nested(ServiceResponseSchema, required=True, allow_none=True)
+    dfw_service = fields.Nested(
+        ServiceResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetDfwServiceRequestSchema(GetContainerRequestSchema):
-    proto = fields.String(required=True, context="path", description="Protocol: TCP, UDP, ICMP")
+    proto = fields.String(
+        required=True,
+        context="path",
+        metadata={
+            "description": 'Protocol: TCP, UDP, ICMP',
+        },
+    )
+
     ports = fields.String(
         required=True,
         context="path",
         allow_none=True,
-        description="Ports. Ex. 80, 8080, 7200,7210,7269,7270,7575, 9000-9100",
+        metadata={
+            "description": 'Ports. Ex. 80, 8080, 7200,7210,7269,7270,7575, 9000-9100',
+        },
     )
 
 
@@ -479,13 +835,13 @@ class GetDfwService(NsxDfwApiView):
         "GetDfwServiceResponseSchema": GetDfwServiceResponseSchema,
         "GetDfwServiceRequestSchema": GetDfwServiceRequestSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(GetDfwServiceRequestSchema)
     parameters_schema = GetContainerRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetDfwServiceResponseSchema}})
 
     def get(self, controller, data, proto, ports, *args, **kwargs):
         """
-        Get dfw service
         Get dfw service
         """
         cid = data.get("container")
@@ -496,15 +852,42 @@ class GetDfwService(NsxDfwApiView):
 
 
 class CreateDfwServiceParamRequestSchema(Schema):
-    container = fields.String(required=True, example="12", description="Container id, uuid or name")
-    proto = fields.String(required=True, example="protocol. Ex. TCP, UDP, ICMP, ..")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'Container id, uuid or name',
+        },
+    )
+
+    proto = fields.String(
+        required=True,
+        metadata={
+            "example": 'protocol. Ex. TCP, UDP, ICMP, ..',
+        },
+    )
+
     ports = fields.String(
         required=True,
-        example="80, 8080, 7200, 7210, 7269, 7270, 7575, 9000-9100",
         allow_none=True,
+        metadata={
+            "example": '80, 8080, 7200, 7210, 7269, 7270, 7575, 9000-9100',
+        },
     )
-    name = fields.String(required=True, example="test-service")
-    desc = fields.String(required=True, example="test-service")
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test-service',
+        },
+    )
+
+    desc = fields.String(
+        required=True,
+        metadata={
+            "example": 'test-service',
+        },
+    )
 
 
 class CreateDfwServiceRequestSchema(Schema):
@@ -516,7 +899,12 @@ class CreateDfwServiceBodyRequestSchema(Schema):
 
 
 class CreateDfwServiceResponseSchema(Schema):
-    id = fields.String(resuired=True, example="test-service")
+    id = fields.String(
+        required=True,
+        metadata={
+            "example": 'test-service',
+        },
+    )
 
 
 class CreateDfwService(NsxDfwApiView):
@@ -524,6 +912,7 @@ class CreateDfwService(NsxDfwApiView):
         "CreateDfwServiceRequestSchema": CreateDfwServiceRequestSchema,
         "CreateDfwServiceResponseSchema": CreateDfwServiceResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateDfwServiceBodyRequestSchema)
     parameters_schema = CreateDfwServiceRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": CreateDfwServiceResponseSchema}})
@@ -542,8 +931,21 @@ class CreateDfwService(NsxDfwApiView):
 
 
 class DeleteDfwServiceParamsRequestSchema(Schema):
-    container = fields.String(required=True, example="12", description="Container id, uuid or name")
-    id = fields.String(required=True, example=12, description="service id")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'Container id, uuid or name',
+        },
+    )
+
+    id = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'service id',
+        },
+    )
 
 
 class DeleteDfwServiceRequestSchema(Schema):
@@ -555,9 +957,7 @@ class DeleteDfwServiceBodyRequestSchema(Schema):
 
 
 class DeleteDfwService(NsxDfwApiView):
-    definitions = {
-        "DeleteDfwServiceRequestSchema": DeleteDfwServiceRequestSchema,
-    }
+    definitions = {"DeleteDfwServiceRequestSchema": DeleteDfwServiceRequestSchema}
     parameters = SwaggerHelper().get_parameters(DeleteDfwServiceBodyRequestSchema)
     parameters_schema = DeleteDfwServiceRequestSchema
     responses = SwaggerApiView.setResponses(

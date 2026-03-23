@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
@@ -8,6 +8,7 @@ from beehive.common.apimanager import (
     GetApiObjectRequestSchema,
     CrudApiObjectJobResponseSchema,
 )
+
 from beehive_resource.plugins.openstack.entity.ops_network import OpenstackNetwork
 from beehive_resource.plugins.openstack.entity.ops_subnet import OpenstackSubnet
 from beehive_resource.plugins.openstack.views import OpenstackAPI, OpenstackApiView
@@ -28,15 +29,29 @@ class ListSubnetsRequestSchema(ListResourcesRequestSchema):
     cidr = fields.String(
         required=False,
         context="query",
-        example="10.102.10.0/24",
-        description="subnet cidr",
+        metadata={
+            "example": '10.102.10.0/24',
+            "description": 'subnet cidr',
+        },
     )
+
     network = fields.String(
+        context="query",
         required=False,
-        example="a0304c3a-4f08-4c43-88af-d796509c97d2",
-        description="Network id or uuid",
+        metadata={
+            "example": 'a0304c3a-4f08-4c43-88af-d796509c97d2',
+            "description": 'Network id or uuid',
+        },
     )
-    gateway_ip = fields.String(required=False, example="10.102.10.1", description="ip of the gateway")
+
+    gateway_ip = fields.String(
+        context="query",
+        required=False,
+        metadata={
+            "example": '10.102.10.1',
+            "description": 'ip of the gateway',
+        },
+    )
 
     @validates_schema
     def validate_subnets(self, data, *args, **kvargs):
@@ -56,16 +71,13 @@ class ListSubnetsResponseSchema(PaginatedResponseSchema):
 
 class ListSubnets(OpenstackSubnetApiView):
     tags = ["openstack"]
-    definitions = {
-        "ListSubnetsResponseSchema": ListSubnetsResponseSchema,
-    }
+    definitions = {"ListSubnetsResponseSchema": ListSubnetsResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListSubnetsRequestSchema)
     parameters_schema = ListSubnetsRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListSubnetsResponseSchema}})
 
     def get(self, controller, data, *args, **kwargs):
         """
-        List subnet
         List subnet
         """
         return self.get_resources(controller, **data)
@@ -77,85 +89,160 @@ class GetSubnetResponseSchema(Schema):
 
 class GetSubnet(OpenstackSubnetApiView):
     tags = ["openstack"]
-    definitions = {
-        "GetSubnetResponseSchema": GetSubnetResponseSchema,
-    }
+    definitions = {"GetSubnetResponseSchema": GetSubnetResponseSchema,}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetSubnetResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
         Get subnet
-        Get subnet
         """
         return self.get_resource(controller, oid)
 
 
 class CreateSubnetAllocationPoolRequestSchema(Schema):
-    start = fields.String(example="10.102.10.2", required=True, description="start ip")
-    end = fields.String(example="10.102.10.13", required=True, description="end ip")
+    start = fields.String(
+        required=True,
+        metadata={
+            "example": '10.102.10.2',
+            "description": 'start ip',
+        },
+    )
+
+    end = fields.String(
+        required=True,
+        metadata={
+            "example": '10.102.10.13',
+            "description": 'end ip',
+        },
+    )
 
 
 class CreateSubnetRouteRequestSchema(Schema):
-    destination = fields.String(example="0.0.0.0/0", required=True, description="destination")
-    nexthop = fields.String(example="123.45.67.89", required=True, description="nexthop")
+    destination = fields.String(
+        required=True,
+        metadata={
+            "example": '0.0.0.0/0',
+            "description": 'destination',
+        },
+    )
+
+    nexthop = fields.String(
+        required=True,
+        metadata={
+            "example": '123.45.67.89',
+            "description": 'nexthop',
+        },
+    )
 
 
 class CreateSubnetParamRequestSchema(Schema):
-    container = fields.String(required=True, example="12", description="container id, uuid or name")
-    name = fields.String(required=True, default="test")
-    desc = fields.String(required=True, default="test")
-    tags = fields.String(default="")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'container id, uuid or name',
+        },
+    )
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+        },
+    )
+
+    desc = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+        },
+    )
+
+    tags = fields.String()
+
     project = fields.String(
-        default="",
         required=True,
-        example="a0304c3a-4f08-4c43-88af-d796509c97d2",
-        description="Project id or uuid",
+        metadata={
+            "example": 'a0304c3a-4f08-4c43-88af-d796509c97d2',
+            "description": 'Project id or uuid',
+        },
     )
+
     network = fields.String(
-        default="",
         required=True,
-        example="a0304c3a-4f08-4c43-88af-d796509c97d2",
-        description="Network id or uuid",
+        metadata={
+            "example": 'a0304c3a-4f08-4c43-88af-d796509c97d2',
+            "description": 'Network id or uuid',
+        },
     )
+
     gateway_ip = fields.String(
-        example="10.102.10.1",
         required=False,
         allow_none=True,
-        description="ip of the gateway",
+        metadata={
+            "example": '10.102.10.1',
+            "description": 'ip of the gateway',
+        },
     )
-    cidr = fields.String(default="", required=True, example="10.102.10.0/24", description="network cidr")
+
+    cidr = fields.String(
+        required=True,
+        metadata={
+            "example": '10.102.10.0/24',
+            "description": 'network cidr',
+        },
+    )
+
     allocation_pools = fields.Nested(
         CreateSubnetAllocationPoolRequestSchema,
         required=False,
         many=True,
         allow_none=True,
-        description="list of start and end ip of a pool",
+        metadata={
+            "description": 'list of start and end ip of a pool',
+        },
     )
+
     enable_dhcp = fields.Boolean(
         required=True,
-        example=True,
-        description="Set to true if DHCP is enabled and false " "if DHCP is disabled.",
+        metadata={
+            "example": True,
+            "description": 'Set to true if DHCP is enabled and false if DHCP is disabled.',
+        },
     )
+
     host_routes = fields.Nested(
         CreateSubnetRouteRequestSchema,
         required=False,
         many=True,
         allow_none=True,
-        description="A list of host route dictionaries for the subnet.",
+        metadata={
+            "description": 'A list of host route dictionaries for the subnet.',
+        },
     )
+
     dns_nameservers = fields.List(
-        fields.String(example="8.8.8.8"),
+        fields.String(example='8.8.8.8'),
         required=False,
         allow_none=True,
-        description="A list of DNS name servers for the subnet. Specify each name server "
-        "as an IP address and separate multiple entries with a space.",
+        metadata={
+            "description": (
+                'A list of DNS name servers for the subnet. Specify each name server as an IP address and separate'
+                'multiple entries with a space.'
+            ),
+        },
     )
+
     service_types = fields.String(
-        missing=None,
+        load_default=None,
         required=False,
-        example="compute:foo",
-        description="The service types associated with the subnet. Ex. " '"compute:nova", "compute:foo,compute:foo2"',
+        metadata={
+            "example": 'compute:foo',
+            "description": (
+                'The service types associated with the subnet. Ex. "compute:nova", "compute:foo,compute:foo2"'
+            ),
+        },
     )
 
 
@@ -169,10 +256,12 @@ class CreateSubnetBodyRequestSchema(Schema):
 
 class CreateSubnet(OpenstackSubnetApiView):
     tags = ["openstack"]
+
     definitions = {
         "CreateSubnetRequestSchema": CreateSubnetRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateSubnetBodyRequestSchema)
     parameters_schema = CreateSubnetRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
@@ -180,15 +269,28 @@ class CreateSubnet(OpenstackSubnetApiView):
     def post(self, controller, data, *args, **kwargs):
         """
         Create subnet
-        Create subnet
         """
         return self.create_resource(controller, data)
 
 
 class UpdateSubnetParamRequestSchema(Schema):
-    name = fields.String(default="test")
-    desc = fields.String(default="test")
-    enabled = fields.Boolean(default=True)
+    name = fields.String(
+        metadata={
+            "example": 'test',
+        },
+    )
+
+    desc = fields.String(
+        metadata={
+            "example": 'test',
+        },
+    )
+
+    enabled = fields.Boolean(
+        metadata={
+            "example": True,
+        },
+    )
 
 
 class UpdateSubnetRequestSchema(Schema):
@@ -201,17 +303,20 @@ class UpdateSubnetBodyRequestSchema(GetApiObjectRequestSchema):
 
 class UpdateSubnet(OpenstackSubnetApiView):
     tags = ["openstack"]
+
     definitions = {
         "UpdateSubnetRequestSchema": UpdateSubnetRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateSubnetBodyRequestSchema)
     parameters_schema = UpdateSubnetRequestSchema
-    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
+    responses = SwaggerApiView.setResponses({
+        202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}
+    })
 
     def put(self, controller, data, oid, *args, **kwargs):
         """
-        Update subnet
         Update subnet
         """
         return self.update_resource(controller, oid, data)

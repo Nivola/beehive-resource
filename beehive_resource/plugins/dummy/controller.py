@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_resource.container import Orchestrator, Resource
 
 
 def get_task(task_name):
-    return "%s.task_v2.%s" % (__name__.rstrip(".controller"), task_name)
+    return f"{__name__.removesuffix('.controller')}.task_v2.{task_name}"
 
 
 class DummyContainer(Orchestrator):

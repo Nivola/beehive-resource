@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
@@ -9,19 +9,23 @@ from beehive.common.apimanager import (
     GetApiObjectRequestSchema,
     CrudApiObjectJobResponseSchema,
 )
+
 from beehive_resource.plugins.provider.entity.flavor import ComputeFlavor
 from beehive_resource.plugins.provider.entity.zone import ComputeZone
+
 from beehive_resource.plugins.provider.views import (
     ProviderAPI,
     LocalProviderApiView,
     CreateProviderResourceRequestSchema,
     UpdateProviderResourceRequestSchema,
 )
+
 from beehive_resource.view import (
     ListResourcesRequestSchema,
     ResourceResponseSchema,
     ResourceSmallResponseSchema,
 )
+
 from flasgger import fields, Schema
 from marshmallow.validate import OneOf
 from beecell.swagger import SwaggerHelper
@@ -41,20 +45,22 @@ class ListFlavorsParamsResponseSchema(ResourceResponseSchema):
 
 
 class ListFlavorsResponseSchema(PaginatedResponseSchema):
-    flavors = fields.Nested(ListFlavorsParamsResponseSchema, many=True, required=True, allow_none=True)
+    flavors = fields.Nested(
+        ListFlavorsParamsResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListFlavors(ProviderFlavor):
-    definitions = {
-        "ListFlavorsResponseSchema": ListFlavorsResponseSchema,
-    }
+    definitions = {"ListFlavorsResponseSchema": ListFlavorsResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListFlavorsRequestSchema)
     parameters_schema = ListFlavorsRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListFlavorsResponseSchema}})
 
     def get(self, controller, data, *args, **kwargs):
         """
-        List flavors
         List flavors
 
         # - filter by: tags
@@ -87,15 +93,12 @@ class GetFlavorResponseSchema(Schema):
 
 
 class GetFlavor(ProviderFlavor):
-    definitions = {
-        "GetFlavorResponseSchema": GetFlavorResponseSchema,
-    }
+    definitions = {"GetFlavorResponseSchema": GetFlavorResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetFlavorResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
-        Get flavor
         Get flavor
 
         "attributes": {
@@ -111,17 +114,61 @@ class GetFlavor(ProviderFlavor):
 
 
 class CreateFlavorParamRequestSchema(CreateProviderResourceRequestSchema):
-    compute_zone = fields.String(required=True, example="1", description="parent compute zone id or uuid")
-    memory = fields.Integer(required=True, example=2048, description="size of ram in MB")
-    disk = fields.Integer(required=True, example="Centos", description="size of root disk in GB")
-    disk_iops = fields.Integer(required=True, example=100, description="root disk max iops")
-    vcpus = fields.Integer(required=True, example=2, description="number of virtual cpus")
-    bandwidth = fields.Integer(required=True, example=1000, description="network bandwidth")
+    compute_zone = fields.String(
+        required=True,
+        metadata={
+            "example": '1',
+            "description": 'parent compute zone id or uuid',
+        },
+    )
+
+    memory = fields.Integer(
+        required=True,
+        metadata={
+            "example": 2048,
+            "description": 'size of ram in MB',
+        },
+    )
+
+    disk = fields.Integer(
+        required=True,
+        metadata={
+            "example": 'Centos',
+            "description": 'size of root disk in GB',
+        },
+    )
+
+    disk_iops = fields.Integer(
+        required=True,
+        metadata={
+            "example": 100,
+            "description": 'root disk max iops',
+        },
+    )
+
+    vcpus = fields.Integer(
+        required=True,
+        metadata={
+            "example": 2,
+            "description": 'number of virtual cpus',
+        },
+    )
+
+    bandwidth = fields.Integer(
+        required=True,
+        metadata={
+            "example": 1000,
+            "description": 'network bandwidth',
+        },
+    )
+
     multi_avz = fields.Boolean(
-        example=False,
-        missing=True,
+        load_default=True,
         required=False,
-        description="Define if flavor must be deployed to work in all the availability zones",
+        metadata={
+            "example": False,
+            "description": 'Define if flavor must be deployed to work in all the availability zones',
+        },
     )
 
 
@@ -138,13 +185,13 @@ class CreateFlavor(ProviderFlavor):
         "CreateFlavorRequestSchema": CreateFlavorRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateFlavorBodyRequestSchema)
     parameters_schema = CreateFlavorRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def post(self, controller, data, *args, **kwargs):
         """
-        Create flavor
         Create flavor
         """
         return self.create_resource(controller, data)
@@ -153,36 +200,95 @@ class CreateFlavor(ProviderFlavor):
 class ImportFlavorTemplateRequestSchema(Schema):
     availability_zone = fields.String(
         required=True,
-        example="2995",
-        description="id, uuid or name of the site where is located the orchestrator",
+        metadata={
+            "example": '2995',
+            "description": 'id, uuid or name of the site where is located the orchestrator',
+        },
     )
-    orchestrator = fields.String(required=True, example="16", description="id, uuid of the orchestrator")
+
+    orchestrator = fields.String(
+        required=True,
+        metadata={
+            "example": '16',
+            "description": 'id, uuid of the orchestrator',
+        },
+    )
+
     orchestrator_type = fields.String(
         required=True,
-        example="openstack",
-        description="Orchestrator type. Can be openstack or vsphere",
-        validate=OneOf(["openstack", "vsphere"]),
+        validate=OneOf(['openstack', 'vsphere']),
+        metadata={
+            "example": 'openstack',
+            "description": 'Orchestrator type. Can be openstack or vsphere',
+        },
     )
+
     flavor_id = fields.String(
         required=False,
-        example="3328",
-        description="id of the flavor [only for openstack]",
+        metadata={
+            "example": '3328',
+            "description": 'id of the flavor [only for openstack]',
+        },
     )
 
 
 class ImportFlavorParamRequestSchema(CreateProviderResourceRequestSchema):
-    compute_zone = fields.String(required=True, example="1", description="parent compute zone id or uuid")
-    memory = fields.Integer(required=True, example=2048, description="size of ram in MB")
-    disk = fields.Integer(required=True, example="Centos", description="size of root disk in GB")
-    disk_iops = fields.Integer(required=True, example=100, description="root disk max iops")
-    vcpus = fields.Integer(required=True, example=2, description="number of virtual cpus")
-    bandwidth = fields.Integer(required=True, example=1000, description="network bandwidth")
+    compute_zone = fields.String(
+        required=True,
+        metadata={
+            "example": '1',
+            "description": 'parent compute zone id or uuid',
+        },
+    )
+
+    memory = fields.Integer(
+        required=True,
+        metadata={
+            "example": 2048,
+            "description": 'size of ram in MB',
+        },
+    )
+
+    disk = fields.Integer(
+        required=True,
+        metadata={
+            "example": 'Centos',
+            "description": 'size of root disk in GB',
+        },
+    )
+
+    disk_iops = fields.Integer(
+        required=True,
+        metadata={
+            "example": 100,
+            "description": 'root disk max iops',
+        },
+    )
+
+    vcpus = fields.Integer(
+        required=True,
+        metadata={
+            "example": 2,
+            "description": 'number of virtual cpus',
+        },
+    )
+
+    bandwidth = fields.Integer(
+        required=True,
+        metadata={
+            "example": 1000,
+            "description": 'network bandwidth',
+        },
+    )
+
     flavors = fields.Nested(
         ImportFlavorTemplateRequestSchema,
         required=True,
         many=True,
-        description="list of orchestrator flavors to link",
         allow_none=True,
+        metadata={
+            "description": 'list of orchestrator flavors to link',
+        },
     )
 
 
@@ -199,13 +305,13 @@ class ImportFlavor(ProviderFlavor):
         "ImportFlavorRequestSchema": ImportFlavorRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(ImportFlavorBodyRequestSchema)
     parameters_schema = ImportFlavorRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def post(self, controller, data, *args, **kwargs):
         """
-        Import flavor
         Import flavor
         """
         return self.create_resource(controller, data)
@@ -214,20 +320,35 @@ class ImportFlavor(ProviderFlavor):
 class UpdateFlavorTemplateRequestSchema(Schema):
     availability_zone = fields.String(
         required=True,
-        example="2995",
-        description="id, uuid or name of the site where is located the orchestrator",
+        metadata={
+            "example": '2995',
+            "description": 'id, uuid or name of the site where is located the orchestrator',
+        },
     )
-    orchestrator = fields.String(required=True, example="16", description="id, uuid of the orchestrator")
+
+    orchestrator = fields.String(
+        required=True,
+        metadata={
+            "example": '16',
+            "description": 'id, uuid of the orchestrator',
+        },
+    )
+
     orchestrator_type = fields.String(
         required=True,
-        example="openstack",
-        description="Orchestrator type. Can be openstack or vsphere",
-        validate=OneOf(["openstack", "vsphere"]),
+        validate=OneOf(['openstack', 'vsphere']),
+        metadata={
+            "example": 'openstack',
+            "description": 'Orchestrator type. Can be openstack or vsphere',
+        },
     )
+
     flavor_id = fields.String(
         required=False,
-        example="3328",
-        description="id of the flavor [only for openstack]",
+        metadata={
+            "example": '3328',
+            "description": 'id of the flavor [only for openstack]',
+        },
     )
 
 
@@ -236,8 +357,10 @@ class UpdateFlavorParamRequestSchema(UpdateProviderResourceRequestSchema):
         UpdateFlavorTemplateRequestSchema,
         required=False,
         many=True,
-        description="list of orchestrator flavors to link",
         allow_none=True,
+        metadata={
+            "description": 'list of orchestrator flavors to link',
+        },
     )
 
 
@@ -254,13 +377,13 @@ class UpdateFlavor(ProviderFlavor):
         "UpdateFlavorRequestSchema": UpdateFlavorRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateFlavorBodyRequestSchema)
     parameters_schema = UpdateFlavorRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def put(self, controller, data, oid, *args, **kwargs):
         """
-        Update flavor
         Update flavor
         """
         return self.update_resource(controller, oid, data)

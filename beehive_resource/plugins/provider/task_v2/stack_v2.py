@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
-
+# (C) Copyright 2018-2026 CSI-Piemonte
+from __future__ import annotations
 from re import match
-from six import ensure_str
+from beecell.util import ensure_str
 from beecell.simple import id_gen, dict_get
 from beehive.common.task_v2 import task_step, run_sync_task, TaskError
 from beehive_resource.model import ResourceState
@@ -14,6 +14,13 @@ from beehive_resource.plugins.provider.entity.stack_v2 import (
 )
 from beehive_resource.plugins.provider.task_v2 import AbstractProviderResourceTask
 from beehive_resource.plugins.provider.entity.volume import ComputeVolume
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    pass
+    from beehive_resource.plugins.provider.entity.instance import ComputeInstance
+
+    # from beehive_resource.plugins.provider.entity.stack_v2 import ComputeStackV2
 
 
 class StackV2Task(AbstractProviderResourceTask):
@@ -26,8 +33,12 @@ class StackV2Task(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def create_stack_actions_step(task, step_id, params, *args, **kvargs):
+    def create_stack_actions_step(task: StackV2Task, step_id: str, params: dict, *args, **kvargs):
         """Create stack action resource
+        for each actions in params create a resource of type ComputeStackAction
+        actions descrbe the actions to be done while crating the stack.
+
+        ComputeStackAction do not map any resource  end are actions to do.
 
         :param task: parent celery task
         :param str step_id: step id
@@ -47,7 +58,7 @@ class StackV2Task(AbstractProviderResourceTask):
             action["name"] = compute_stack.name + "-" + action["name"]
             action_resource, code = provider.resource_factory(ComputeStackAction, **action)
             res_uuid = action_resource["uuid"]
-            resource = task.get_simple_resource(res_uuid)
+            resource: ComputeStackAction = task.get_simple_resource(res_uuid)
             action["id"] = resource.oid
             resource.update_internal(active=False, state=ResourceState.PENDING)
             task.progress(step_id, msg="create stack %s action %s" % (oid, res_uuid))
@@ -57,22 +68,33 @@ class StackV2Task(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def run_stack_action_step(task, step_id, params, action_name, *args, **kvargs):
+    def run_stack_action_step(task: StackV2Task, step_id: str, params: dict, action_name: str, *args, **kvargs):
         """Run stack action
 
-        :param task: parent celery task
+        :param StackV2Task task:
         :param str step_id: step id
         :param action_name: action name
         :param dict params: step params
-        :return: resource_id, params
+        :return:
+
+
+        Args:
+            task (StackV2Task): parent celery task
+            step_id (str): setp id
+            params (dict): step params
+            action_name (str):action name
+
+        Returns: Tupla[str,dict]
+            resource_id the resource id created/imported/updated,
+            params the parameters dictionary
         """
         cid = params.get("cid")
         oid = params.get("id")
 
         provider = task.get_container(cid)
-        compute_stack = task.get_simple_resource(oid)
+        compute_stack: ComputeStackV2 = task.get_simple_resource(oid)
         compute_stack.set_container(provider)
-        stack_action = compute_stack.get_actions(name=action_name)
+        stack_action: ComputeStackAction = compute_stack.get_action_by_name(name=action_name)
         stack_action.set_container(provider)
 
         # change action state
@@ -91,13 +113,15 @@ class StackV2Task(AbstractProviderResourceTask):
         return resource_id, params
 
     @staticmethod
-    def exec_resource_operation(task, step_id, compute_stack, action, **params):
+    def exec_resource_operation(
+        task: StackV2Task, step_id: str, compute_stack: ComputeStackV2, action: ComputeStackAction, **params
+    ):
         """exec resource operation
 
-        :param task: parent celery task
-        :param step_id: step id
-        :param compute_stack: compute stack resource
-        :param action: action resource
+        :param StackV2Task: task: parent celery task
+        :param str: step_id: step id
+        :param ComputeStackV2: compute_stack: compute stack resource
+        :param ComputeStackAction: action: action resource
         :param dict params: step params
         :return: resource id, params
         """
@@ -197,7 +221,7 @@ class StackV2Task(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def set_stack_outputs_step(task, step_id, params, *args, **kvargs):
+    def set_stack_outputs_step(task: StackV2Task, step_id, params, *args, **kvargs):
         """Update stack outputs
 
         :param task: parent celery task
@@ -226,7 +250,7 @@ class StackV2Task(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def set_monitoring_step(task, step_id, params, *args, **kvargs):
+    def set_monitoring_step(task: StackV2Task, step_id, params, *args, **kvargs):
         """Update stack outputs
 
         :param task: parent celery task
@@ -274,7 +298,7 @@ class StackV2Task(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def add_stack_links_step(task, step_id, params, replica_master, *args, **kvargs):
+    def add_stack_links_step(task: StackV2Task, step_id, params, replica_master, *args, **kvargs):
         """Create links among the nodes of the replication system
 
         :param task: parent celery task
@@ -321,7 +345,7 @@ class StackV2Task(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def delete_stack_links_step(task, step_id, params, replica_master, *args, **kvargs):
+    def delete_stack_links_step(task: StackV2Task, step_id, params, replica_master, *args, **kvargs):
         """Delete links among the nodes of the replication system
 
         :param task: parent celery task
@@ -358,7 +382,7 @@ class StackV2Task(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def remove_stack_action_step(task, step_id, params, action_id, *args, **kvargs):
+    def remove_stack_action_step(task: StackV2Task, step_id, params, action_id, *args, **kvargs):
         """Remove stack action
 
         :param task: parent celery task
@@ -381,7 +405,7 @@ class StackV2Task(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def remove_stack_resource_step(task, step_id, params, action_id, *args, **kvargs):
+    def remove_stack_resource_step(task: StackV2Task, step_id, params: dict, action_id, *args, **kvargs):
         """Remove stack action resource
 
         :param task: parent celery task
@@ -417,6 +441,46 @@ class StackV2Task(AbstractProviderResourceTask):
 
         return action_id, params
 
+    @staticmethod
+    @task_step()
+    def remove_stack_action_step_by_name(task: StackV2Task, step_id, params, action_name, *args, **kvargs):
+        """wrap remove_stack_action_step identify action by  name
+
+        :param task: parent celery task
+        :param str step_id: step id
+        :param action_id: action id
+        :param dict params: step params
+        :return: action_id, params
+        """
+        # cid = params.get('cid')
+        oid = params.get("id")
+        # cid = params.get("cid")
+        # provider = task.get_container(cid)
+        compute_stack: ComputeStackV2 = task.get_simple_resource(oid)
+        # compute_stack.set_container(provider)
+        stack_action: ComputeStackAction = compute_stack.get_action_by_name(name=action_name)
+        return StackV2Task.remove_stack_action_step(task, step_id, params, stack_action.oid, *args, **kvargs)
+
+    @staticmethod
+    @task_step()
+    def remove_stack_resource_step_by_name(task: StackV2Task, step_id, params: dict, action_name, *args, **kvargs):
+        """wraps remove_stack_resource_step identifing action by name
+
+        :param task: parent celery task
+        :param str step_id: step id
+        :param action_id: str action name
+        :param dict params: step params
+        :return: action_id, params
+        """
+        # cid = params.get('cid')
+        oid = params.get("id")
+        # cid = params.get("cid")
+        # provider = task.get_container(cid)
+        compute_stack: ComputeStackV2 = task.get_simple_resource(oid)
+        # compute_stack.set_container(provider)
+        stack_action: ComputeStackAction = compute_stack.get_action_by_name(name=action_name)
+        return StackV2Task.remove_stack_resource_step(task, step_id, params, stack_action.oid, *args, **kvargs)
+
     #
     # Utility methods
     #
@@ -428,7 +492,7 @@ class StackV2Task(AbstractProviderResourceTask):
     # -----------------------
 
     @staticmethod
-    def parse_stack_action_params(task, step_id, action_params, pattern):
+    def parse_stack_action_params(task: StackV2Task, step_id, action_params, pattern):
         """Walks through the elements of a complex dictionary and parse its values matching to the regex pattern.
 
         :param task: parent Celery task
@@ -452,7 +516,7 @@ class StackV2Task(AbstractProviderResourceTask):
                 StackV2Task.parse_stack_action_params(task, step_id, value, pattern)
 
     @staticmethod
-    def get_attrib_value(task, ref):
+    def get_attrib_value(task: StackV2Task, ref):
         """Get a value from a dictionary. The dictionary is the output of resource.detail(), and the key is 'attrib'.
         The key can be composed (e.g. vpcs.0.fixed_ip.ip) in order to get a field in a complex and nested dict that
         contains other dict, list and string.
@@ -477,7 +541,7 @@ class StackV2Task(AbstractProviderResourceTask):
     # -----------------------
 
     @staticmethod
-    def parse_stack_action_params_v2(task, step_id, compute_stack, action_params, pattern):
+    def parse_stack_action_params_v2(task: StackV2Task, step_id, compute_stack, action_params, pattern):
         """Walks through the elements of a complex dictionary and parse its values matching to the regex pattern.
 
         :param task: parent Celery task
@@ -502,7 +566,7 @@ class StackV2Task(AbstractProviderResourceTask):
                 StackV2Task.parse_stack_action_params_v2(task, step_id, compute_stack, value, pattern)
 
     @staticmethod
-    def get_attrib_value_v2(task, compute_stack, ref):
+    def get_attrib_value_v2(task: StackV2Task, compute_stack: ComputeStackV2, ref):
         """Get a value from a dictionary. The dictionary is the output of resource.detail(), and the key is 'attrib'.
         The key can be composed (e.g. vpcs.0.fixed_ip.ip) in order to get a field in a complex and nested dict that
         contains other dict, list and string.
@@ -518,7 +582,7 @@ class StackV2Task(AbstractProviderResourceTask):
             # get action name
             action_name, res_attrib = ref.split("::")
             # get action object from name
-            action = compute_stack.get_actions(name=action_name)
+            action = compute_stack.get_action_by_name(name=action_name)
             # get action object id
             res_id = action.get_attribs(key="resource.id")
         else:
@@ -541,7 +605,7 @@ class StackV2SqlTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def sql_run_action_on_server_step(task, step_id, params, compute_instance_id, *args, **kvargs):
+    def sql_run_action_on_server_step(task: StackV2SqlTask, step_id, params, compute_instance_id, *args, **kvargs):
         """Run a given action on database server
 
         :param task: parent celery task
@@ -573,11 +637,19 @@ class StackV2SqlTask(AbstractProviderResourceTask):
             msg="Run %s action on db server %s" % (operation, compute_instance.uuid),
         )
 
+        # clean cache
+        resource = task.get_simple_resource(oid)
+        print("fv - stack_v2 - unset last_runstate")
+        # resource.clean_cache()
+        resource.unset_configs("last_runstate") # remove last_runstate
+
         return oid, params
 
     @staticmethod
     @task_step()
-    def sql_invoke_apply_customization_step(task, step_id, params, compute_instance_id, data, *args, **kvargs):
+    def sql_invoke_apply_customization_step(
+        task: StackV2SqlTask, step_id, params, compute_instance_id, data, *args, **kvargs
+    ):
         """Call apply_customization method of ComputeInstance class, that runs the applied customization
         defined in data.
 
@@ -590,7 +662,7 @@ class StackV2SqlTask(AbstractProviderResourceTask):
         """
         oid = params.get("id")
         operation = params.get("action_name")
-        compute_instance = task.get_resource(compute_instance_id)
+        compute_instance: ComputeInstance = task.get_resource(compute_instance_id)
         task.progress(step_id, msg="get resource %s" % compute_instance.oid)
 
         prepared_task, code = compute_instance.apply_customization(operation, data, sync=True)
@@ -604,7 +676,9 @@ class StackV2SqlTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def sql_enable_mailx_step(task, step_id, params, compute_instance_id, relayhost, domain, *args, **kvargs):
+    def sql_enable_mailx_step(
+        task: StackV2SqlTask, step_id, params, compute_instance_id, relayhost, domain, *args, **kvargs
+    ):
         """Install and configure mailx"""
         data = {
             "customization": "os-utility",
@@ -676,8 +750,8 @@ class StackV2SqlTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def sql_haproxy_deregistration_step(  # aaa useless?
-        task,
+    def sql_haproxy_deregistration_step(
+        task: StackV2SqlTask,
         step_id,
         params,
         compute_instance_id,
@@ -698,7 +772,9 @@ class StackV2SqlTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def sql_create_compute_volume_step(task, step_id, params, compute_instance_id, size, *args, **kvargs):
+    def sql_create_compute_volume_step(
+        task: StackV2SqlTask, step_id, params, compute_instance_id, size, *args, **kvargs
+    ):
         """Create compute instance volume.
 
         :param task: parent celery task
@@ -754,7 +830,7 @@ class StackV2SqlTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def sql_update_allocated_storage_step(task, step_id, params, size, *args, **kvargs):
+    def sql_update_allocated_storage_step(task: StackV2SqlTask, step_id, params, size, *args, **kvargs):
         """Update allocated storage attribute value for compute stack resource.
 
         :param task: parent celery task
@@ -783,7 +859,7 @@ class StackV2MysqlTask(StackV2SqlTask):
 
     @staticmethod
     @task_step()
-    def mysql_manage_engine_step(task, step_id, params, compute_instance_id, *args, **kvargs):
+    def mysql_manage_engine_step(task: StackV2SqlTask, step_id, params, compute_instance_id, *args, **kvargs):
         """Manage (i.e. start, stop, restart) database engine"""
         data = {
             "customization": "db-utility",
@@ -800,7 +876,9 @@ class StackV2MysqlTask(StackV2SqlTask):
 
     @staticmethod
     @task_step()
-    def mysql_add_db_step(task, step_id, params, compute_instance_id, db_name, charset, *args, **kvargs):
+    def mysql_add_db_step(
+        task: StackV2SqlTask, step_id, params, compute_instance_id, db_name, charset, *args, **kvargs
+    ):
         """Create database and schema"""
         data = StackV2MysqlTask.mysql_commons(params)
         data["playbook"] = "DbMgmtMysql.yml"
@@ -816,7 +894,7 @@ class StackV2MysqlTask(StackV2SqlTask):
 
     @staticmethod
     @task_step()
-    def mysql_drop_db_step(task, step_id, params, compute_instance_id, db_name, *args, **kvargs):
+    def mysql_drop_db_step(task: StackV2SqlTask, step_id, params, compute_instance_id, db_name, *args, **kvargs):
         """Delete database"""
         data = StackV2MysqlTask.mysql_commons(params)
         data["playbook"] = "DbMgmtMysql.yml"

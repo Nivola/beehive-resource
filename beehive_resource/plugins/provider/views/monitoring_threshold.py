@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2021-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     ApiManagerError,
@@ -11,19 +11,23 @@ from beehive.common.apimanager import (
     GetApiObjectRequestSchema,
     CrudApiObjectTaskResponseSchema,
 )
+
 from beehive_resource.plugins.provider.entity.monitoring_threshold import (
     ComputeMonitoringThreshold,
 )
+
 from beehive_resource.plugins.provider.views import (
     ProviderAPI,
     LocalProviderApiView,
     CreateProviderResourceRequestSchema,
 )
+
 from beehive_resource.view import (
     ListResourcesRequestSchema,
     ResourceResponseSchema,
     ResourceSmallResponseSchema,
 )
+
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
 from beehive_resource.plugins.provider.entity.zone import ComputeZone
@@ -38,8 +42,21 @@ class ProviderMonitoringThreshold(LocalProviderApiView):
 
 
 class ListMonitoringThresholdsRequestSchema(ListResourcesRequestSchema):
-    instance = fields.String(context="query", description="instance id, uuid or name")
-    parent = fields.String(required=False, default="", description="il padre Threshold id", allow_none=True)
+    instance = fields.String(
+        context="query",
+        metadata={
+            "description": 'instance id, uuid or name',
+        },
+    )
+
+    parent = fields.String(
+        context="query",
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": 'il padre Threshold id',
+        },
+    )
 
 
 class ListMonitoringThresholdsResponseSchema(PaginatedResponseSchema):
@@ -49,11 +66,10 @@ class ListMonitoringThresholdsResponseSchema(PaginatedResponseSchema):
 class ListMonitoringThresholds(ProviderMonitoringThreshold):
     summary = "List monitoring thresholds"
     description = "List monitoring thresholds"
-    definitions = {
-        "ListMonitoringThresholdsResponseSchema": ListMonitoringThresholdsResponseSchema,
-    }
+    definitions = {"ListMonitoringThresholdsResponseSchema": ListMonitoringThresholdsResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListMonitoringThresholdsRequestSchema)
     parameters_schema = ListMonitoringThresholdsRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": ListMonitoringThresholdsResponseSchema}}
     )
@@ -76,10 +92,9 @@ class GetMonitoringThresholdResponseSchema(Schema):
 class GetMonitoringThreshold(ProviderMonitoringThreshold):
     summary = "Get monitoring threshold"
     description = "Get monitoring threshold"
-    definitions = {
-        "GetMonitoringThresholdResponseSchema": GetMonitoringThresholdResponseSchema,
-    }
+    definitions = {"GetMonitoringThresholdResponseSchema": GetMonitoringThresholdResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": GetMonitoringThresholdResponseSchema}}
     )
@@ -89,30 +104,94 @@ class GetMonitoringThreshold(ProviderMonitoringThreshold):
 
 
 class CreateMonitoringThresholdZabbixThresholdRequestSchema(Schema):
-    name = fields.String(required=True, example="Test threshold", default="", description="Threshold name")
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'Test threshold',
+            "description": 'Threshold name',
+        },
+    )
+
     desc = fields.String(
         required=True,
-        example="This is the test threshold",
-        default="",
-        description="Threshold description",
+        metadata={
+            "example": 'This is the test threshold',
+            "description": 'Threshold description',
+        },
     )
-    triplet = fields.String(required=True, example="Test threshold", default="", description="Triplet account")
+
+    triplet = fields.String(
+        required=True,
+        metadata={
+            "example": 'Test threshold',
+            "description": 'Triplet account',
+        },
+    )
+
     triplet_desc = fields.String(
-        required=True, example="Test threshold", default="", description="Triplet desc account"
+        required=True,
+        metadata={
+            "example": 'Test threshold',
+            "description": 'Triplet desc account',
+        },
     )
-    str_users = fields.String(required=True, example="test@email.com,aaa@bbb.it", default="", description="Users email")
+
+    str_users = fields.String(
+        required=True,
+        metadata={
+            "example": 'test@email.com,aaa@bbb.it',
+            "description": 'Users email',
+        },
+    )
 
 
 class CreateMonitoringThresholdParamRequestSchema(CreateProviderResourceRequestSchema):
-    name = fields.String(required=True, example="test", description="monitoring_threshold name")
-    desc = fields.String(required=True, example="test", description="monitoring_threshold description")
-    compute_zone = fields.String(required=True, example="1", description="parent compute zone id or uuid")
-    availability_zone = fields.String(required=True, example="1", description="availability_zone")
-    norescreate = fields.Boolean(required=False, allow_none=True, description="don't create physical resource")
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'monitoring_threshold name',
+        },
+    )
+
+    desc = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'monitoring_threshold description',
+        },
+    )
+
+    compute_zone = fields.String(
+        required=True,
+        metadata={
+            "example": '1',
+            "description": 'parent compute zone id or uuid',
+        },
+    )
+
+    availability_zone = fields.String(
+        required=True,
+        metadata={
+            "example": '1',
+            "description": 'availability_zone',
+        },
+    )
+
+    norescreate = fields.Boolean(
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": "don't create physical resource",
+        },
+    )
+
     zabbix_threshold = fields.Nested(
         CreateMonitoringThresholdZabbixThresholdRequestSchema,
         required=True,
-        description="zabbix threshold parameters",
+        metadata={
+            "description": 'zabbix threshold parameters',
+        },
     )
 
 
@@ -121,18 +200,24 @@ class CreateMonitoringThresholdRequestSchema(Schema):
 
 
 class CreateMonitoringThresholdBodyRequestSchema(Schema):
-    body = fields.Nested(CreateMonitoringThresholdRequestSchema, context="body")
+    body = fields.Nested(
+        CreateMonitoringThresholdRequestSchema,
+        context="body",
+    )
 
 
 class CreateMonitoringThreshold(ProviderMonitoringThreshold):
     summary = "Create monitoring threshold"
     description = "Create monitoring threshold"
+
     definitions = {
         "CreateMonitoringThresholdRequestSchema": CreateMonitoringThresholdRequestSchema,
         "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateMonitoringThresholdBodyRequestSchema)
     parameters_schema = CreateMonitoringThresholdRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
@@ -146,6 +231,7 @@ class DeleteMonitoringThreshold(ProviderMonitoringThreshold):
     description = "Delete monitoring threshold"
     definitions = {"CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
@@ -155,30 +241,52 @@ class DeleteMonitoringThreshold(ProviderMonitoringThreshold):
 
 
 class SendMonitoringThresholdActionParamsAddUserRequestSchema(Schema):
-    triplet = fields.String(required=True, description="triplet of account")
+    triplet = fields.String(
+        required=True,
+        metadata={
+            "description": 'triplet of account',
+        },
+    )
+
     users_email = fields.String(
         required=True,
-        example="aaa@bbb.it,ccc@ddd.it",
-        description="users email to search",
+        metadata={
+            "example": 'aaa@bbb.it,ccc@ddd.it',
+            "description": 'users email to search',
+        },
     )
+
     severity = fields.String(
         required=True,
-        example="48",
-        description="severity of alert received",
+        metadata={
+            "example": '48',
+            "description": 'severity of alert received',
+        },
     )
 
 
 class SendMonitoringThresholdActionParamsModifyUserRequestSchema(Schema):
-    triplet = fields.String(required=True, description="triplet of account")
+    triplet = fields.String(
+        required=True,
+        metadata={
+            "description": 'triplet of account',
+        },
+    )
+
     users_email = fields.String(
         required=True,
-        example="aaa@bbb.it,ccc@ddd.it",
-        description="users email to search",
+        metadata={
+            "example": 'aaa@bbb.it,ccc@ddd.it',
+            "description": 'users email to search',
+        },
     )
+
     severity = fields.String(
         required=True,
-        example="48",
-        description="severity of alert received",
+        metadata={
+            "example": '48',
+            "description": 'severity of alert received',
+        },
     )
 
 
@@ -187,36 +295,52 @@ class SendMonitoringThresholdActionParamsRequestSchema(Schema):
         SendMonitoringThresholdActionParamsAddUserRequestSchema,
         required=False,
         allow_none=True,
-        description="add user to threshold",
+        metadata={
+            "description": 'add user to threshold',
+        },
     )
+
     modify_user = fields.Nested(
         SendMonitoringThresholdActionParamsModifyUserRequestSchema,
         required=False,
         allow_none=True,
-        description="add user to threshold",
+        metadata={
+            "description": 'add user to threshold',
+        },
     )
 
 
 class SendMonitoringThresholdActionRequestSchema(Schema):
-    action = fields.Nested(SendMonitoringThresholdActionParamsRequestSchema, required=True)
+    action = fields.Nested(
+        SendMonitoringThresholdActionParamsRequestSchema,
+        required=True,
+    )
+
     schedule = fields.Dict(
         required=False,
-        missing=None,
-        description="schedule to use when you want to run a scheduled action",
+        load_default=None,
+        metadata={
+            "description": 'schedule to use when you want to run a scheduled action',
+        },
     )
 
 
 class SendMonitoringThresholdActionBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(SendMonitoringThresholdActionRequestSchema, context="body")
+    body = fields.Nested(
+        SendMonitoringThresholdActionRequestSchema,
+        context="body",
+    )
 
 
 class SendMonitoringThresholdAction(ProviderMonitoringThreshold):
     summary = "Send server action"
     description = "Send server action"
+
     definitions = {
         "SendMonitoringThresholdActionRequestSchema": SendMonitoringThresholdActionRequestSchema,
         "CrudApiTaskResponseSchema": CrudApiTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(SendMonitoringThresholdActionBodyRequestSchema)
     parameters_schema = SendMonitoringThresholdActionRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiTaskResponseSchema}})
@@ -245,17 +369,22 @@ class SendMonitoringThresholdAction(ProviderMonitoringThreshold):
 
 
 class GetMonitoringUserSeverityResponseSchema(Schema):
-    user_severities = fields.List(fields.String(), required=True, description="List of severity")
+    user_severities = fields.List(
+        fields.String(),
+        required=True,
+        metadata={
+            "description": 'List of severity',
+        },
+    )
 
 
 class GetMonitoringUserSeverity(ProviderMonitoringThreshold):
     summary = "Get monitoring user severity"
     description = "Get monitoring user severity"
-    definitions = {
-        "GetMonitoringUserSeverityResponseSchema": GetMonitoringUserSeverityResponseSchema,
-    }
+    definitions = {"GetMonitoringUserSeverityResponseSchema": GetMonitoringUserSeverityResponseSchema}
     # parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     parameters = None
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": GetMonitoringUserSeverityResponseSchema}}
     )

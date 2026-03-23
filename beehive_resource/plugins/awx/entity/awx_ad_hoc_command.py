@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 import json
 
 from time import sleep
@@ -8,7 +8,9 @@ from time import sleep
 import logging
 from beecell.simple import id_gen, dict_get, truncate
 from beehive_resource.plugins.awx.entity import AwxResource
-
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ..controller import AwxContainer
 logger = logging.getLogger(__name__)
 
 
@@ -38,7 +40,7 @@ class AwxAdHocCommand(AwxResource):
     # discover, synchronize
     #
     @staticmethod
-    def discover_new(container, ext_id, res_ext_ids):
+    def discover_new(container: 'AwxContainer', ext_id, res_ext_ids):
         """Discover method used when synchronize beehive container with remote platform.
 
         :param container: client used to communicate with remote platform
@@ -74,7 +76,7 @@ class AwxAdHocCommand(AwxResource):
         return res
 
     @staticmethod
-    def discover_died(container):
+    def discover_died(container: 'AwxContainer'):
         """Discover method used when check if resource already exists in remote platform or was been modified.
 
         :param container: client used to comunicate with remote platform
@@ -90,7 +92,7 @@ class AwxAdHocCommand(AwxResource):
         return items
 
     @staticmethod
-    def synchronize(container, entity):
+    def synchronize(container: 'AwxContainer', entity):
         """Discover method used when synchronize beehive container with remote platform.
 
         :param container: instance of resource container

@@ -1,12 +1,16 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from logging import getLogger
+from typing import Union
 from beehive.common.task_v2 import task_step, run_sync_task
 from beehive_resource.plugins.provider.entity.rule import ComputeRule, Rule
+from beehive_resource.plugins.provider.entity.zone import AvailabilityZone, ComputeZone
 from beehive_resource.plugins.provider.task_v2 import AbstractProviderResourceTask
+from beehive_resource.plugins.provider.task_v2.openstack import ProviderOpenstack
+from beehive_resource.plugins.provider.task_v2.vsphere import ProviderVsphere
 
 logger = getLogger(__name__)
 
@@ -36,32 +40,49 @@ class RuleTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def link_rule_step(task, step_id, params, *args, **kvargs):
+    def link_rule_step(task, step_id, params, rules_opt, *args, **kvargs):
         """Link zone rule
 
         :param task: parent celery task
         :param str step_id: step id
         :param dict params: step params
+        :param rules_opt: apply rules optimization if true
         :return: True, params
         """
         oid = params.get("id")
         source = params.get("source")
         dest = params.get("destination")
+        direction = params.get("direction")
 
         # if source or dest are SecurityGroup link super rule
         sg_id = None
-        if source["type"] == "SecurityGroup":
+        # new rules management
+        if rules_opt:
+            if direction:
+                target = "dest" if direction == "ingress" else "source"
+            else:
+                target = "dest" if dest["type"] == "SecurityGroup" else "source"
+
+            sg_id = dest["value"] if target == "dest" else source["value"]
+
             task.get_session(reopen=True)
-            sg_id = source["value"]
             sg = task.get_simple_resource(sg_id)
             sg.add_link("%s-%s-rule-link" % (sg.oid, oid), "rule", oid, attributes={})
             task.progress(step_id, msg="Link rule %s to security group %s" % (oid, sg_id))
-        if dest["type"] == "SecurityGroup" and dest["value"] != sg_id:
-            task.get_session(reopen=True)
-            sg_id = dest["value"]
-            sg = task.get_simple_resource(sg_id)
-            sg.add_link("%s-%s-rule-link" % (sg.oid, oid), "rule", oid, attributes={})
-            task.progress(step_id, msg="Link rule %s to security group %s" % (oid, sg_id))
+        # legacy rules management
+        else:
+            if source["type"] == "SecurityGroup":
+                task.get_session(reopen=True)
+                sg_id = source["value"]
+                sg = task.get_simple_resource(sg_id)
+                sg.add_link("%s-%s-rule-link" % (sg.oid, oid), "rule", oid, attributes={})
+                task.progress(step_id, msg="Link rule %s to security group %s" % (oid, sg_id))
+            if dest["type"] == "SecurityGroup" and dest["value"] != sg_id:
+                task.get_session(reopen=True)
+                sg_id = dest["value"]
+                sg = task.get_simple_resource(sg_id)
+                sg.add_link("%s-%s-rule-link" % (sg.oid, oid), "rule", oid, attributes={})
+                task.progress(step_id, msg="Link rule %s to security group %s" % (oid, sg_id))
 
         return oid, params
 
@@ -104,8 +125,10 @@ class RuleTask(AbstractProviderResourceTask):
             },
             "source": source,
             "destination": destination,
+            "direction": params.get("direction"),
             "service": params.get("service"),
             "reserved": params.get("reserved"),
+            "logging": params.get("logging"),
             "rule_orchestrator_types": params.get("rule_orchestrator_types"),
         }
         prepared_task, code = provider.resource_factory(Rule, **rule_params)
@@ -158,7 +181,7 @@ class RuleTask(AbstractProviderResourceTask):
 
     @staticmethod
     @task_step()
-    def rule_create_orchestrator_resource_step(task, step_id, params, orchestrator, *args, **kvargs):
+    def rule_create_orchestrator_resource_step(task: AbstractProviderResourceTask, step_id, params, orchestrator, *args, **kvargs):
         """Create orchestrator rule
 
         :param task: parent celery task
@@ -167,24 +190,51 @@ class RuleTask(AbstractProviderResourceTask):
         :param orchestrator: orchestrator
         :return: True, params
         """
-        cid = params.get("cid")
         oid = params.get("id")
         source = params.get("source")
         destination = params.get("destination")
+        direction = params.get("direction")
         service = params.get("service")
         zone_id = params.get("parent")
         reserved = params.get("reserved")
+        logs = params.get("logging")
         rule_orchestrator_types = params.get("rule_orchestrator_types")
+        # print("+++++ rule - rule_orchestrator_types: %s" % rule_orchestrator_types)
 
         resource = task.get_resource(oid)
-        zone = task.get_resource(zone_id)
+        zone: AvailabilityZone = task.get_resource(zone_id)
         task.progress(step_id, msg="Get rule %s" % oid)
 
+        # check "rules_optimization" in ComputeZone
+        rules_optimization = False
+        compute_zones, tot = zone.get_linked_resources(
+            link_type_filter="relation.%",
+            objdef=ComputeZone.objdef,
+            run_customize=False,
+        )
+        # print("+++++ rule - compute_zones: %s" % compute_zones)
+        if len(compute_zones) > 0:
+            compute_zone = compute_zones[0]
+            netaas = compute_zone.get_attribs("netaas")
+            # print("+++++ rule - netaas: %s" % netaas)
+            if netaas is not None:
+                rules_optimization = netaas.get("rules_optimization", False)
+        print("+++++ rule - rules_optimization: %s" % rules_optimization)
+
         orchestrator_type = orchestrator.get("type")
-        helper = task.get_orchestrator(orchestrator_type, task, step_id, orchestrator, resource)
+        helper: Union[ProviderVsphere, ProviderOpenstack] = task.get_orchestrator(orchestrator_type, task, step_id, orchestrator, resource)
         if reserved:
             if rule_orchestrator_types is not None and orchestrator_type in rule_orchestrator_types:
-                helper.create_rule(zone, source, destination, service, reserved)
+                if rules_optimization:
+                    helper.create_rule(zone, source, destination, direction, service, logs)
+                else:
+                    helper.create_rule_before_optimization(zone, source, destination, service)
         else:
-            helper.create_rule(zone, source, destination, service, reserved)
+            if rule_orchestrator_types is None or len(rule_orchestrator_types) == 0 or orchestrator_type in rule_orchestrator_types:
+                print("+++++ rule - create_rule - orchestrator_type: %s" % orchestrator_type)
+                if rules_optimization:
+                    helper.create_rule(zone, source, destination, direction, service, logs)
+                else:
+                    helper.create_rule_before_optimization(zone, source, destination, service)
+        
         return True, params

@@ -1,16 +1,18 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_resource.plugins.vsphere.views import VsphereAPI, VsphereApiView
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
+
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
     GetApiObjectRequestSchema,
     CrudApiObjectJobResponseSchema,
 )
+
 from beehive_resource.view import ResourceResponseSchema, ListResourcesRequestSchema
 from beehive_resource.plugins.vsphere.entity.nsx_manager import NsxManager
 from beehive_resource.plugins.vsphere.entity.nsx_logical_switch import NsxLogicalSwitch
@@ -31,15 +33,19 @@ class ListNsxLogicalSwitchsParamsResponseSchema(ResourceResponseSchema):
 
 
 class ListNsxLogicalSwitchsResponseSchema(PaginatedResponseSchema):
-    nsx_logical_switchs = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
+    nsx_logical_switchs = fields.Nested(
+        ResourceResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListNsxLogicalSwitchs(VsphereNsxLogicalSwitchApiView):
-    definitions = {
-        "ListNsxLogicalSwitchsResponseSchema": ListNsxLogicalSwitchsResponseSchema,
-    }
+    definitions = {"ListNsxLogicalSwitchsResponseSchema": ListNsxLogicalSwitchsResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListNsxLogicalSwitchsRequestSchema)
     parameters_schema = ListNsxLogicalSwitchsRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": ListNsxLogicalSwitchsResponseSchema}}
     )
@@ -53,14 +59,17 @@ class ListNsxLogicalSwitchs(VsphereNsxLogicalSwitchApiView):
 
 
 class GetNsxLogicalSwitchResponseSchema(Schema):
-    nsx_logical_switch = fields.Nested(ResourceResponseSchema, required=True, allow_none=True)
+    nsx_logical_switch = fields.Nested(
+        ResourceResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetNsxLogicalSwitch(VsphereNsxLogicalSwitchApiView):
-    definitions = {
-        "GetNsxLogicalSwitchResponseSchema": GetNsxLogicalSwitchResponseSchema,
-    }
+    definitions = {"GetNsxLogicalSwitchResponseSchema": GetNsxLogicalSwitchResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": GetNsxLogicalSwitchResponseSchema}}
     )
@@ -68,31 +77,70 @@ class GetNsxLogicalSwitch(VsphereNsxLogicalSwitchApiView):
     def get(self, controller, data, oid, *args, **kwargs):
         """
         Get nsx_logical_switch
-        Get nsx_logical_switch
         """
         return self.get_resource(controller, oid)
 
 
 class CreateNsxLogicalSwitchParamRequestSchema(Schema):
-    container = fields.String(required=True, example="12", description="container id, uuid or name")
-    name = fields.String(required=True, example="test")
-    desc = fields.String(required=True, example="test")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'container id, uuid or name',
+        },
+    )
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+        },
+    )
+
+    desc = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+        },
+    )
+
     tenant = fields.String(
         required=False,
-        example="virtual wire tenant",
-        missing="virtual wire tenant",
-        description="tenant",
+        load_default="virtual wire tenant",
+        metadata={
+            "example": 'virtual wire tenant',
+            "description": 'tenant',
+        },
     )
-    guest_allowed = fields.Boolean(required=True, example=True, default=True)
-    transport_zone = fields.String(required=True, example="12", description="id of the trasport zone")
+    
+    guest_allowed = fields.Boolean(
+        required=True,
+        metadata={
+            "example": True,
+        },
+    )
+
+    transport_zone = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'id of the trasport zone',
+        },
+    )
 
 
 class CreateNsxLogicalSwitchRequestSchema(Schema):
-    nsx_logical_switch = fields.Nested(CreateNsxLogicalSwitchParamRequestSchema, required=True)
+    nsx_logical_switch = fields.Nested(
+        CreateNsxLogicalSwitchParamRequestSchema,
+        required=True,
+    )
 
 
 class CreateNsxLogicalSwitchBodyRequestSchema(Schema):
-    body = fields.Nested(CreateNsxLogicalSwitchRequestSchema, context="body")
+    body = fields.Nested(
+        CreateNsxLogicalSwitchRequestSchema,
+        context="body",
+    )
 
 
 class CreateNsxLogicalSwitch(VsphereNsxLogicalSwitchApiView):
@@ -100,6 +148,7 @@ class CreateNsxLogicalSwitch(VsphereNsxLogicalSwitchApiView):
         "CreateNsxLogicalSwitchRequestSchema": CreateNsxLogicalSwitchRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateNsxLogicalSwitchBodyRequestSchema)
     parameters_schema = CreateNsxLogicalSwitchRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
@@ -107,15 +156,28 @@ class CreateNsxLogicalSwitch(VsphereNsxLogicalSwitchApiView):
     def post(self, controller, data, *args, **kwargs):
         """
         Create nsx_logical_switch
-        Create nsx_logical_switch
         """
         return self.create_resource(controller, data)
 
 
 class UpdateNsxLogicalSwitchParamRequestSchema(Schema):
-    name = fields.String(default="test")
-    desc = fields.String(default="test")
-    enabled = fields.Boolean(default=True)
+    name = fields.String(
+        metadata={
+            "example": 'test',
+        },
+    )
+
+    desc = fields.String(
+        metadata={
+            "example": 'test',
+        },
+    )
+
+    enabled = fields.Boolean(
+        metadata={
+            "example": True,
+        },
+    )
 
 
 class UpdateNsxLogicalSwitchRequestSchema(Schema):
@@ -123,7 +185,10 @@ class UpdateNsxLogicalSwitchRequestSchema(Schema):
 
 
 class UpdateNsxLogicalSwitchBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateNsxLogicalSwitchRequestSchema, context="body")
+    body = fields.Nested(
+        UpdateNsxLogicalSwitchRequestSchema,
+        context="body",
+    )
 
 
 class UpdateNsxLogicalSwitch(VsphereNsxLogicalSwitchApiView):
@@ -131,6 +196,7 @@ class UpdateNsxLogicalSwitch(VsphereNsxLogicalSwitchApiView):
         "UpdateNsxLogicalSwitchRequestSchema": UpdateNsxLogicalSwitchRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateNsxLogicalSwitchBodyRequestSchema)
     parameters_schema = UpdateNsxLogicalSwitchRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
@@ -138,9 +204,8 @@ class UpdateNsxLogicalSwitch(VsphereNsxLogicalSwitchApiView):
     def put(self, controller, data, oid, *args, **kwargs):
         """
         Update nsx_logical_switch
-        Update nsx_logical_switch
         """
-        return self.update_resource(controller, data)
+        return self.update_resource(controller, oid, data)
 
 
 ## delete
@@ -151,7 +216,6 @@ class DeleteNsxLogicalSwitch(VsphereNsxLogicalSwitchApiView):
 
     def delete(self, controller, data, oid, *args, **kwargs):
         """
-        Delete nsx_logical_switch
         Delete nsx_logical_switch
         """
         return self.expunge_resource(controller, oid)

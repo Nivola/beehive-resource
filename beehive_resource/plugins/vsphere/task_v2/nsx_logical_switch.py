@@ -1,17 +1,18 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from logging import getLogger
 
-from six import ensure_text
+from beecell.util import ensure_text
 
 from beecell.simple import id_gen
 from beehive.common.task_v2 import task_step
 from beehive_resource.model import ResourceState
 from beehive_resource.plugins.vsphere.entity.nsx_logical_switch import NsxLogicalSwitch
 from beehive_resource.plugins.vsphere.entity.vs_dvpg import VsphereDvpg
-from beehive_resource.task_v2 import AbstractResourceTask, task_manager
+from beehive_resource.task_v2 import AbstractResourceTask
+from beehive.common.task_v2.manager import get_task_manager
 
 logger = getLogger(__name__)
 

@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
+
+from typing import TYPE_CHECKING
 
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
@@ -14,24 +16,31 @@ from beehive.common.apimanager import (
     PaginatedRequestQuerySchema,
     ApiManagerError,
 )
+
 from beehive_resource.plugins.provider.entity.zone import ComputeZone
+
 from beehive_resource.plugins.provider.views import (
     ProviderAPI,
     LocalProviderApiView,
     CreateProviderResourceRequestSchema,
     UpdateProviderResourceRequestSchema,
 )
+
 from beehive_resource.view import (
     ListResourcesRequestSchema,
     ResourceResponseSchema,
     ResourceSmallResponseSchema,
     GetResourceMetricsResponseSchema,
 )
+
 from flasgger import fields, Schema
 
 from beecell.swagger import SwaggerHelper
 import random
 from beecell.types.type_dict import dict_get
+
+if TYPE_CHECKING:
+    from beehive_resource.controller import ResourceController
 
 
 class ProviderComputeZone(LocalProviderApiView):
@@ -47,20 +56,24 @@ class ListComputeZonesParamsResponseSchema(ResourceResponseSchema):
 
 
 class ListComputeZonesResponseSchema(PaginatedResponseSchema):
-    compute_zones = fields.Nested(ListComputeZonesParamsResponseSchema, many=True, required=True, allow_none=True)
+    compute_zones = fields.Nested(
+        ListComputeZonesParamsResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListComputeZones(ProviderComputeZone):
-    definitions = {
-        "ListComputeZonesResponseSchema": ListComputeZonesResponseSchema,
-    }
+    definitions = {"ListComputeZonesResponseSchema": ListComputeZonesResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListComputeZonesRequestSchema)
     parameters_schema = ListComputeZonesRequestSchema
-    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListComputeZonesResponseSchema}})
+    responses = SwaggerApiView.setResponses({
+        200: {"description": "success", "schema": ListComputeZonesResponseSchema}}
+    )
 
-    def get(self, controller, data, *args, **kwargs):
+    def get(self, controller: 'ResourceController', data, *args, **kwargs):
         """
-        List compute_zones
         List compute_zones
 
         "attributes": {
@@ -74,23 +87,29 @@ class ListComputeZones(ProviderComputeZone):
 
 
 class GetComputeZoneParamsResponseSchema(ResourceResponseSchema):
-    availability_zones = fields.Nested(ResourceSmallResponseSchema, required=True, many=True, allow_none=True)
+    availability_zones = fields.Nested(
+        ResourceSmallResponseSchema,
+        required=True,
+        many=True,
+        allow_none=True,
+    )
 
 
 class GetComputeZoneResponseSchema(Schema):
-    compute_zone = fields.Nested(GetComputeZoneParamsResponseSchema, required=True, allow_none=True)
+    compute_zone = fields.Nested(
+        GetComputeZoneParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetComputeZone(ProviderComputeZone):
-    definitions = {
-        "GetComputeZoneResponseSchema": GetComputeZoneResponseSchema,
-    }
+    definitions = {"GetComputeZoneResponseSchema": GetComputeZoneResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetComputeZoneResponseSchema}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: 'ResourceController', data, oid, *args, **kwargs):
         """
-        Get compute_zone
         Get compute_zone
 
         "attributes": {
@@ -104,12 +123,28 @@ class GetComputeZone(ProviderComputeZone):
 
 
 class CreateComputeZoneParamRequestSchema(CreateProviderResourceRequestSchema):
-    quota = fields.Dict(required=True, description="allocation quota", allow_none=True)
-    managed = fields.Boolean(required=False, description="set management with ssh group", missing=True)
+    quota = fields.Dict(
+        required=True,
+        allow_none=True,
+        metadata={
+            "description": 'allocation quota',
+        },
+    )
+
+    managed = fields.Boolean(
+        required=False,
+        load_default=True,
+        metadata={
+            "description": 'set management with ssh group',
+        },
+    )
+
     managed_by = fields.String(
         required=False,
-        description="set user or group that as role master in ssh group",
-        missing=None,
+        load_default=None,
+        metadata={
+            "description": 'set user or group that as role master in ssh group',
+        },
     )
 
 
@@ -118,7 +153,10 @@ class CreateComputeZoneRequestSchema(Schema):
 
 
 class CreateComputeZoneBodyRequestSchema(Schema):
-    body = fields.Nested(CreateComputeZoneRequestSchema, context="body")
+    body = fields.Nested(
+        CreateComputeZoneRequestSchema,
+        context="body",
+    )
 
 
 class CreateComputeZone(ProviderComputeZone):
@@ -126,15 +164,15 @@ class CreateComputeZone(ProviderComputeZone):
         "CreateComputeZoneRequestSchema": CreateComputeZoneRequestSchema,
         "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateComputeZoneBodyRequestSchema)
     parameters_schema = CreateComputeZoneRequestSchema
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
 
-    def post(self, controller, data, *args, **kwargs):
+    def post(self, controller: 'ResourceController', data, *args, **kwargs):
         """
-        Create compute_zone
         Create compute_zone
         * **quota**: quota
             * **compute.instances**: 2
@@ -172,15 +210,16 @@ class UpdateComputeZone(ProviderComputeZone):
         "UpdateComputeZoneRequestSchema": UpdateComputeZoneRequestSchema,
         "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateComputeZoneBodyRequestSchema)
     parameters_schema = UpdateComputeZoneRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
 
-    def put(self, controller, data, oid, *args, **kwargs):
+    def put(self, controller: 'ResourceController', data, oid, *args, **kwargs):
         """
-        Update compute_zone
         Update compute_zone
         """
         return self.update_resource(controller, oid, data)
@@ -189,13 +228,13 @@ class UpdateComputeZone(ProviderComputeZone):
 class DeleteComputeZone(ProviderComputeZone):
     definitions = {"CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
 
-    def delete(self, controller, data, oid, *args, **kwargs):
+    def delete(self, controller: 'ResourceController', data, oid, *args, **kwargs):
         """
-        Delete compute_zone
         Delete compute_zone
         """
         return self.expunge_resource(controller, oid)
@@ -206,32 +245,52 @@ class ListSiteResponseSchema(Schema):
 
 
 class ListSite(ProviderComputeZone):
-    definitions = {
-        "ListSiteResponseSchema": ListSiteResponseSchema,
-    }
+    definitions = {"ListSiteResponseSchema": ListSiteResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListSiteResponseSchema}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: 'ResourceController', data, oid, *args, **kwargs):
         """
         List site to compute zone
-        List site to compute zone
         """
-        obj = self.get_resource_reference(controller, oid)
+        obj: 'ComputeZone' = self.get_resource_reference(controller, oid)
         res = [z.info() for z in obj.get_availability_zones()]
         return {"availability_zones": res, "count": len(res)}
 
 
 class AddSiteParamRequestSchema(UpdateProviderResourceRequestSchema):
-    quota = fields.Dict(required=False, description="allocation quota", allow_none=True, missing=None)
-    id = fields.String(required=True, example="12", description="Site id, uuid or name")
-    orchestrator_tag = fields.String(example="default", default="default", description="Orchestrator tag")
+    quota = fields.Dict(
+        required=False,
+        allow_none=True,
+        load_default=None,
+        metadata={
+            "description": 'allocation quota',
+        },
+    )
+
+    id = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'Site id, uuid or name',
+        },
+    )
+
+    orchestrator_tag = fields.String(
+        metadata={
+            "example": 'default',
+            "description": 'Orchestrator tag',
+        },
+    )
+
     orchestrator_select_types = fields.List(
-        fields.String(example="vsphere"),
+        fields.String(example='vsphere'),
         required=False,
         allow_none=True,
         context="query",
-        description="orchestrator select types",
+        metadata={
+            "description": 'orchestrator select types',
+        },
     )
 
 
@@ -248,29 +307,40 @@ class AddSite(ProviderComputeZone):
         "AddSiteRequestSchema": AddSiteRequestSchema,
         "CrudApiJobResponseSchema": CrudApiJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(AddSiteBodyRequestSchema)
     parameters_schema = AddSiteRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiJobResponseSchema}})
 
-    def post(self, controller, data, oid, *args, **kwargs):
+    def post(self, controller: 'ResourceController', data, oid, *args, **kwargs):
         """
         Add site to compute zone
-        Add site to compute zone
         """
-        computeZone: ComputeZone = self.get_resource_reference(controller, oid)
+        computeZone: 'ComputeZone' = self.get_resource_reference(controller, oid)
         return computeZone.add_site(data.get("availability_zone"))
 
 
 class DeleteSiteParamRequestSchema(Schema):
-    id = fields.String(required=True, example="12", description="Site id, uuid or name")
+    id = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'Site id, uuid or name',
+        },
+    )
 
 
 class DeleteSiteRequestSchema(Schema):
-    availability_zone = fields.Nested(DeleteSiteParamRequestSchema)
+    availability_zone = fields.Nested(
+        DeleteSiteParamRequestSchema,
+    )
 
 
 class DeleteSiteBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(DeleteSiteRequestSchema, context="body")
+    body = fields.Nested(
+        DeleteSiteRequestSchema,
+        context="body",
+    )
 
 
 class DeleteSite(ProviderComputeZone):
@@ -278,48 +348,70 @@ class DeleteSite(ProviderComputeZone):
         "DeleteSiteRequestSchema": DeleteSiteRequestSchema,
         "CrudApiJobResponseSchema": CrudApiJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(DeleteSiteBodyRequestSchema)
     parameters_schema = DeleteSiteRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiJobResponseSchema}})
 
-    def delete(self, controller, data, oid, *args, **kwargs):
+    def delete(self, controller: 'ResourceController', data, oid, *args, **kwargs):
         """
         Delete site from compute zone
-        Delete site from compute zone
         """
-        obj = self.get_resource_reference(controller, oid)
+        obj: 'ComputeZone' = self.get_resource_reference(controller, oid)
         return obj.delete_site(data.get("availability_zone"))
 
 
 class GetComputeZoneChildsResponseSchema(Schema):
-    quotas = fields.Nested(ApiObjectResponseSchema, required=True, many=True, allow_none=True)
+    quotas = fields.Nested(
+        ApiObjectResponseSchema,
+        required=True,
+        many=True,
+        allow_none=True,
+    )
 
 
 class GetComputeZoneChilds(ProviderComputeZone):
-    definitions = {
-        "GetComputeZoneChildsResponseSchema": GetComputeZoneChildsResponseSchema,
-    }
+    definitions = {"GetComputeZoneChildsResponseSchema": GetComputeZoneChildsResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": GetComputeZoneChildsResponseSchema}}
     )
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: 'ResourceController', data, oid, *args, **kwargs):
         """
         List compute_zone childs
         List compute zone childs
         """
-        from beehive_resource.plugins.provider.entity.zone import ComputeZone
-
-        compute_zone: ComputeZone = self.get_resource_reference(controller, oid)
+        compute_zone: 'ComputeZone' = self.get_resource_reference(controller, oid)
         childs = compute_zone.get_childs()
         return {"resources": [i.info() for i in childs], "count": len(childs)}
 
 
 class GetComputeZoneQuotasValueResponseSchema(Schema):
-    quota = fields.String(required=True, example="cores", description="Quota class")
-    value = fields.String(required=True, example="12", description="Quota value")
-    unit = fields.String(required=True, example="#", description="Quota unit")
+    quota = fields.String(
+        required=True,
+        metadata={
+            "example": 'cores',
+            "description": 'Quota class',
+        },
+    )
+
+    value = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'Quota value',
+        },
+    )
+
+    unit = fields.String(
+        required=True,
+        metadata={
+            "example": '#',
+            "description": 'Quota unit',
+        },
+    )
 
 
 class GetComputeZoneQuotasResponseSchema(Schema):
@@ -332,28 +424,45 @@ class GetComputeZoneQuotasResponseSchema(Schema):
 
 
 class GetComputeZoneQuotas(ProviderComputeZone):
-    definitions = {
-        "GetComputeZoneQuotasResponseSchema": GetComputeZoneQuotasResponseSchema,
-    }
+    definitions = {"GetComputeZoneQuotasResponseSchema": GetComputeZoneQuotasResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": GetComputeZoneQuotasResponseSchema}}
     )
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: 'ResourceController', data, oid, *args, **kwargs):
         """
         List compute_zone quotas
-        List compute zone quotas
         """
-        compute_zone: ComputeZone = self.get_resource_reference(controller, oid)
+        compute_zone: 'ComputeZone' = self.get_resource_reference(controller, oid)
         quotas = compute_zone.get_quotas()
         return {"quotas": quotas}
 
 
 class GetComputeZoneQuotaClasseResponseSchema(ResourceResponseSchema):
-    quota = fields.String(required=True, example="cores", description="Quota class")
-    default = fields.String(required=True, example="cores", description="Quota value")
-    unit = fields.String(required=True, example="cores", description="Quota unit")
+    quota = fields.String(
+        required=True,
+        metadata={
+            "example": 'cores',
+            "description": 'Quota class',
+        },
+    )
+
+    default = fields.String(
+        required=True,
+        metadata={
+            "example": 'cores',
+            "description": 'Quota value',
+        },
+    )
+
+    unit = fields.String(
+        required=True,
+        metadata={
+            "example": 'cores',
+            "description": 'Quota unit',
+        },
+    )
 
 
 class GetComputeZoneQuotaClassesResponseSchema(Schema):
@@ -366,10 +475,9 @@ class GetComputeZoneQuotaClassesResponseSchema(Schema):
 
 
 class GetComputeZoneQuotaClasses(ProviderComputeZone):
-    definitions = {
-        "GetComputeZoneQuotaClassesResponseSchema": GetComputeZoneQuotaClassesResponseSchema,
-    }
+    definitions = {"GetComputeZoneQuotaClassesResponseSchema": GetComputeZoneQuotaClassesResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {
             200: {
@@ -379,31 +487,62 @@ class GetComputeZoneQuotaClasses(ProviderComputeZone):
         }
     )
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: 'ResourceController', data, oid, *args, **kwargs):
         """
         List compute_zone quota classes
-        List compute zone quota classes
         """
-        from beehive_resource.plugins.provider.entity.zone import ComputeZone
-
-        compute_zone: ComputeZone = self.get_resource_reference(controller, oid)
+        compute_zone: 'ComputeZone' = self.get_resource_reference(controller, oid)
         quota_classes = compute_zone.quotas.get_classes()
         return {"quota_classes": quota_classes}
 
 
 class SetComputeZoneQuotasRequestSchema(Schema):
-    quotas = fields.Dict(required=True, many=True, allow_none=True)
-    orchestrator_tag = fields.String(example="default", missing="default", description="Orchestrator tag")
+    quotas = fields.Dict(
+        required=True,
+        many=True,
+        allow_none=True,
+    )
+
+    orchestrator_tag = fields.String(
+        load_default="default",
+        metadata={
+            "example": 'default',
+            "description": 'Orchestrator tag',
+        },
+    )
 
 
 class SetComputeZoneQuotasBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(SetComputeZoneQuotasRequestSchema, context="body")
+    body = fields.Nested(
+        SetComputeZoneQuotasRequestSchema,
+        context="body",
+    )
 
 
 class SetComputeZoneQuotaResponseSchema(Schema):
-    quota = fields.String(required=True, example="cores", description="Quota class")
-    value = fields.String(required=True, example=2, description="Quota value")
-    unit = fields.String(required=True, example="cores", description="Quota unit")
+    quota = fields.String(
+        required=True,
+        metadata={
+            "example": 'cores',
+            "description": 'Quota class',
+        },
+    )
+
+    value = fields.String(
+        required=True,
+        metadata={
+            "example": '2',
+            "description": 'Quota value',
+        },
+    )
+
+    unit = fields.String(
+        required=True,
+        metadata={
+            "example": 'cores',
+            "description": 'Quota unit',
+        },
+    )
 
 
 class SetComputeZoneQuotasResponseSchema(Schema):
@@ -415,18 +554,16 @@ class SetComputeZoneQuotas(ProviderComputeZone):
         "SetComputeZoneQuotasRequestSchema": SetComputeZoneQuotasRequestSchema,
         "CrudApiJobResponseSchema": CrudApiJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(SetComputeZoneQuotasBodyRequestSchema)
     parameters_schema = SetComputeZoneQuotasRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiJobResponseSchema}})
 
-    def put(self, controller, data, oid, *args, **kwargs):
+    def put(self, controller: 'ResourceController', data, oid, *args, **kwargs):
         """
-        Set compute_zone quota
         Set compute zone quota
         """
-        from beehive_resource.plugins.provider.entity.zone import ComputeZone
-
-        compute_zone: ComputeZone = self.get_resource_reference(controller, oid)
+        compute_zone: 'ComputeZone' = self.get_resource_reference(controller, oid)
         res = compute_zone.set_quotas(**data)
         return res
 
@@ -434,12 +571,10 @@ class SetComputeZoneQuotas(ProviderComputeZone):
 class CheckComputeZoneQuotasResponseSchema(Schema):
     quotas = fields.Dict(required=True, many=True, allow_none=True)
 
-
 class CheckComputeZoneQuotas(ProviderComputeZone):
-    definitions = {
-        "GetComputeZoneQuotaClassesResponseSchema": GetComputeZoneQuotaClassesResponseSchema,
-    }
+    definitions = {"GetComputeZoneQuotaClassesResponseSchema": GetComputeZoneQuotaClassesResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {
             200: {
@@ -449,12 +584,11 @@ class CheckComputeZoneQuotas(ProviderComputeZone):
         }
     )
 
-    def put(self, controller, data, oid, *args, **kwargs):
+    def put(self, controller: 'ResourceController', data, oid, *args, **kwargs):
         """
         Check compute_zone quota
-        Check compute zone quota
         """
-        compute_zone: ComputeZone = self.get_resource_reference(controller, oid)
+        compute_zone: 'ComputeZone' = self.get_resource_reference(controller, oid)
         # fv - comment to create test vm
         res = compute_zone.check_quotas(quotas=data.get("quotas"), check_all=data.get("check_all"))
         return {"quotas": data.get("quotas")}
@@ -463,48 +597,45 @@ class CheckComputeZoneQuotas(ProviderComputeZone):
 class GetManageResponseSchema(Schema):
     is_managed = fields.Boolean(
         required=True,
-        description="Return True if compute zone is managed by ssh module",
+        metadata={
+            "description": 'Return True if compute zone is managed by ssh module',
+        },
     )
 
 
 class GetManage(ProviderComputeZone):
-    definitions = {
-        "GetManageResponseSchema": GetManageResponseSchema,
-    }
+    definitions = {"GetManageResponseSchema": GetManageResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetManageResponseSchema}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: 'ResourceController', data, oid, *args, **kwargs):
         """
         Check compute_zone is managed
-        Check compute zone is managed
         """
-        from beehive_resource.plugins.provider.entity.zone import ComputeZone
-
-        compute_zone: ComputeZone = self.get_resource_reference(controller, oid)
+        compute_zone: 'ComputeZone' = self.get_resource_reference(controller, oid)
         res = compute_zone.is_managed()
         return {"is_managed": res}
 
 
 class AddManageResponseSchema(Schema):
-    manage = fields.Boolean(required=True, description="Ssh group uuid")
+    manage = fields.Boolean(
+        required=True,
+        metadata={
+            "description": 'Ssh group uuid',
+        },
+    )
 
 
 class AddManage(ProviderComputeZone):
-    definitions = {
-        "AddManageResponseSchema": AddManageResponseSchema,
-    }
+    definitions = {"AddManageResponseSchema": AddManageResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": AddManageResponseSchema}})
 
-    def post(self, controller, data, oid, *args, **kwargs):
+    def post(self, controller: 'ResourceController', data, oid, *args, **kwargs):
         """
         Manage compute_zone
-        Manage compute zone
         """
-        from beehive_resource.plugins.provider.entity.zone import ComputeZone
-
-        compute_zone: ComputeZone = self.get_resource_reference(controller, oid)
+        compute_zone: 'ComputeZone' = self.get_resource_reference(controller, oid)
         res = compute_zone.manage()
         return {"manage": res}
 
@@ -514,34 +645,34 @@ class DeleteManage(ProviderComputeZone):
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({204: {"description": "success"}})
 
-    def delete(self, controller, data, oid, *args, **kwargs):
+    def delete(self, controller: 'ResourceController', data, oid, *args, **kwargs):
         """
         Unmanage compute_zone
-        Unmanage compute zone
         """
-        from beehive_resource.plugins.provider.entity.zone import ComputeZone
-
         compute_zone: ComputeZone = self.get_resource_reference(controller, oid)
         res = compute_zone.unmanage()
         return None
 
 
 class GetComputeZoneMetricsResponseSchema(Schema):
-    compute_zone = fields.Nested(GetResourceMetricsResponseSchema, required=True, many=True, allow_none=True)
+    compute_zone = fields.Nested(
+        GetResourceMetricsResponseSchema,
+        required=True,
+        many=True,
+        allow_none=True,
+    )
 
 
 class GetComputeZoneMetrics(ProviderComputeZone):
-    definitions = {
-        "GetComputeZoneMetricsResponseSchema": GetComputeZoneMetricsResponseSchema,
-    }
+    definitions = {"GetComputeZoneMetricsResponseSchema": GetComputeZoneMetricsResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": GetComputeZoneMetricsResponseSchema}}
     )
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: 'ResourceController', data, oid, *args, **kwargs):
         """
-        Metric compute_zone
         Metric compute_zone
 
         {"compute_zone": [{
@@ -581,36 +712,12 @@ class GetComputeZoneMetrics(ProviderComputeZone):
         }]
         }
         """
-        from beehive_resource.plugins.provider.entity.zone import ComputeZone
-        from beehive_resource.controller import ResourceController
-
-        resorceController: ResourceController = controller
-        compute_zone: ComputeZone = resorceController.get_resource(oid)
+        compute_zone: 'ComputeZone' = controller.get_resource(oid)
         resource_metrics = compute_zone.get_metrics()
 
-        # resources = self.getResourcetree(controller, compute_zone.oid)
-        # self.logger.warn(resources)
-        # extraction_date = datetime.today()
-        # resource_metrics = []
-        # for r in resources:
-        #     self.logger.debug2('resource :%s' % r)
-        #     try:
-        #         if r.uuid is not None:
-        #             resource_metric = {
-        #                 'id': '%s' % r.oid,
-        #                 'uuid': r.uuid ,
-        #                 'extraction_date':format_date(extraction_date),
-        #                 # 'platform_id': str(random.choice([10, 20])),
-        #                 'service_id': r.ext_id
-        #             }
-        #             metrics = self.generate_metrics()
-        #             resource_metric.update({'metrics':metrics})
-        #             resource_metrics.append(resource_metric)
-        #     except Exception as ex:
-        #         self.logger.warn(ex)
         return {"compute_zone": resource_metrics}
 
-    def getResourcetree(self, controller, parent_oid):
+    def getResourcetree(self, controller: 'ResourceController', parent_oid):
         resources = []
         childrens = []
         try:
@@ -655,22 +762,20 @@ class GetComputeZoneMetrics(ProviderComputeZone):
 
 class DeleteComputeZoneMetricsCache(ProviderComputeZone):
     tags = ["resource"]
+
     definitions = {
         "GetApiObjectRequestSchema": GetApiObjectRequestSchema,
         "CrudApiObjectSimpleResponseSchema": CrudApiObjectSimpleResponseSchema,
     }
-    parameters = SwaggerHelper().get_parameters(CrudApiObjectSimpleResponseSchema)
-    # parameters_schema = CrudApiObjectSimpleResponseSchema
+
+    parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": CrudApiObjectSimpleResponseSchema}}
     )
 
-    def delete(self, controller, data, oid, *args, **kwargs):
-        from beehive_resource.plugins.provider.entity.zone import ComputeZone
-        from beehive_resource.controller import ResourceController
-
-        resorceController: ResourceController = controller
-        resource = resorceController.get_resource(oid)
+    def delete(self, controller: 'ResourceController', data, oid, *args, **kwargs):
+        resource = controller.get_resource(oid)
         if isinstance(resource, ComputeZone):
             resource.delete_metrics_cache()
             return True
@@ -679,40 +784,67 @@ class DeleteComputeZoneMetricsCache(ProviderComputeZone):
 
 
 class GetComputeZoneSshKeyResponseSchema(Schema):
-    id = fields.Integer(required=True, default=10, example=10)
+    id = fields.Integer(
+        required=True,
+        metadata={
+            "example": 10,
+        },
+    )
+
     uuid = fields.String(
         required=True,
-        default="4cdf0ea4-159a-45aa-96f2-708e461130e1",
-        example="4cdf0ea4-159a-45aa-96f2-708e461130e1",
+        metadata={
+            "example": '4cdf0ea4-159a-45aa-96f2-708e461130e1',
+        },
     )
-    name = fields.String(required=True, default="test", example="test")
-    desc = fields.String(required=True, default="test", example="test")
-    active = fields.Boolean(required=True, default=True, example=True)
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+        },
+    )
+
+    desc = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+        },
+    )
+
+    active = fields.Boolean(
+        required=True,
+        dump_default=True,
+        metadata={
+            "example": True,
+        },
+    )
+
     attribute = fields.String(required=False)
     pub_key = fields.String(required=True)
 
 
 class GetComputeZoneSshKeysResponseSchema(PaginatedResponseSchema):
-    sshkeys = fields.Nested(GetComputeZoneSshKeyResponseSchema, many=True, required=True, allow_none=True)
+    sshkeys = fields.Nested(
+        GetComputeZoneSshKeyResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetComputeZoneSshKeys(ProviderComputeZone):
-    definitions = {
-        "GetComputeZoneSshKeysResponseSchema": GetComputeZoneSshKeysResponseSchema,
-    }
+    definitions = {"GetComputeZoneSshKeysResponseSchema": GetComputeZoneSshKeysResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": GetComputeZoneSshKeysResponseSchema}}
     )
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: 'ResourceController', data, oid, *args, **kwargs):
         """
         Get Compute zone ssh keys
-        Get Compute zone ssh keys
         """
-        from beehive_resource.plugins.provider.entity.zone import ComputeZone
-
-        compute_zone: ComputeZone = controller.get_resource(oid)
+        compute_zone: 'ComputeZone' = controller.get_resource(oid)
         sshkeys = compute_zone.get_ssh_keys()
         return {"sshkeys": sshkeys}
 
@@ -720,27 +852,116 @@ class GetComputeZoneSshKeys(ProviderComputeZone):
 class GetComputeZoneBackupJobsItemResponseSchema(Schema):
     hypervisor = fields.String(
         required=True,
-        example="job1",
-        description="hypervisor like openstack or vsphere",
+        metadata={
+            "example": 'job1',
+            "description": 'hypervisor like openstack or vsphere',
+        },
     )
-    site = fields.String(required=True, example="job1", description="availability zone name")
-    resource_type = fields.String(required=True, example="job1", description="type of resource managed by job")
-    instances = fields.Int(required=True, example=1, description="number if instances configured in job")
-    id = fields.String(required=True, example="job1", description="job id")
-    name = fields.String(required=True, example="job1", description="job name")
+
+    site = fields.String(
+        required=True,
+        metadata={
+            "example": 'job1',
+            "description": 'availability zone name',
+        },
+    )
+
+    resource_type = fields.String(
+        required=True,
+        metadata={
+            "example": 'job1',
+            "description": 'type of resource managed by job',
+        },
+    )
+
+    instances = fields.Int(
+        required=True,
+        metadata={
+            "example": 1,
+            "description": 'number if instances configured in job',
+        },
+    )
+
+    id = fields.String(
+        required=True,
+        metadata={
+            "example": 'job1',
+            "description": 'job id',
+        },
+    )
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'job1',
+            "description": 'job name',
+        },
+    )
+
     desc = fields.String(
         required=False,
         allow_none=True,
-        example="desc job1",
-        description="desc job name",
+        metadata={
+            "example": 'desc job1',
+            "description": 'desc job name',
+        },
     )
-    created = fields.String(required=True, example="job1", description="job creation date")
-    updated = fields.String(required=True, example="job1", description="job update date")
-    error = fields.String(required=True, example="job1", description="job error")
-    usage = fields.String(required=True, example="job1", description="job storage usage")
-    status = fields.String(required=True, example="job1", description="job status")
-    type = fields.String(required=True, example="job1", description="job type")
-    schedule = fields.Dict(required=True, example="job1", description="job schedule")
+
+    created = fields.String(
+        required=True,
+        metadata={
+            "example": 'job1',
+            "description": 'job creation date',
+        },
+    )
+
+    updated = fields.String(
+        required=True,
+        metadata={
+            "example": 'job1',
+            "description": 'job update date',
+        },
+    )
+
+    error = fields.String(
+        required=True,
+        metadata={
+            "example": 'job1',
+            "description": 'job error',
+        },
+    )
+
+    usage = fields.String(
+        required=True,
+        metadata={
+            "example": 'job1',
+            "description": 'job storage usage',
+        },
+    )
+
+    status = fields.String(
+        required=True,
+        metadata={
+            "example": 'job1',
+            "description": 'job status',
+        },
+    )
+
+    type = fields.String(
+        required=True,
+        metadata={
+            "example": 'job1',
+            "description": 'job type',
+        },
+    )
+
+    schedule = fields.Dict(
+        required=True,
+        metadata={
+            "example": 'job1',
+            "description": 'job schedule',
+        },
+    )
 
 
 class GetComputeZoneBackupJobsResponseSchema(Schema):
@@ -755,26 +976,33 @@ class GetComputeZoneBackupJobsResponseSchema(Schema):
 class GetComputeZoneBackupJobsRequestSchema(Schema):
     oid = fields.String(
         required=True,
-        description="id, uuid or name of the parent compute zone",
         context="path",
+        metadata={
+            "description": 'id, uuid or name of the parent compute zone',
+        },
     )
+
     hypervisor = fields.String(
         required=False,
-        missing="openstack",
-        description="hypervisor",
         context="query",
+        metadata={
+            "description": 'hypervisor',
+        },
     )
 
 
 class GetComputeZoneBackupJobs(ProviderComputeZone):
     summary = "Get compute zone backup configured jobs"
     description = "Get compute zone backup configured jobs"
+
     definitions = {
         "GetComputeZoneBackupJobsResponseSchema": GetComputeZoneBackupJobsResponseSchema,
         "GetComputeZoneBackupJobsRequestSchema": GetComputeZoneBackupJobsRequestSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(GetComputeZoneBackupJobsRequestSchema)
     parameters_schema = GetComputeZoneBackupJobsRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {
             200: {
@@ -784,9 +1012,9 @@ class GetComputeZoneBackupJobs(ProviderComputeZone):
         }
     )
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: 'ResourceController', data, oid, *args, **kwargs):
         hypervisor = dict_get(data, "hypervisor")
-        compute_zone: ComputeZone = controller.get_resource(oid)
+        compute_zone: 'ComputeZone' = controller.get_resource(oid)
         resp = compute_zone.get_backup_jobs(hypervisor=hypervisor)
         return {"jobs": resp}
 
@@ -795,8 +1023,10 @@ class GetComputeZoneBackupJobItemResponseSchema(GetComputeZoneBackupJobsItemResp
     instances = fields.List(
         fields.Dict,
         required=True,
-        example=1,
-        description="list if instances configured in job",
+        metadata={
+            "example": '1',
+            "description": 'list if instances configured in job',
+        },
     )
 
 
@@ -812,19 +1042,24 @@ class GetComputeZoneBackupJobResponseSchema(Schema):
 class GetComputeZoneBackupJobRequestSchema(Schema):
     oid = fields.String(
         required=True,
-        description="id, uuid or name of the parent compute zone",
         context="path",
+        metadata={
+            "description": 'id, uuid or name of the parent compute zone',
+        },
     )
 
 
 class GetComputeZoneBackupJob(ProviderComputeZone):
     summary = "Get compute zone backup configured job"
     description = "Get compute zone backup configured job"
+
     definitions = {
         "GetComputeZoneBackupJobResponseSchema": GetComputeZoneBackupJobResponseSchema,
         "GetComputeZoneBackupJobRequestSchema": GetComputeZoneBackupJobRequestSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(GetComputeZoneBackupJobRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {
             200: {
@@ -834,8 +1069,8 @@ class GetComputeZoneBackupJob(ProviderComputeZone):
         }
     )
 
-    def get(self, controller, data, oid, job, *args, **kwargs):
-        compute_zone: ComputeZone = controller.get_resource(oid)
+    def get(self, controller: 'ResourceController', data, oid, job, *args, **kwargs):
+        compute_zone: 'ComputeZone' = controller.get_resource(oid)
         resp = compute_zone.get_backup_job(job)
         return {"job": resp}
 
@@ -843,107 +1078,172 @@ class GetComputeZoneBackupJob(ProviderComputeZone):
 class AddComputeZoneBackupJobRequestSchema(Schema):
     hypervisor = fields.String(
         required=False,
-        example="openstack",
-        missing="openstack",
-        description="hypervisor like openstack or vsphere",
+        metadata={
+            "example": 'openstack',
+            "description": 'hypervisor like openstack or vsphere',
+        },
     )
+
     hypervisor_tag = fields.String(
         required=False,
-        example="default",
-        missing="default",
-        description="hypervisor tag",
+        metadata={
+            "example": 'default',
+            "description": 'hypervisor tag',
+        },
     )
-    site = fields.String(required=True, example="Test", description="availability zone name")
+
+    site = fields.String(
+        required=True,
+        metadata={
+            "example": 'Test',
+            "description": 'availability zone name',
+        },
+    )
+
     resource_type = fields.String(
         required=False,
-        example="ComputeInstance",
-        missing="ComputeInstance",
-        description="type of resource managed by job. Can be: ComputeInstance",
+        metadata={
+            "example": 'ComputeInstance',
+            "description": 'type of resource managed by job. Can be: ComputeInstance',
+        },
     )
-    name = fields.String(required=True, example="job1", description="job name")
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'job1',
+            "description": 'job name',
+        },
+    )
+
     desc = fields.String(
         required=False,
         allow_none=True,
-        example="desc job1",
-        description="desc job name",
+        metadata={
+            "example": 'desc job1',
+            "description": 'desc job name',
+        },
     )
-    fullbackup_interval = fields.Int(required=False, example=2, missing=2, description="interval between full backup")
+
+    fullbackup_interval = fields.Int(
+        required=False,
+        load_default=2,
+        metadata={
+            "example": 2,
+            "description": 'interval between full backup',
+        },
+    )
+
     restore_points = fields.Int(
         required=False,
-        example=4,
-        missing=4,
-        description="number of restore points to retain",
+        load_default=4,
+        metadata={
+            "example": 4,
+            "description": 'number of restore points to retain',
+        },
     )
+
     start_date = fields.String(
         required=False,
-        example="dd/mm/yyyy",
-        missing=None,
-        description="start date like dd/mm/yyyy",
+        load_default=None,
+        metadata={
+            "example": 'dd/mm/yyyy',
+            "description": 'start date like dd/mm/yyyy',
+        },
     )
+
     end_date = fields.String(
         required=False,
-        example="dd/mm/yyyy",
-        missing=None,
-        description="end date like dd/mm/yyyy",
+        load_default=None,
+        metadata={
+            "example": 'dd/mm/yyyy',
+            "description": 'end date like dd/mm/yyyy',
+        },
     )
+
     start_time = fields.String(
         required=False,
-        example="0:00 AM",
-        missing="0:00 AM",
-        description="start time like 0:00 AM",
+        load_default="0:00 AM",
+        metadata={
+            "example": '0:00 AM',
+            "description": 'start time like 0:00 AM',
+        },
     )
+
     interval = fields.String(
         required=False,
-        example="24hrs",
-        missing="24hrs",
-        description="job interval like 24hrs",
+        load_default="24hrs",
+        metadata={
+            "example": '24hrs',
+            "description": 'job interval like 24hrs',
+        },
     )
+
     timezone = fields.String(
         required=False,
-        example="Europe/Rome",
-        missing="Europe/Rome",
-        description="job timezone",
+        load_default="Europe/Rome",
+        metadata={
+            "example": 'Europe/Rome',
+            "description": 'job timezone',
+        },
     )
+
     job_type = fields.String(
         required=False,
-        example="Parallel",
-        missing="Parallel",
-        description="job type. Can be: Parallel or Serial",
+        load_default="Parallel",
+        metadata={
+            "example": 'Parallel',
+            "description": 'job type. Can be: Parallel or Serial',
+        },
     )
+
     instances = fields.List(
         fields.String,
         required=True,
-        example='["id1"]',
-        description="list of instances id",
+        metadata={
+            "example": '["id1"]',
+            "description": 'list of instances id',
+        },
     )
 
 
 class AddComputeZoneBackupJobBodyRequestSchema(GetApiObjectRequestSchema):
     oid = fields.String(
         required=True,
-        description="id, uuid or name of the parent compute zone",
         context="path",
+        metadata={
+            "description": 'id, uuid or name of the parent compute zone',
+        },
     )
-    body = fields.Nested(AddComputeZoneBackupJobRequestSchema, context="body")
+
+    body = fields.Nested(
+        AddComputeZoneBackupJobRequestSchema,
+        context="body",
+    )
 
 
 class AddComputeZoneBackupJobResponseSchema(Schema):
     job = fields.String(
         required=True,
-        example="4cdf0ea4-159a-45aa-96f2-708e461130e1",
-        description="job id",
+        metadata={
+            "example": '4cdf0ea4-159a-45aa-96f2-708e461130e1',
+            "description": 'job id',
+        },
     )
 
 
 class AddComputeZoneBackupJob(ProviderComputeZone):
     summary = "Add compute zone backup job"
     description = "Add compute zone backup job"
+
     definitions = {
         "AddComputeZoneBackupJobRequestSchema": AddComputeZoneBackupJobRequestSchema,
         "AddComputeZoneBackupJobResponseSchema": AddComputeZoneBackupJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(AddComputeZoneBackupJobBodyRequestSchema)
     parameters_schema = AddComputeZoneBackupJobRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {
             200: {
@@ -953,8 +1253,8 @@ class AddComputeZoneBackupJob(ProviderComputeZone):
         }
     )
 
-    def post(self, controller, data, oid, *args, **kwargs):
-        compute_zone: ComputeZone = controller.get_resource(oid)
+    def post(self, controller: 'ResourceController', data, oid, *args, **kwargs):
+        compute_zone: 'ComputeZone' = controller.get_resource(oid)
         name = data.pop("name")
         desc = data.pop("desc")
         site = data.pop("site")
@@ -963,89 +1263,159 @@ class AddComputeZoneBackupJob(ProviderComputeZone):
 
 
 class UpdateComputeZoneBackupJobInstanceRequestSchema(Schema):
-    instance = fields.String(required=True, example="instance1", description="instance name")
-    action = fields.String(required=True, example="add", description="action to do: add, del")
+    instance = fields.String(
+        required=True,
+        metadata={
+            "example": 'instance1',
+            "description": 'instance name',
+        },
+    )
+
+    action = fields.String(
+        required=True,
+        metadata={
+            "example": 'add',
+            "description": 'action to do: add, del',
+        },
+    )
 
 
 class UpdateComputeZoneBackupJobRequestSchema(Schema):
-    name = fields.String(required=False, example="job1", missing=None, description="job name")
+    name = fields.String(
+        required=False,
+        load_default=None,
+        metadata={
+            "example": 'job1',
+            "description": 'job name',
+        },
+    )
+
     fullbackup_interval = fields.Int(
         required=False,
-        example=2,
-        missing=None,
-        description="interval between full backup",
+        load_default=None,
+        metadata={
+            "example": 2,
+            "description": 'interval between full backup',
+        },
     )
+
     restore_points = fields.Int(
         required=False,
-        example=4,
-        missing=None,
-        description="number of restore points to retain",
+        load_default=None,
+        metadata={
+            "example": 4,
+            "description": 'number of restore points to retain',
+        },
     )
+
     start_date = fields.String(
         required=False,
-        example="dd/mm/yyyy",
-        missing=None,
-        description="start date like dd/mm/yyyy",
+        load_default=None,
+        metadata={
+            "example": 'dd/mm/yyyy',
+            "description": 'start date like dd/mm/yyyy',
+        },
     )
+
     end_date = fields.String(
         required=False,
-        example="dd/mm/yyyy",
-        missing=None,
-        description="end date like dd/mm/yyyy",
+        load_default=None,
+        metadata={
+            "example": 'dd/mm/yyyy',
+            "description": 'end date like dd/mm/yyyy',
+        },
     )
+
     start_time = fields.String(
         required=False,
-        example="0:00 AM",
-        missing=None,
-        description="start time like 0:00 AM",
+        load_default=None,
+        metadata={
+            "example": '0:00 AM',
+            "description": 'start time like 0:00 AM',
+        },
     )
+
     interval = fields.String(
         required=False,
-        example="24hrs",
-        missing=None,
-        description="job interval like 24hrs",
+        load_default=None,
+        metadata={
+            "example": '24hrs',
+            "description": 'job interval like 24hrs',
+        },
     )
-    timezone = fields.String(required=False, example="Europe/Rome", missing=None, description="job timezone")
-    enabled = fields.Boolean(required=False, example=True, missing=None, description="job enable status")
+
+    timezone = fields.String(
+        required=False,
+        load_default=None,
+        metadata={
+            "example": 'Europe/Rome',
+            "description": 'job timezone',
+        },
+    )
+
+    enabled = fields.Boolean(
+        required=False,
+        load_default=None,
+        metadata={
+            "example": True,
+            "description": 'job enable status',
+        },
+    )
+
     instances = fields.Nested(
         UpdateComputeZoneBackupJobInstanceRequestSchema,
         required=False,
         many=True,
         allow_none=True,
-        description="list of instance to add or remove",
+        metadata={
+            "description": 'list of instance to add or remove',
+        },
     )
 
 
 class UpdateComputeZoneBackupJobBodyRequestSchema(Schema):
     oid = fields.String(
         required=True,
-        description="id, uuid or name of the parent compute zone",
         context="path",
+        metadata={
+            "description": 'id, uuid or name of the parent compute zone',
+        },
     )
+
     job = fields.String(
         required=True,
-        example="4cdf0ea4-159a-45aa-96f2-708e461130e1",
         context="path",
-        description="job id",
+        metadata={
+            "example": '4cdf0ea4-159a-45aa-96f2-708e461130e1',
+            "description": 'job id',
+        },
     )
-    body = fields.Nested(UpdateComputeZoneBackupJobRequestSchema, context="body")
+
+    body = fields.Nested(
+        UpdateComputeZoneBackupJobRequestSchema,
+        context="body",
+    )
 
 
 class UpdateComputeZoneBackupJobResponseSchema(Schema):
     job = fields.String(
         required=True,
-        example="4cdf0ea4-159a-45aa-96f2-708e461130e1",
-        description="job id",
+        metadata={
+            "example": '4cdf0ea4-159a-45aa-96f2-708e461130e1',
+            "description": 'job id',
+        },
     )
 
 
 class UpdateComputeZoneBackupJob(ProviderComputeZone):
     summary = "Update compute zone backup job"
     description = "Update compute zone backup job"
+
     definitions = {
         "UpdateComputeZoneBackupJobRequestSchema": UpdateComputeZoneBackupJobRequestSchema,
         "UpdateComputeZoneBackupJobResponseSchema": UpdateComputeZoneBackupJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateComputeZoneBackupJobBodyRequestSchema)
     parameters_schema = UpdateComputeZoneBackupJobRequestSchema
     responses = SwaggerApiView.setResponses(
@@ -1057,51 +1427,50 @@ class UpdateComputeZoneBackupJob(ProviderComputeZone):
         }
     )
 
-    def put(self, controller, data, oid, job, *args, **kwargs):
-        from beehive_resource.plugins.provider.entity.zone import ComputeZone
-
-        compute_zone: ComputeZone = controller.get_resource(oid)
+    def put(self, controller: 'ResourceController', data, oid, job, *args, **kwargs):
+        compute_zone: 'ComputeZone' = controller.get_resource(oid)
         resp = compute_zone.update_backup_job(job, **data)
         return {"job": resp}
-
-
-# class DeleteComputeZoneBackupJobRequestSchema(Schema):
-#     job = fields.String(required=True, description='id of the job', context='path')
-#     site = fields.String(required=True, example='Test', description='availability zone name')
-#     hypervisor = fields.String(required=False, example='openstack', missing='openstack',
-#                                description='hypervisor like openstack or vsphere')
-#     hypervisor_tag = fields.String(required=False, example='default', missing='default', description='hypervisor tag')
-#     resource_type = fields.String(required=False, example='ComputeInstance', missing='ComputeInstance',
-#                                   description='type of resource managed by job. Can be: ComputeInstance')
 
 
 class DeleteComputeZoneBackupJobBodyRequestSchema(GetApiObjectRequestSchema):
     oid = fields.String(
         required=True,
-        description="id, uuid or name of the parent compute zone",
         context="path",
+        metadata={
+            "description": 'id, uuid or name of the parent compute zone',
+        },
     )
-    job = fields.String(required=True, description="id of the job", context="path")
-    # body = fields.Nested(DeleteComputeZoneBackupJobRequestSchema, context='body')
+
+    job = fields.String(
+        required=True,
+        context="path",
+        metadata={
+            "description": 'id of the job',
+        },
+    )
 
 
 class DeleteComputeZoneBackupJobResponseSchema(Schema):
     job = fields.String(
         required=True,
-        example="4cdf0ea4-159a-45aa-96f2-708e461130e1",
-        description="job id",
+        metadata={
+            "example": '4cdf0ea4-159a-45aa-96f2-708e461130e1',
+            "description": 'job id',
+        },
     )
 
 
 class DeleteComputeZoneBackupJob(ProviderComputeZone):
     summary = "Delete compute zone backup job"
     description = "Delete compute zone backup job"
+
     definitions = {
-        # 'DeleteComputeZoneBackupJobRequestSchema': DeleteComputeZoneBackupJobRequestSchema,
         "DeleteComputeZoneBackupJobResponseSchema": DeleteComputeZoneBackupJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(DeleteComputeZoneBackupJobBodyRequestSchema)
-    # parameters_schema = DeleteComputeZoneBackupJobRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {
             200: {
@@ -1111,12 +1480,8 @@ class DeleteComputeZoneBackupJob(ProviderComputeZone):
         }
     )
 
-    def delete(self, controller, data, oid, job, *args, **kwargs):
-        from beehive_resource.plugins.provider.entity.zone import ComputeZone
-
-        compute_zone: ComputeZone = controller.get_resource(oid)
-        # job = data.pop('job')
-        # site = data.pop('site')
+    def delete(self, controller: 'ResourceController', data, oid, job, *args, **kwargs):
+        compute_zone: 'ComputeZone' = controller.get_resource(oid)
         resp = compute_zone.delete_backup_job(job)
         return {"job": resp}
 
@@ -1127,21 +1492,107 @@ class DeleteComputeZoneBackupJob(ProviderComputeZone):
 class GetComputeZoneBackupRestorePointsItemResponseSchema(Schema):
     hypervisor = fields.String(
         required=True,
-        example="job1",
-        description="hypervisor like openstack or vsphere",
+        metadata={
+            "example": 'job1',
+            "description": 'hypervisor like openstack or vsphere',
+        },
     )
-    site = fields.String(required=True, example="job1", description="availability zone name")
-    resource_type = fields.String(required=True, example="job1", description="type of resource managed by job")
-    instances = fields.Int(required=True, example=1, description="number if instances configured in job")
-    id = fields.String(required=True, example="job1", description="job id")
-    name = fields.String(required=True, example="job1", description="job name")
-    created = fields.String(required=True, example="job1", description="job creation date")
-    updated = fields.String(required=True, example="job1", description="job update date")
-    error = fields.String(required=True, example="job1", description="job error")
-    usage = fields.String(required=True, example="job1", description="job storage usage")
-    status = fields.String(required=True, example="job1", description="job status")
-    type = fields.String(required=True, example="job1", description="job type")
-    schedule = fields.Dict(required=True, example="job1", description="job schedule")
+
+    site = fields.String(
+        required=True,
+        metadata={
+            "example": 'job1',
+            "description": 'availability zone name',
+        },
+    )
+
+    resource_type = fields.String(
+        required=True,
+        metadata={
+            "example": 'job1',
+            "description": 'type of resource managed by job',
+        },
+    )
+
+    instances = fields.Int(
+        required=True,
+        metadata={
+            "example": 1,
+            "description": 'number if instances configured in job',
+        },
+    )
+
+    id = fields.String(
+        required=True,
+        metadata={
+            "example": 'job1',
+            "description": 'job id',
+        },
+    )
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'job1',
+            "description": 'job name',
+        },
+    )
+
+    created = fields.String(
+        required=True,
+        metadata={
+            "example": 'job1',
+            "description": 'job creation date',
+        },
+    )
+
+    updated = fields.String(
+        required=True,
+        metadata={
+            "example": 'job1',
+            "description": 'job update date',
+        },
+    )
+
+    error = fields.String(
+        required=True,
+        metadata={
+            "example": 'job1',
+            "description": 'job error',
+        },
+    )
+
+    usage = fields.String(
+        required=True,
+        metadata={
+            "example": 'job1',
+            "description": 'job storage usage',
+        },
+    )
+
+    status = fields.String(
+        required=True,
+        metadata={
+            "example": 'job1',
+            "description": 'job status',
+        },
+    )
+
+    type = fields.String(
+        required=True,
+        metadata={
+            "example": 'job1',
+            "description": 'job type',
+        },
+    )
+
+    schedule = fields.Dict(
+        required=True,
+        metadata={
+            "example": 'job1',
+            "description": 'job schedule',
+        },
+    )
 
 
 class GetComputeZoneBackupRestorePointsResponseSchema(Schema):
@@ -1151,52 +1602,75 @@ class GetComputeZoneBackupRestorePointsResponseSchema(Schema):
         many=True,
         allow_none=True,
     )
+
     restore_point_total = fields.Int(
-        required=True, example=1, description="total number of restore point", allow_none=True
+        required=True,
+        allow_none=True,
+        metadata={
+            "example": 1,
+            "description": 'total number of restore point',
+        },
     )
 
 
 class GetComputeZoneBackupRestorePointsRequestSchema(Schema):
     oid = fields.String(
         required=True,
-        description="id, uuid or name of the parent compute zone",
         context="path",
+        metadata={
+            "description": 'id, uuid or name of the parent compute zone',
+        },
     )
+
     job_id = fields.String(
         required=False,
-        missing=None,
-        description="id of the backup job",
+        load_default=None,
         context="query",
+        metadata={
+            "description": 'id of the backup job',
+        },
     )
+
     restore_point_id = fields.String(
         required=False,
-        missing=None,
+        load_default=None,
         context="query",
-        description="id of the backup job restore point",
+        metadata={
+            "description": 'id of the backup job restore point',
+        },
     )
+
     size = fields.Int(
         required=False,
-        missing=20,
-        description="size",
+        load_default=20,
         context="query",
+        metadata={
+            "description": 'size',
+        },
     )
+
     page = fields.Int(
         required=False,
-        missing=0,
-        description="page",
+        load_default=0,
         context="query",
+        metadata={
+            "description": 'page',
+        },
     )
 
 
 class GetComputeZoneBackupRestorePoints(ProviderComputeZone):
     summary = "Get compute zone backup job restore points"
     description = "Get compute zone backup job restore points"
+
     definitions = {
         "GetComputeZoneBackupRestorePointsResponseSchema": GetComputeZoneBackupRestorePointsResponseSchema,
         "GetComputeZoneBackupRestorePointsRequestSchema": GetComputeZoneBackupRestorePointsRequestSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(GetComputeZoneBackupRestorePointsRequestSchema)
     parameters_schema = GetComputeZoneBackupRestorePointsRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {
             200: {
@@ -1206,61 +1680,89 @@ class GetComputeZoneBackupRestorePoints(ProviderComputeZone):
         }
     )
 
-    def get(self, controller, data, oid, *args, **kwargs):
-        compute_zone: ComputeZone = controller.get_resource(oid)
+    def get(self, controller: 'ResourceController', data, oid, *args, **kwargs):
+        compute_zone: 'ComputeZone' = controller.get_resource(oid)
         job_id = data.get("job_id")
         restore_point_id = data.get("restore_point_id")
         size = data.get("size")
         page = int(data.get("page"))
+
         restore_points, restore_point_total = compute_zone.get_backup_restore_points(
             job_id, size, page, restore_point_id=restore_point_id
         )
+
         return {"restore_points": restore_points, "restore_point_total": restore_point_total}
 
 
 class AddComputeZoneBackupRestorePointRequestSchema(Schema):
-    job_id = fields.String(required=True, example="default", description="hypervisor tag")
-    name = fields.String(required=True, example="restore_point1", description="restore point name")
+    job_id = fields.String(
+        required=True,
+        metadata={
+            "example": 'default',
+            "description": 'hypervisor tag',
+        },
+    )
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'restore_point1',
+            "description": 'restore point name',
+        },
+    )
+
     desc = fields.String(
         required=False,
-        example="restore_point1",
-        missing=None,
-        description="restore point description",
+        load_default=None,
+        metadata={
+            "example": 'restore_point1',
+            "description": 'restore point description',
+        },
     )
+
     full = fields.Boolean(
         required=False,
-        example=True,
-        missing=True,
-        description="if True create a full restore point type, otherwise crate an incremental",
+        load_default=True,
+        metadata={
+            "example": True,
+            "description": 'if True create a full restore point type, otherwise crate an incremental',
+        },
     )
 
 
 class AddComputeZoneBackupRestorePointBodyRequestSchema(GetApiObjectRequestSchema):
     oid = fields.String(
         required=True,
-        description="id, uuid or name of the parent compute zone",
         context="path",
+        metadata={
+            "description": 'id, uuid or name of the parent compute zone',
+        },
     )
-    body = fields.Nested(AddComputeZoneBackupRestorePointRequestSchema, context="body")
+
+    body = fields.Nested(
+        AddComputeZoneBackupRestorePointRequestSchema,
+        context="body",
+    )
 
 
 class AddComputeZoneBackupRestorePoint(ProviderComputeZone):
     summary = "Add compute zone backup job restore point"
     description = "Add compute zone backup job restore point"
+
     definitions = {
         "AddComputeZoneBackupRestorePointRequestSchema": AddComputeZoneBackupRestorePointRequestSchema,
         "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(AddComputeZoneBackupRestorePointBodyRequestSchema)
     parameters_schema = AddComputeZoneBackupRestorePointRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
 
-    def post(self, controller, data, oid, *args, **kwargs):
-        from beehive_resource.plugins.provider.entity.zone import ComputeZone
-
-        compute_zone: ComputeZone = controller.get_resource(oid)
+    def post(self, controller: 'ResourceController', data, oid, *args, **kwargs):
+        compute_zone: 'ComputeZone' = controller.get_resource(oid)
         job_id = data.get("job_id")
         name = data.get("name")
         desc = data.get("desc")
@@ -1270,41 +1772,93 @@ class AddComputeZoneBackupRestorePoint(ProviderComputeZone):
 
 
 class DeleteComputeZoneBackupRestorePointRequestSchema(Schema):
-    job_id = fields.String(required=True, example="default", description="hypervisor tag")
-    restore_point_id = fields.String(required=True, example="restore_point1", description="restore point id")
+    job_id = fields.String(
+        required=True,
+        metadata={
+            "example": 'default',
+            "description": 'hypervisor tag',
+        },
+    )
+
+    restore_point_id = fields.String(
+        required=True,
+        metadata={
+            "example": 'restore_point1',
+            "description": 'restore point id',
+        },
+    )
 
 
 class DeleteComputeZoneBackupRestorePointBodyRequestSchema(GetApiObjectRequestSchema):
     oid = fields.String(
         required=True,
-        description="id, uuid or name of the parent compute zone",
         context="path",
+        metadata={
+            "description": 'id, uuid or name of the parent compute zone',
+        },
     )
-    body = fields.Nested(DeleteComputeZoneBackupRestorePointRequestSchema, context="body")
+
+    body = fields.Nested(
+        DeleteComputeZoneBackupRestorePointRequestSchema,
+        context="body",
+    )
 
 
 class DeleteComputeZoneBackupRestorePoint(ProviderComputeZone):
     summary = "Delete compute zone backup job restore point"
     description = "Delete compute zone backup job restore point"
+
     definitions = {
         "DeleteComputeZoneBackupRestorePointRequestSchema": DeleteComputeZoneBackupRestorePointRequestSchema,
         "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(DeleteComputeZoneBackupRestorePointBodyRequestSchema)
     parameters_schema = DeleteComputeZoneBackupRestorePointRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
 
-    def delete(self, controller, data, oid, *args, **kwargs):
-        from beehive_resource.plugins.provider.entity.zone import ComputeZone
-
-        compute_zone: ComputeZone = controller.get_resource(oid)
+    def delete(self, controller: 'ResourceController', data, oid, *args, **kwargs):
+        compute_zone: 'ComputeZone' = controller.get_resource(oid)
         job_id = data.get("job_id")
         restore_point_id = data.get("restore_point_id")
         resp = compute_zone.delete_backup_restore_point(job_id, restore_point_id)
         return resp
 
+
+class CheckComputeZoneStorageConfParamsResponseSchema(ResourceResponseSchema):
+    storage_conf = fields.Dict(
+        required=True,
+        dump_default={},
+    )
+
+
+class CheckComputeZoneStorageConfResponseSchema(Schema):
+    compute_zone = fields.Nested(
+        GetComputeZoneParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
+
+
+class CheckComputeZoneStorageConf(ProviderComputeZone):
+    summary = "Check compute zone storage configuration"
+    description = "Check compute zone is correctly configured in order to use specific svms for the new ontap staas services"
+
+    definitions = {
+        "GetApiObjectRequestSchema": GetApiObjectRequestSchema,
+        "CheckComputeZoneStorageConfResponseSchema": CheckComputeZoneStorageConfResponseSchema,
+    }
+
+    parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": CheckComputeZoneStorageConfResponseSchema}})
+
+    def get(self, controller: 'ResourceController', data, oid, *args, **kwargs):
+        compute_zone: 'ComputeZone' = self.get_resource_reference(controller,oid,run_customize=False,cache=False)
+        ret = compute_zone.check_get_storage_conf()
+        return {"storage_conf":ret}
 
 class ComputeZoneAPI(ProviderAPI):
     """ """
@@ -1403,6 +1957,12 @@ class ComputeZoneAPI(ProviderAPI):
                 DeleteComputeZoneBackupRestorePoint,
                 {},
             ),
+            (
+                "%s/compute_zones/<oid>/storage/conf" % base,
+                "GET",
+                CheckComputeZoneStorageConf,
+                {},
+            )
         ]
 
         ProviderAPI.register_api(module, rules, **kwargs)

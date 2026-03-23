@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2021-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     ApiManagerError,
@@ -11,22 +11,27 @@ from beehive.common.apimanager import (
     GetApiObjectRequestSchema,
     CrudApiObjectTaskResponseSchema,
 )
+
 from beehive_resource.plugins.provider.entity.monitoring_folder import (
     ComputeMonitoringFolder,
 )
+
 from beehive_resource.plugins.provider.entity.monitoring_team import (
     ComputeMonitoringTeam,
 )
+
 from beehive_resource.plugins.provider.views import (
     ProviderAPI,
     LocalProviderApiView,
     CreateProviderResourceRequestSchema,
 )
+
 from beehive_resource.view import (
     ListResourcesRequestSchema,
     ResourceResponseSchema,
     ResourceSmallResponseSchema,
 )
+
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
 
@@ -41,8 +46,21 @@ class ProviderMonitoringTeam(LocalProviderApiView):
 
 
 class ListMonitoringTeamsRequestSchema(ListResourcesRequestSchema):
-    instance = fields.String(context="query", description="instance id, uuid or name")
-    parent = fields.String(required=False, default="", description="il padre Team id", allow_none=True)
+    instance = fields.String(
+        context="query",
+        metadata={
+            "description": 'instance id, uuid or name',
+        },
+    )
+
+    parent = fields.String(
+        context="query",
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": 'il padre Team id',
+        },
+    )
 
 
 class ListMonitoringTeamsResponseSchema(PaginatedResponseSchema):
@@ -52,11 +70,10 @@ class ListMonitoringTeamsResponseSchema(PaginatedResponseSchema):
 class ListMonitoringTeams(ProviderMonitoringTeam):
     summary = "List monitoring teams"
     description = "List monitoring teams"
-    definitions = {
-        "ListMonitoringTeamsResponseSchema": ListMonitoringTeamsResponseSchema,
-    }
+    definitions = {"ListMonitoringTeamsResponseSchema": ListMonitoringTeamsResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListMonitoringTeamsRequestSchema)
     parameters_schema = ListMonitoringTeamsRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": ListMonitoringTeamsResponseSchema}}
     )
@@ -79,10 +96,9 @@ class GetMonitoringTeamResponseSchema(Schema):
 class GetMonitoringTeam(ProviderMonitoringTeam):
     summary = "Get monitoring team"
     description = "Get monitoring team"
-    definitions = {
-        "GetMonitoringTeamResponseSchema": GetMonitoringTeamResponseSchema,
-    }
+    definitions = {"GetMonitoringTeamResponseSchema": GetMonitoringTeamResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": GetMonitoringTeamResponseSchema}}
     )
@@ -92,25 +108,63 @@ class GetMonitoringTeam(ProviderMonitoringTeam):
 
 
 class CreateMonitoringTeamGrafanaTeamRequestSchema(Schema):
-    name = fields.String(required=True, example="Test team", default="", description="Team name")
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'Test team',
+            "description": 'Team name',
+        },
+    )
+
     desc = fields.String(
         required=True,
-        example="This is the test team",
-        default="",
-        description="Team description",
+        metadata={
+            "example": 'This is the test team',
+            "description": 'Team description',
+        },
     )
 
 
 class CreateMonitoringTeamParamRequestSchema(CreateProviderResourceRequestSchema):
-    name = fields.String(required=True, example="test", description="monitoring_team name")
-    desc = fields.String(required=True, example="test", description="monitoring_team description")
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'monitoring_team name',
+        },
+    )
+
+    desc = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'monitoring_team description',
+        },
+    )
+
     # compute_zone = fields.String(required=True, example='1', description='parent compute zone id or uuid')
-    monitoring_folder = fields.String(required=True, example="1", description="parent compute folder id or uuid")
-    norescreate = fields.Boolean(required=False, allow_none=True, description="don't create physical resource")
+    monitoring_folder = fields.String(
+        required=True,
+        metadata={
+            "example": '1',
+            "description": 'parent compute folder id or uuid',
+        },
+    )
+
+    norescreate = fields.Boolean(
+        required=False,
+        allow_none=True,
+        metadata={
+            "description": "don't create physical resource",
+        },
+    )
+
     grafana_team = fields.Nested(
         CreateMonitoringTeamGrafanaTeamRequestSchema,
         required=True,
-        description="grafana team parameters",
+        metadata={
+            "description": 'grafana team parameters',
+        },
     )
 
 
@@ -125,12 +179,15 @@ class CreateMonitoringTeamBodyRequestSchema(Schema):
 class CreateMonitoringTeam(ProviderMonitoringTeam):
     summary = "Create monitoring team"
     description = "Create monitoring team"
+
     definitions = {
         "CreateMonitoringTeamRequestSchema": CreateMonitoringTeamRequestSchema,
         "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateMonitoringTeamBodyRequestSchema)
     parameters_schema = CreateMonitoringTeamRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
@@ -144,6 +201,7 @@ class DeleteMonitoringTeam(ProviderMonitoringTeam):
     description = "Delete monitoring team"
     definitions = {"CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
@@ -155,8 +213,10 @@ class DeleteMonitoringTeam(ProviderMonitoringTeam):
 class SendMonitoringTeamActionParamsUserRequestSchema(Schema):
     users_email = fields.String(
         required=True,
-        example="aaa@bbb.it,ccc@ddd.it",
-        description="users email to search",
+        metadata={
+            "example": 'aaa@bbb.it,ccc@ddd.it',
+            "description": 'users email to search',
+        },
     )
 
 
@@ -165,30 +225,43 @@ class SendMonitoringTeamActionParamsRequestSchema(Schema):
         SendMonitoringTeamActionParamsUserRequestSchema,
         required=False,
         allow_none=True,
-        description="add user to team",
+        metadata={
+            "description": 'add user to team',
+        },
     )
 
 
 class SendMonitoringTeamActionRequestSchema(Schema):
-    action = fields.Nested(SendMonitoringTeamActionParamsRequestSchema, required=True)
+    action = fields.Nested(
+        SendMonitoringTeamActionParamsRequestSchema,
+        required=True,
+    )
+
     schedule = fields.Dict(
         required=False,
-        missing=None,
-        description="schedule to use when you want to run a scheduled action",
+        load_default=None,
+        metadata={
+            "description": 'schedule to use when you want to run a scheduled action',
+        },
     )
 
 
 class SendMonitoringTeamActionBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(SendMonitoringTeamActionRequestSchema, context="body")
+    body = fields.Nested(
+        SendMonitoringTeamActionRequestSchema,
+        context="body",
+    )
 
 
 class SendMonitoringTeamAction(ProviderMonitoringTeam):
     summary = "Send server action"
     description = "Send server action"
+
     definitions = {
         "SendMonitoringTeamActionRequestSchema": SendMonitoringTeamActionRequestSchema,
         "CrudApiTaskResponseSchema": CrudApiTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(SendMonitoringTeamActionBodyRequestSchema)
     parameters_schema = SendMonitoringTeamActionRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiTaskResponseSchema}})

@@ -1,13 +1,18 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
-
+# (C) Copyright 2018-2026 CSI-Piemonte
+from __future__ import annotations
 from logging import getLogger
+from beedrones.vsphere.security_group import VsphereNetworkSecurityGroup
 from beehive.common.apimanager import ApiManagerError
 from beehive.common.task_v2 import task_step, TaskError
 from beehive_resource.plugins.vsphere.entity.vs_server import VsphereServer
 from beehive_resource.plugins.vsphere.task_v2.util import VsphereServerHelper, VsphereServerBaseHelper
 from beehive_resource.task_v2 import AbstractResourceTask, run_sync_task
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from beedrones.vsphere.client import VsphereManager
+    from pyVmomi import vim
 
 logger = getLogger(__name__)
 
@@ -20,7 +25,7 @@ class ServerTask(AbstractResourceTask):
 
     @staticmethod
     @task_step()
-    def create_server_step(task, step_id, params, *args, **kvargs):
+    def create_server_step(task: ServerTask, step_id, params, *args, **kvargs):
         """Create vsphere server
 
         :param task: parent celery task
@@ -28,10 +33,10 @@ class ServerTask(AbstractResourceTask):
         :param dict params: step params
         :return: oid, params
         """
-        clone_source_server_oid = params.get("clone_source_oid")
-        is_clone = clone_source_server_oid is not None
-        cid = params.get("cid")
+
+        task.progress(step_id, msg="Get configuration params")
         oid = params.get("id")
+        cid = params.get("cid")
         admin_username = params.get("admin_username")
         admin_password = params.get("adminPass")
         name = params.get("name")
@@ -39,15 +44,35 @@ class ServerTask(AbstractResourceTask):
         cluster_id = params.get("availability_zone")
         volumes = params.get("block_device_mapping_v2")
         customization_spec_name = params.get("customization_spec_name")
-        task.progress(step_id, msg="Get configuration params")
 
-        orchestrator = task.get_container(cid)
-        resource = orchestrator.get_resource(oid)
         task.progress(step_id, msg="Get orchestrator %s" % cid)
+        orchestrator = task.get_container(cid)
 
         helper = VsphereServerBaseHelper(
             task, step_id, orchestrator, params, username=admin_username, password=admin_password
         )
+
+        # first network
+        first_network = next(iter(params.get("networks")), {})
+        net_id = first_network.get("uuid")
+        network = task.get_resource(net_id)
+        # reserve ip address
+        helper.reserve_network_ip_address()
+        net_config = first_network.get("fixed_ip", {})
+        net_attrib = {"subnet_pool": first_network.get("subnet_pool"), "ip": net_config.get("ip")}
+
+        # add resource link for network
+        orchestrator.add_link(
+            name="%s-%s-network-link" % (oid, network.oid),
+            type="network",
+            start_resource=oid,
+            end_resource=network.oid,
+            attributes=net_attrib,
+        )
+
+        clone_source_server_oid = params.get("clone_source_oid")
+        is_clone = clone_source_server_oid is not None
+        resource = orchestrator.get_resource(oid)
 
         # get folder
         folder = task.get_resource(folder_id)
@@ -77,6 +102,8 @@ class ServerTask(AbstractResourceTask):
             volume_type = volume_obj.get_volume_type().oid
             image_id = volume_obj.get_attribs("source_image")
             main_volume["volume_size"] = volume_obj.get_attribs("size")
+        else:
+            raise Exception("Invalid source type %s" % source_type)
 
         main_volume["image_id"] = image_id
         logger.debug("main_volume: %s" % main_volume)
@@ -112,18 +139,7 @@ class ServerTask(AbstractResourceTask):
             # task.progress(step_id, msg='Create volume: %s' % volume_id)
         volumes.insert(0, main_volume)
 
-        # get networks
         task.get_session(reopen=True)
-
-        # first network
-        first_network = next(iter(params.get("networks")), {})
-        net_id = first_network.get("uuid")
-
-        network = task.get_resource(net_id)
-
-        # reserve ip address
-        helper.reserve_network_ip_address()
-
         net_attrib = {}
         inst = None
         # clone server from template
@@ -165,20 +181,9 @@ class ServerTask(AbstractResourceTask):
 
         # set server disks reference to volumes
         helper.set_volumes_ext_id(inst, volume_idx)
-        net_config = first_network.get("fixed_ip", {})
-        net_attrib = {"subnet_pool": first_network.get("subnet_pool"), "ip": net_config.get("ip")}
 
         # set server security groups
         helper.set_security_group(inst)
-
-        # add resource link for network
-        orchestrator.add_link(
-            name="%s-%s-network-link" % (oid, network.oid),
-            type="network",
-            start_resource=oid,
-            end_resource=network.oid,
-            attributes=net_attrib,
-        )
 
         # setup ssh key
         helper.setup_ssh_key(inst)
@@ -193,7 +198,7 @@ class ServerTask(AbstractResourceTask):
 
     @staticmethod
     @task_step()
-    def patch_server_step(task, step_id, params, *args, **kvargs):
+    def patch_server_step(task: ServerTask, step_id, params, *args, **kvargs):
         """Patch vsphere server
 
         :param task: parent celery task
@@ -250,7 +255,7 @@ class ServerTask(AbstractResourceTask):
 
     @staticmethod
     @task_step()
-    def delete_server_step(task, step_id, params, *args, **kvargs):
+    def delete_server_step(task: ServerTask, step_id, params, *args, **kvargs):
         """Delete vsphere server
 
         :param task: parent celery task
@@ -258,6 +263,7 @@ class ServerTask(AbstractResourceTask):
         :param dict params: step params
         :return: oid, params
         """
+
         task.progress(step_id, msg="Get shared area")
 
         # validate input params
@@ -271,23 +277,20 @@ class ServerTask(AbstractResourceTask):
 
         helper = VsphereServerHelper(task, step_id, orchestrator, params)
 
-        # Release ip address
-        helper.release_network_ip_address(resource)
 
         # get vsphere server
-        from beedrones.vsphere.client import VsphereManager
-        from pyVmomi import vim
-
         conn: VsphereManager = orchestrator.conn
         inst: vim.VirtualMachine = conn.server.get_by_morid(resource.ext_id)
 
         if inst is not None:
             # stop server
-            helper.stop(inst)
+            helper.hard_stop(inst)
 
             # delete server
             helper.delete(resource, inst)
 
+        # Release ip address
+        helper.release_network_ip_address(resource)
         return oid, params
 
     @staticmethod
@@ -664,26 +667,16 @@ class ServerTask(AbstractResourceTask):
         """
 
         def del_volume_action(conn, cid, oid, ext_id, params):
-            volume_obj = params["volume"]
-            volume_extid = volume_obj.ext_id
-
             # get server
             server = conn.server.get_by_morid(ext_id)
 
             # add new disk for the volume
-            task = conn.server.hardware.delete_hard_disk(server, volume_extid, delete_backing_file=False)
+            return conn.server.hardware.delete_hard_disk(server, params["volume_ext_id"], delete_backing_file=False)
 
-            # change volume ext_id
-            volume_obj.update_internal(ext_id="")
+        volume_obj = task.get_simple_resource(params.get("volume"))
+        params["volume_ext_id"] = volume_obj.ext_id
+        server_obj = task.get_simple_resource(params.get("id"))
 
-            # delete link between volume and server
-            server_obj = params["server"]
-            server_obj.del_link(volume_obj.oid)
-
-            return task
-
-        params["volume"] = task.get_simple_resource(params.get("volume"))
-        params["server"] = task.get_simple_resource(params.get("id"))
         res = ServerTask.server_action(
             task,
             step_id,
@@ -692,6 +685,11 @@ class ServerTask(AbstractResourceTask):
             "Error detaching volume from server",
             params,
         )
+
+        # change volume ext_id
+        volume_obj.update_internal(ext_id="")
+        # delete link between volume and server
+        server_obj.del_link(volume_obj.oid)
         return res, params
 
     @staticmethod
@@ -712,7 +710,7 @@ class ServerTask(AbstractResourceTask):
             # get server
             server = conn.server.get_by_morid(ext_id)
             # extend disk
-            ext_task = conn.server.hardware.extend_hard_disk(conn.server, volume_extid, volume_size)
+            ext_task = conn.server.hardware.extend_hard_disk(server, volume_extid, volume_size)
             return ext_task
 
         params["volume"] = task.get_simple_resource(params.get("volume"))
@@ -770,7 +768,7 @@ class ServerTask(AbstractResourceTask):
         """
 
         def del_security_group_action(conn, cid, oid, ext_id, params):
-            security_group_obj = params["security_group"]
+            security_group_obj: VsphereNetworkSecurityGroup = params["security_group"]
             prepared_task, code = security_group_obj.delete_member({"member": oid, "sync": True})
             run_sync_task(prepared_task, params["task"], params["step_id"])
 

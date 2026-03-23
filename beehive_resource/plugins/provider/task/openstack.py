@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import copy
 import ujson as json
@@ -114,7 +114,7 @@ class ProviderOpenstack(object):
         # get project
         # project = task.get_resource(resource.parent_id)
 
-        project = resource.get_physical_resource_from_container(cid, OpenstackProject.objdef)
+        project: OpenstackProject = resource.get_physical_resource_from_container(cid, OpenstackProject.objdef)
         ops_quotas = {}
         for k, v in quotas.items():
             base_quota = copy.deepcopy(ProviderOpenstack.QUOTAS)
@@ -682,20 +682,20 @@ class ProviderOpenstack(object):
                 res = task.get_resource(source["value"])
                 sg_id = res.get_physical_resource_from_container(cid, OpenstackSecurityGroup.objdef).oid
 
-                policies.append(
-                    ProviderOpenstack.create_openstack_rule(
-                        task,
-                        resource,
-                        cid,
-                        sg_id,
-                        "egress",
-                        port_range_min,
-                        port_range_max,
-                        proto,
-                        group=sg_id,
-                        cidr=None,
-                    )
-                )
+                # policies.append(
+                #     ProviderOpenstack.create_openstack_rule(
+                #         task,
+                #         resource,
+                #         cid,
+                #         sg_id,
+                #         "egress",
+                #         port_range_min,
+                #         port_range_max,
+                #         proto,
+                #         group=sg_id,
+                #         cidr=None,
+                #     )
+                # )
                 policies.append(
                     ProviderOpenstack.create_openstack_rule(
                         task,
@@ -764,20 +764,20 @@ class ProviderOpenstack(object):
                 res = task.get_resource(destination["value"])
                 dest_sg_id = res.get_physical_resource_from_container(cid, OpenstackSecurityGroup.objdef).oid
 
-                policies.append(
-                    ProviderOpenstack.create_openstack_rule(
-                        task,
-                        resource,
-                        cid,
-                        source_sg_id,
-                        "egress",
-                        port_range_min,
-                        port_range_max,
-                        proto,
-                        group=dest_sg_id,
-                        cidr=None,
-                    )
-                )
+                # policies.append(
+                #     ProviderOpenstack.create_openstack_rule(
+                #         task,
+                #         resource,
+                #         cid,
+                #         source_sg_id,
+                #         "egress",
+                #         port_range_min,
+                #         port_range_max,
+                #         proto,
+                #         group=dest_sg_id,
+                #         cidr=None,
+                #     )
+                # )
                 policies.append(
                     ProviderOpenstack.create_openstack_rule(
                         task,
@@ -801,7 +801,7 @@ class ProviderOpenstack(object):
 
                 # get destination server id
                 server_id = destination["value"]
-                # get destination security group id where is the server
+                # get destination security group id where the server is
                 server = task.get_resource(server_id)
                 res = task.get_resource(server.parent_id)
                 dest_sg_id = res.get_physical_resource_from_container(cid, OpenstackSecurityGroup.objdef).oid
@@ -839,7 +839,7 @@ class ProviderOpenstack(object):
             elif destination["type"] in ["Environment"] and source["type"] in ["Server"]:
                 # get source server id
                 server_id = source["value"]
-                # get source security group id where is the server
+                # get source security group id where the server is
                 server = task.get_resource(server_id)
                 res = task.get_resource(server.parent_id)
                 source_sg_id = res.get_physical_resource_from_container(cid, OpenstackSecurityGroup.objdef).oid
@@ -881,14 +881,14 @@ class ProviderOpenstack(object):
             elif source["type"] in ["Server"] and destination["type"] in ["Server"]:
                 # get source server id
                 source_server_id = source["value"]
-                # get source security group id where is the server
+                # get source security group id where the server is
                 server = task.controller.get_resource(source_server_id)
                 res = task.get_resource(server.parent_id)
                 source_sg_id = res.get_physical_resource_from_container(cid, OpenstackSecurityGroup.objdef).oid
 
                 # get destination server id
                 dest_server_id = destination["value"]
-                # get destination security group id where is the server
+                # get destination security group id where the server is
                 server = task.controller.get_resource(dest_server_id)
                 res = task.get_resource(dest_server_id.parent_id)
                 dest_sg_id = res.get_physical_resource_from_container(cid, OpenstackSecurityGroup.objdef).oid
@@ -996,7 +996,7 @@ class ProviderOpenstack(object):
             objid=objid,
             name=name,
             resource_class=CustomResource,
-            ext_id=None,
+            ext_id=rule_id,
             active=True,
             desc=desc,
             attrib=attribs,

@@ -1,15 +1,17 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
-
+# (C) Copyright 2018-2026 CSI-Piemonte
+from __future__ import annotations
 from beehive_resource.plugins.provider.entity.stack_v2 import ComputeStackV2
 from beehive_resource.plugins.provider.entity.zone import ComputeZone
+
 from beehive_resource.view import (
     ListResourcesRequestSchema,
     ResourceResponseSchema,
     ResourceSmallResponseSchema,
 )
+
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
@@ -18,15 +20,21 @@ from beehive.common.apimanager import (
     CrudApiObjectSimpleResponseSchema,
     ApiManagerError,
 )
+
 from beecell.swagger import SwaggerHelper
 from flasgger import fields, Schema
+
 from beehive_resource.plugins.provider.views import (
     ProviderAPI,
     LocalProviderApiView,
     UpdateProviderResourceRequestSchema,
     CreateProviderResourceRequestSchema,
 )
-from marshmallow.validate import OneOf
+
+from typing import TYPE_CHECKING
+# from marshmallow.validate import OneOf
+if TYPE_CHECKING:
+    from beehive_resource.controller import ResourceController
 
 
 class ProviderStackV2(LocalProviderApiView):
@@ -35,24 +43,32 @@ class ProviderStackV2(LocalProviderApiView):
 
 
 class ListStackV2sRequestSchema(ListResourcesRequestSchema):
-    compute_zones = fields.String(context="query", description="comma separated list of compute zone id or uuid")
+    compute_zones = fields.String(
+        context="query",
+        metadata={
+            "description": 'comma separated list of compute zone id or uuid',
+        },
+    )
 
 
 class ListStackV2sResponseSchema(PaginatedResponseSchema):
-    stacks = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
+    stacks = fields.Nested(
+        ResourceResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListStackV2s(ProviderStackV2):
     summary = "List stacks"
     description = "List stacks"
-    definitions = {
-        "ListStackV2sResponseSchema": ListStackV2sResponseSchema,
-    }
+    definitions = {"ListStackV2sResponseSchema": ListStackV2sResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListStackV2sRequestSchema)
     parameters_schema = ListStackV2sRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListStackV2sResponseSchema}})
 
-    def get(self, controller, data, *args, **kwargs):
+    def get(self, controller: ResourceController, data: dict, *args, **kwargs):
         compute_zones = data.pop("compute_zones", None)
         if compute_zones is not None:
             data["parent_list"] = compute_zones.split(",")
@@ -61,86 +77,196 @@ class ListStackV2s(ProviderStackV2):
 
 
 class GetStackV2ItemResponseSchema(ResourceResponseSchema):
-    actions = fields.Nested(ResourceResponseSchema, required=False, many=False, allow_none=True)
-    resources = fields.Nested(ResourceSmallResponseSchema, required=False, many=False, allow_none=True)
+    actions = fields.Nested(
+        ResourceResponseSchema,
+        required=False,
+        many=False,
+        allow_none=True,
+    )
+
+    resources = fields.Nested(
+        ResourceSmallResponseSchema,
+        required=False,
+        many=False,
+        allow_none=True,
+    )
 
 
 class GetStackV2ResponseSchema(Schema):
-    stack = fields.Nested(GetStackV2ItemResponseSchema, required=True, allow_none=True)
+    stack = fields.Nested(
+        GetStackV2ItemResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetStackV2(ProviderStackV2):
     summary = "Get stack"
     description = "Get stack"
-    definitions = {
-        "GetStackV2ResponseSchema": GetStackV2ResponseSchema,
-    }
+    definitions = {"GetStackV2ResponseSchema": GetStackV2ResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetStackV2ResponseSchema}})
 
-    def get(self, controller, data, oid, *args, **kwargs):
+    def get(self, controller: ResourceController, data:dict, oid, *args, **kwargs):
         return self.get_resource(controller, oid)
 
 
 class CreateStackV2InputRequestSchema(Schema):
-    name = fields.String(required=True, example="test", description="input name")
-    desc = fields.String(required=True, example="test", description="input description")
-    value = fields.String(required=True, example="test", description="input value")
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'input name',
+        },
+    )
+
+    desc = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'input description',
+        },
+    )
+
+    value = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'input value',
+        },
+    )
 
 
 class CreateStackV2OutputRequestSchema(Schema):
-    name = fields.String(required=True, example="test", description="output name")
-    desc = fields.String(required=True, example="test", description="output description")
-    value = fields.String(required=True, example="test", description="output value")
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'output name',
+        },
+    )
+
+    desc = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'output description',
+        },
+    )
+
+    value = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'output value',
+        },
+    )
 
 
 class CreateStackV2ActionResourceRequestSchema(Schema):
-    type = fields.String(required=False, example="ComputeInstance", description="action resource type")
-    oid = fields.String(required=False, example="123", description="action resource id")
+    type = fields.String(
+        required=False,
+        metadata={
+            "example": 'ComputeInstance',
+            "description": 'action resource type',
+        },
+    )
+
+    oid = fields.String(
+        required=False,
+        metadata={
+            "example": '123',
+            "description": 'action resource id',
+        },
+    )
+
     operation = fields.String(
         required=True,
-        example="test",
-        description="action resource operation to execute",
+        metadata={
+            "example": 'test',
+            "description": 'action resource operation to execute',
+        },
     )
+
     preserve = fields.Bool(
         required=False,
-        example=True,
-        missing=False,
-        description="if True preserve resource when action is removed",
+        load_default=False,
+        metadata={
+            "example": True,
+            "description": 'if True preserve resource when action is removed',
+        },
     )
 
 
 class CreateStackV2ActionRequestSchema(Schema):
-    name = fields.String(required=True, example="test", description="action name")
-    desc = fields.String(required=True, example="test", description="action description")
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'action name',
+        },
+    )
+
+    desc = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'action description',
+        },
+    )
+
     resource = fields.Nested(
         CreateStackV2ActionResourceRequestSchema,
         many=False,
         required=True,
-        description="stack action resource",
+        metadata={
+            "description": 'stack action resource',
+        },
     )
-    params = fields.Dict(required=False, example='{"k1": "v1"}', description="action params")
+
+    params = fields.Dict(
+        required=False,
+        metadata={
+            "example": '{"k1": "v1"}',
+            "description": 'action params',
+        },
+    )
 
 
 class CreateStackV2ParamRequestSchema(CreateProviderResourceRequestSchema):
-    compute_zone = fields.String(required=True, example="1", description="parent compute zone id or uuid")
+    compute_zone = fields.String(
+        required=True,
+        metadata={
+            "example": '1',
+            "description": 'parent compute zone id or uuid',
+        },
+    )
+
     inputs = fields.Nested(
         CreateStackV2InputRequestSchema,
         many=True,
         required=False,
-        description="list of stack inputs",
+        metadata={
+            "description": 'list of stack inputs',
+        },
     )
+
     outputs = fields.Nested(
         CreateStackV2OutputRequestSchema,
         many=True,
         required=True,
-        description="list of stack outputs",
+        metadata={
+            "description": 'list of stack outputs',
+        },
     )
+
     actions = fields.Nested(
         CreateStackV2ActionRequestSchema,
         many=True,
         required=True,
-        description="list of stack actions",
+        metadata={
+            "description": 'list of stack actions',
+        },
     )
 
 
@@ -149,23 +275,29 @@ class CreateStackV2RequestSchema(Schema):
 
 
 class CreateStackV2BodyRequestSchema(Schema):
-    body = fields.Nested(CreateStackV2RequestSchema, context="body")
+    body = fields.Nested(
+        CreateStackV2RequestSchema,
+        context="body",
+    )
 
 
 class CreateStackV2(ProviderStackV2):
     summary = "Create stack"
     description = "Create stack"
+
     definitions = {
         "CreateStackV2RequestSchema": CreateStackV2RequestSchema,
         "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateStackV2BodyRequestSchema)
     parameters_schema = CreateStackV2RequestSchema
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
 
-    def post(self, controller, data, *args, **kwargs):
+    def post(self, controller: ResourceController, data:dict, *args, **kwargs):
         return self.create_resource(controller, data)
 
 
@@ -184,43 +316,51 @@ class UpdateStackV2BodyRequestSchema(GetApiObjectRequestSchema):
 class UpdateStackV2(ProviderStackV2):
     summary = "Update stack"
     description = "Update stack"
+
     definitions = {
         "UpdateStackV2RequestSchema": UpdateStackV2RequestSchema,
         "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateStackV2BodyRequestSchema)
     parameters_schema = UpdateStackV2RequestSchema
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
 
-    def put(self, controller, data, oid, *args, **kwargs):
+    def put(self, controller: ResourceController, data:dict  , oid, *args, **kwargs):
         return self.update_resource(controller, oid, data)
 
 
 class DeleteStackV2RequestSchema(Schema):
     preserve = fields.Bool(
         required=False,
-        example=True,
-        missing=False,
-        description="if True preserve resource when stack is removed",
+        load_default=False,
+        metadata={
+            "example": True,
+            "description": 'if True preserve resource when stack is removed',
+        },
     )
 
 
 class DeleteStackV2(ProviderStackV2):
     summary = "Delete stack"
     description = "Delete stack"
+
     definitions = {
         "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
         "DeleteStackV2RequestSchema": DeleteStackV2RequestSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     parameters_schema = DeleteStackV2RequestSchema
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
 
-    def delete(self, controller, data, oid, *args, **kwargs):
+    def delete(self, controller:ResourceController, data:dict, oid, *args, **kwargs):
         return self.expunge_resource(controller, oid, **data)
 
 

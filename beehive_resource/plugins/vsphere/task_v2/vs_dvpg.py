@@ -1,11 +1,15 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from logging import getLogger
+from typing import TYPE_CHECKING
 from beehive.common.task_v2 import task_step
 from beehive_resource.plugins.vsphere.entity.vs_dvpg import VsphereDvpg
 from beehive_resource.task_v2 import AbstractResourceTask
+from beehive.common.task_v2.manager import get_task_manager
+if TYPE_CHECKING:
+    from beehive_resource.plugins.vsphere import VsphereContainer
 
 logger = getLogger(__name__)
 
@@ -67,7 +71,7 @@ class DvpgTask(AbstractResourceTask):
 
     @staticmethod
     @task_step()
-    def dvpg_delete_physical_step(task, step_id, params, *args, **kvargs):
+    def dvpg_delete_physical_step(task: 'AbstractResourceTask', step_id, params, *args, **kvargs):
         """Delete vsphere dvpg
 
         :param task: parent celery task
@@ -78,7 +82,7 @@ class DvpgTask(AbstractResourceTask):
         cid = params.get("cid")
         oid = params.get("id")
 
-        container = task.get_container(cid)
+        container: 'VsphereContainer' = task.get_container(cid)
         conn = container.conn
         resource = container.get_resource(oid)
 

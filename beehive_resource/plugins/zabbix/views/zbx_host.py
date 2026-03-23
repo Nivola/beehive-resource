@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2018-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from flasgger import fields, Schema
 from marshmallow.validate import OneOf
@@ -9,6 +9,7 @@ from beecell.swagger import SwaggerHelper
 from beehive_resource.plugins.zabbix.entity.zbx_host import ZabbixHost
 from beehive_resource.plugins.zabbix.views import ZabbixAPI, ZabbixApiView
 from beehive_resource.view import ResourceResponseSchema, ListResourcesRequestSchema
+ 	
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
@@ -33,7 +34,9 @@ class ListHostsParamsResponseSchema(ResourceResponseSchema):
 
 class ListHostsResponseSchema(PaginatedResponseSchema):
     # hosts = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
-    hosts = fields.List(fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True))
+    hosts = fields.List(
+        fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True),
+    )
 
 
 class ListHosts(ZabbixHostApiView):
@@ -50,7 +53,11 @@ class ListHosts(ZabbixHostApiView):
 
 
 class GetHostResponseSchema(Schema):
-    host = fields.Nested(ResourceResponseSchema, required=True, allow_none=True)
+    host = fields.Nested(
+        ResourceResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetHost(ZabbixHostApiView):
@@ -66,53 +73,75 @@ class GetHost(ZabbixHostApiView):
 
 
 class HostInterfaceRequestSchema(Schema):
-    ip_addr = fields.String(required=True, example="192.168.3.1", default="127.0.0.1")
-    port = fields.String(required=True, example="10050", default="10050")
+    ip_addr = fields.String(
+        required=True,
+        metadata={
+            "example": '192.168.3.1',
+        },
+    )
+    port = fields.String(
+        required=True,
+        metadata={
+            "example": '10050',
+        },
+    )
 
 
 class CreateHostParamRequestSchema(Schema):
-    container = fields.String(required=True, example="1234", description="container id, uuid or name")
-    name = fields.String(required=True, example="linux server")
-    desc = fields.String(required=False, example="host description")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '1234',
+            "description": 'container id, uuid or name',
+        },
+    )
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'linux server',
+        },
+    )
+    desc = fields.String(
+        required=False,
+        metadata={
+            "example": 'host description',
+        },
+    )
     status = fields.Integer(
         required=False,
-        default=0,
-        description="0 - (default) monitored host; 1 - unmonitored host",
         validate=OneOf([0, 1]),
+        metadata={
+            "description": '0 - (default) monitored host; 1 - unmonitored host',
+        },
     )
     interfaces = fields.Nested(
         HostInterfaceRequestSchema,
         required=True,
         many=True,
         allow_none=True,
-        description="interfaces to be created for the host",
+        metadata={
+            "description": 'interfaces to be created for the host',
+        },
     )
     groups = fields.List(
-        fields.String(
-            required=True,
-            example="['50', '62']",
-            many=True,
-            allow_none=True,
-            description="ids of hostgroups to add the host to",
-        )
+        fields.String(required=True, example="['50', '62']", many=True, allow_none=True, description='ids of hostgroups to add the host to'),
     )
     templates = fields.List(
-        fields.String(
-            required=False,
-            example="['20045']",
-            many=True,
-            allow_none=True,
-            description="ids of templates to be linked to the host",
-        )
+        fields.String(required=False, example="['20045']", many=True, allow_none=True, description='ids of templates to be linked to the host'),
     )
 
 
 class CreateHostRequestSchema(Schema):
-    host = fields.Nested(CreateHostParamRequestSchema)
+    host = fields.Nested(
+        CreateHostParamRequestSchema,
+    )
 
 
 class CreateHostBodyRequestSchema(Schema):
-    body = fields.Nested(CreateHostRequestSchema, context="body")
+    body = fields.Nested(
+        CreateHostRequestSchema,
+        context="body",
+    )
 
 
 class CreateHost(ZabbixHostApiView):
@@ -130,17 +159,28 @@ class CreateHost(ZabbixHostApiView):
 
 
 class UpdateHostParamRequestSchema(Schema):
-    name = fields.String(default="")
-    desc = fields.String(default="")
-    status = fields.Integer(default=0)
+    name = fields.String(
+        load_default="",
+    )
+    desc = fields.String(
+        load_default="",
+    )
+    status = fields.Integer(
+        load_default=0,
+    )
 
 
 class UpdateHostRequestSchema(Schema):
-    host = fields.Nested(UpdateHostParamRequestSchema)
+    host = fields.Nested(
+        UpdateHostParamRequestSchema,
+    )
 
 
 class UpdateHostBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateHostRequestSchema, context="body")
+    body = fields.Nested(
+        UpdateHostRequestSchema,
+        context="body",
+    )
 
 
 class UpdateHost(ZabbixHostApiView):

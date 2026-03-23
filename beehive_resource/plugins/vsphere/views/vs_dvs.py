@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_resource.plugins.vsphere.entity.vs_dvs import VsphereDvs
 from beehive_resource.plugins.vsphere.views import VsphereAPI, VsphereApiView
@@ -30,7 +30,12 @@ class ListDvssParamsResponseSchema(ResourceResponseSchema):
 
 
 class ListDvssResponseSchema(PaginatedResponseSchema):
-    dvss = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
+    dvss = fields.Nested(
+        ResourceResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListDvss(VsphereDvsApiView):
@@ -51,7 +56,11 @@ class ListDvss(VsphereDvsApiView):
 
 ## get
 class GetDvsResponseSchema(Schema):
-    dvs = fields.Nested(ResourceResponseSchema, required=True, allow_none=True)
+    dvs = fields.Nested(
+        ResourceResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetDvs(VsphereDvsApiView):
@@ -71,13 +80,29 @@ class GetDvs(VsphereDvsApiView):
 
 ## runtime
 class GetDvsRuntimeItemResponseSchema(Schema):
-    detail = fields.Raw(required=True, example=None)
-    host = fields.Dict(required=True, example={"id": 1, "name": "esxi1"})
-    status = fields.String(required=True, example="up")
+    detail = fields.Raw(
+        required=True,
+    )
+    host = fields.Dict(
+        required=True,
+        metadata={
+            "example": "{'id': 1, 'name': 'esxi1'}",
+        },
+    )
+    status = fields.String(
+        required=True,
+        metadata={
+            "example": 'up',
+        },
+    )
 
 
 class GetDvsRuntimeResponseSchema(Schema):
-    dvs_runtime = fields.Nested(GetDvsRuntimeItemResponseSchema, required=True, allow_none=True)
+    dvs_runtime = fields.Nested(
+        GetDvsRuntimeItemResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetDvsRuntime(VsphereApiView):
@@ -92,27 +117,79 @@ class GetDvsRuntime(VsphereApiView):
         Get dvs runtime
         Get dvs runtime
         """
-        obj = self.get_resource(controller, oid)
+        obj: 'VsphereDvs' = self.get_resource_reference(controller, oid)
         resp = obj.get_runtime()
         return resp
 
 
 ## portgroup
 class GetDvsPortgroupItemResponseSchema(Schema):
-    autoExpand = fields.Boolean(required=True, example=True)
-    configVersion = fields.String(required=True, example="0")
-    description = fields.String(required=True, example=None)
-    ext_id = fields.String(required=True, example="dvportgroup-123")
-    id = fields.Integer(required=True, example=979)
-    name = fields.String(required=True, example="CARBON_dvpg-510_Vmotion")
-    numPorts = fields.Integer(required=True, example=8)
-    portKeys = fields.List(fields.String, required=True, example=["2", "3", "4", "5", "6", "7", "8", "9"])
-    type = fields.String(required=True, example="earlyBinding")
-    vlan = fields.Integer(required=True, example=510)
+    autoExpand = fields.Boolean(
+        required=True,
+        metadata={
+            "example": True,
+        },
+    )
+    configVersion = fields.String(
+        required=True,
+        metadata={
+            "example": '0',
+        },
+    )
+    description = fields.String(
+        required=True,
+    )
+    ext_id = fields.String(
+        required=True,
+        metadata={
+            "example": 'dvportgroup-123',
+        },
+    )
+    id = fields.Integer(
+        required=True,
+        metadata={
+            "example": '979',
+        },
+    )
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'CARBON_dvpg-510_Vmotion',
+        },
+    )
+    numPorts = fields.Integer(
+        required=True,
+        metadata={
+            "example": '8',
+        },
+    )
+    portKeys = fields.List(
+        fields.String,
+        required=True,
+        metadata={
+            "example": ['2', '3', '4', '5', '6', '7', '8', '9'],
+        },
+    )
+    type = fields.String(
+        required=True,
+        metadata={
+            "example": 'earlyBinding',
+        },
+    )
+    vlan = fields.Integer(
+        required=True,
+        metadata={
+            "example": 510,
+        },
+    )
 
 
 class GetDvsPortgroupResponseSchema(Schema):
-    dvs = fields.Nested(GetDvsPortgroupItemResponseSchema, required=True, allow_none=True)
+    dvs = fields.Nested(
+        GetDvsPortgroupItemResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetDvsPortgroup(VsphereApiView):
@@ -127,7 +204,7 @@ class GetDvsPortgroup(VsphereApiView):
         Get dvs portgroups
         Get dvs portgroups
         """
-        obj = self.get_resource(controller, oid)
+        obj: 'VsphereDvs' = self.get_resource_reference(controller, oid)
         resp = obj.get_portgroups()
         return resp
 

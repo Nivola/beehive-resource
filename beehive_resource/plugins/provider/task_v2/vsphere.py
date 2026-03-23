@@ -1,22 +1,25 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import ujson as json
 from beecell.simple import id_gen, import_class, dict_set, dict_get
+from beecell.types.type_string import bool2str
 from beedrones.vsphere.client import VsphereError
 from beehive.common.task_v2 import TaskError
 from beehive_resource.container import CustomResource
 from beehive_resource.plugins.provider.entity.base import orchestrator_mapping
+from beehive_resource.plugins.provider.entity.site import Site
 from beehive_resource.plugins.provider.entity.vpc_v2 import SiteNetwork, PrivateNetwork
 from beehive_resource.plugins.provider.task_v2 import AbstractProviderHelper, getLogger
+from beehive_resource.plugins.vsphere.controller import VsphereContainer
 from beehive_resource.plugins.vsphere.entity.nsx_edge import NsxEdge
 from beehive_resource.plugins.vsphere.entity.nsx_logical_switch import NsxLogicalSwitch
 from beehive_resource.plugins.vsphere.entity.nsx_manager import NsxManager
 from beehive_resource.plugins.vsphere.entity.vs_dvpg import VsphereDvpg
 from beehive_resource.plugins.vsphere.entity.nsx_security_group import NsxSecurityGroup
-from beehive_resource.plugins.vsphere.entity.nsx_dfw import NsxDfwSection, NsxDfwRule
+from beehive_resource.plugins.vsphere.entity.nsx_dfw import NsxDfw, NsxDfwSection, NsxDfwRule
 from beehive_resource.plugins.vsphere.entity.vs_flavor import VsphereFlavor
 from beehive_resource.plugins.vsphere.entity.vs_server import VsphereServer
 from beehive_resource.plugins.vsphere.entity.vs_folder import VsphereFolder
@@ -25,10 +28,6 @@ from beehive_resource.plugins.vsphere.entity.vs_volume import VsphereVolume
 from beehive_resource.plugins.vsphere.entity.vs_volumetype import VsphereVolumeType
 
 logger = getLogger(__name__)
-
-
-class ReservedRuleTypes(object):
-    OUTBOUND_ALL = "outbound_all"
 
 
 class ProviderVsphere(AbstractProviderHelper):
@@ -340,7 +339,7 @@ class ProviderVsphere(AbstractProviderHelper):
 
             # check ippool already exists
             if overlap is False:
-                pools = nsx_manager.get_ippools(pool_range=(startip, stopip))  # aaa
+                pools = nsx_manager.get_ippools(pool_range=(startip, stopip))
                 if len(pools) > 0:
                     return pools[0]["objectId"]
 
@@ -413,52 +412,183 @@ class ProviderVsphere(AbstractProviderHelper):
         sections = [c for c in cress if c.attribs["sub_type"] == NsxDfwSection.objdef]
         return sections[0]
 
-    def update_section(self, zone, rule_type, rule_id):
-        """
+    def create_rule(self, zone: Site, source, destination, direction, service, logs):
+        """Create vsphere rule.
 
         :param zone:
-        :param rule_type:
-        :param rule_id:
-        :return:
+        :param source: source
+        :param destination: destination
+        :param direction: traffic flow, 'ingress' or 'egress'
+        :param service: service.
+            Ex. {'port':'*', 'protocol':'*'} -> *:*
+                {'port':'*', 'protocol':6} -> tcp:*
+                {'port':80, 'protocol':6} -> tcp:80
+                {'port':80, 'protocol':17} -> udp:80
+                {'protocol':1, 'subprotocol':8} -> icmp:echo request
+        :param logs: 'True' to log rule, 'False' otherwise
+        :return: resource id
+        :raise TaskError: If task fails
+        :raise ApiManagerError: :class:`ApiManagerError`
         """
-        if self.section is None:
-            self.section = self.get_section(zone)
+        try:
+            name = "%s-%s-dfwrule" % (self.resource.name, self.cid)
 
-        if (
-            rule_type == ReservedRuleTypes.OUTBOUND_ALL
-            and self.section.get_attribs(key=f"reserved_rules.{rule_type}") is None
-        ):
-            rule_id = rule_id[0]
-            self.section.set_configs(key=f"reserved_rules.{rule_type}", value=rule_id)
+            # get section id
+            if self.section is None:
+                self.section = self.get_section(zone)
+            section_id = self.section.ext_id
 
-    @staticmethod
-    def get_reserved_rule_type(source, destination, service):
-        """
+            policies = []
 
-        :param source:
-        :param destination:
-        :param service:
-        :return:
-        """
-        if destination["type"] == "Cidr" and destination["value"] == "0.0.0.0/0":
-            return ReservedRuleTypes.OUTBOUND_ALL
-        return None
+            # appliedto
+            appliedto = {
+                "name": "DISTRIBUTED_FIREWALL",
+                "value": "DISTRIBUTED_FIREWALL",
+                "type": "DISTRIBUTED_FIREWALL",
+            }
 
-    def get_reserved_rule(self, zone, rule_type):
-        """
+            # sources
+            sources = self.type_mapping(source["type"], source["value"])
+            # destinations
+            dests = self.type_mapping(destination["type"], destination["value"])
+            # service
+            port = service
 
-        :param zone:
-        :param rule_type:
-        :return:
-        """
-        if self.section is None:
-            self.section = self.get_section(zone)
+            # sgrule1 -> sgrule1
+            if source["type"] == destination["type"] and source["value"] == destination["value"]:
+                appliedto = self.type_mapping(destination["type"], destination["value"])
+                # policies.append(
+                #     self.create_nsx_rule(
+                #         section_id,
+                #         name + "-out",
+                #         "out",
+                #         sources,
+                #         dests,
+                #         port,
+                #         appliedto
+                #     )
+                # )
+                policies.append(
+                    self.create_nsx_rule(
+                        section_id,
+                        name + "-in",
+                        "in",
+                        sources,
+                        dests,
+                        port,
+                        appliedto,
+                        logged=logs,
+                    )
+                )
 
-        if rule_type == ReservedRuleTypes.OUTBOUND_ALL:
-            return self.section.get_attribs(key=f"reserved_rules.{rule_type}")
-        return None
+            # cidr -> sgrule
+            elif source["type"] == "Cidr" and destination["type"] in ["RuleGroup"]:
+                appliedto = self.type_mapping(destination["type"], destination["value"])
+                policies.append(
+                    self.create_nsx_rule(
+                        section_id,
+                        name + "-in",
+                        "in",
+                        sources,
+                        dests,
+                        port,
+                        appliedto,
+                        logged=logs,
+                    )
+                )
 
-    def create_rule(self, zone, source, destination, service, reserved):
+            # env -> cidr
+            elif source["type"] in ["RuleGroup"] and destination["type"] == "Cidr":
+                appliedto = self.type_mapping(source["type"], source["value"])
+                policies.append(
+                    self.create_nsx_rule(
+                        section_id,
+                        name + "-out",
+                        "out",
+                        sources,
+                        dests,
+                        port,
+                        appliedto,
+                        logged=logs,
+                    )
+                )
+
+            # sgrule1 -> sgrule2
+            elif source["type"] in ["RuleGroup"] and destination["type"] in ["RuleGroup"]:
+                if direction == "ingress":
+                    appliedto = self.type_mapping(destination["type"], destination["value"])
+                    policies.append(
+                        self.create_nsx_rule(
+                            section_id,
+                            name + "-in",
+                            "in",
+                            sources,
+                            dests,
+                            port,
+                            appliedto,
+                            logged=logs,
+                        )
+                    )
+                else: # egress
+                    appliedto = self.type_mapping(source["type"], source["value"])
+                    policies.append(
+                        self.create_nsx_rule(
+                            section_id,
+                            name + "-out",
+                            "out",
+                            sources,
+                            dests,
+                            port,
+                            appliedto,
+                            logged=logs,
+                        )
+                    )
+
+            # sgrule -> server
+            # server -> sgrule
+            # server -> server
+            else:
+                # policies.append(
+                #     self.create_nsx_rule(
+                #         section_id,
+                #         name + "-out",
+                #         "out",
+                #         sources,
+                #         dests,
+                #         port,
+                #         appliedto
+                #     )
+                # )
+                # policies.append(
+                #     self.create_nsx_rule(
+                #         section_id,
+                #         name + "-in",
+                #         "in",
+                #         sources,
+                #         dests,
+                #         port,
+                #         appliedto
+                #     )
+                # )
+                policies.append(
+                    self.create_nsx_rule(
+                        section_id,
+                        name + "-inout",
+                        "inout",
+                        sources,
+                        dests,
+                        port,
+                        appliedto,
+                        logged=logs,
+                    )
+                )
+
+            return policies
+        except Exception as ex:
+            self.logger.error(ex, exc_info=True)
+            raise TaskError(ex)
+        
+    def create_rule_before_optimization(self, zone, source, destination, service):    # reserved useless
         """Create vsphere rule.
 
         :param zone:
@@ -476,6 +606,7 @@ class ProviderVsphere(AbstractProviderHelper):
         :raise ApiManagerError: :class:`ApiManagerError`
         """
         try:
+            print("+++++ rule - vsphere - create_rule_before_optimization")
             name = "%s-%s-dfwrule" % (self.resource.name, self.cid)
 
             # get section id
@@ -581,6 +712,7 @@ class ProviderVsphere(AbstractProviderHelper):
             self.logger.error(ex, exc_info=True)
             raise TaskError(ex)
 
+
     def create_nsx_rule(self, section_id, name, direction, source, dest, service, appliedto, logged=True, reuse=False):
         """Create nsx rule
 
@@ -596,7 +728,7 @@ class ProviderVsphere(AbstractProviderHelper):
         :raise TaskError: If task fails
         :raise ApiManagerError: :class:`ApiManagerError`
         """
-        dfw = self.container.get_nsx_dfw()
+        dfw: NsxDfw = self.container.get_nsx_dfw()
         self.progress("Get nsx dfw %s" % dfw)
 
         # create rule params
@@ -612,7 +744,7 @@ class ProviderVsphere(AbstractProviderHelper):
             "destinations": [dest],
             "services": [service],
             "appliedto": [appliedto],
-            "logged": "true",
+            "logged": bool2str(logged),
             "sync": True,
         }
         self.progress("Configure vsphere nsx rule: %s" % rule)
@@ -653,27 +785,6 @@ class ProviderVsphere(AbstractProviderHelper):
         self.progress("create rule resource: %s" % rule_resource_id)
 
         return rule_resource_id
-
-    def update_reserved_rule(self, zone, rule_type, rule_id, source, destination, service):
-        """
-
-        :param zone:
-        :param rule_type:
-        :param rule_id:
-        :param source:
-        :param destination:
-        :param service:
-        :return:
-        """
-        if self.section is None:
-            self.section = self.get_section(zone)
-
-        if rule_type == ReservedRuleTypes.OUTBOUND_ALL:
-            rule_id = self.section.get_attribs(key=f"reserved_rules.{rule_type}")
-            rule = self.get_simple_resource(rule_id)
-            self.update_nsx_rule(self.section.ext_id, rule, src=source)
-        else:
-            raise TaskError("Unknown reserved rule type")
 
     def update_nsx_rule(self, section_id, rule, src=None, dst=None, srv=None, op=None):
         """
@@ -1501,7 +1612,7 @@ class ProviderVsphere(AbstractProviderHelper):
         if uplink_network is not None and uplink_subnet is not None:
             # get ippool id from subnet config
             subnet_pool1 = uplink_subnet.get("allocation_pools_vs", None)  # sembra non esserci più questo attributo
-            subnet_pool2 = uplink_subnet.get("vsphere_id", None)  # aaa
+            subnet_pool2 = uplink_subnet.get("vsphere_id", None)
             self.logger.debug("create_gateway - subnet_pool1: %s" % subnet_pool1)
             self.logger.debug("create_gateway - subnet_pool2: %s" % subnet_pool2)
             subnet_pool = subnet_pool1 or subnet_pool2
@@ -1588,7 +1699,8 @@ class ProviderVsphere(AbstractProviderHelper):
 
                         # delete rule
                         if sub_type == NsxDfwRule.objdef:
-                            dfw = self.container.get_nsx_dfw()
+                            vshereContainer: VsphereContainer = self.container
+                            dfw: NsxDfw = vshereContainer.get_nsx_dfw()
 
                             # check rule exists
                             try:
@@ -1615,7 +1727,7 @@ class ProviderVsphere(AbstractProviderHelper):
 
                         # delete dfw section
                         elif sub_type == NsxDfwSection.objdef:
-                            dfw = self.container.get_nsx_dfw()
+                            dfw: NsxDfw = self.container.get_nsx_dfw()
                             prepared_task, code = dfw.delete_section({"sectionid": attribs["id"], "sync": True})
                             self.run_sync_task(
                                 prepared_task,

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
@@ -10,17 +10,21 @@ from beehive.common.apimanager import (
     CrudApiObjectJobResponseSchema,
     ApiView,
 )
+
 from beehive_resource.plugins.veeam.entity.veeam_job import VeeamJob
+
 from beehive_resource.plugins.provider.views import (
     ResourceApiView,
     CreateProviderResourceRequestSchema,
     UpdateProviderResourceRequestSchema,
 )
+
 from beehive_resource.view import (
     ListResourcesRequestSchema,
     ResourceResponseSchema,
     ResourceSmallResponseSchema,
 )
+
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
 from beehive_resource.plugins.veeam.views import VeeamAPI, VeeamApiView
@@ -41,7 +45,12 @@ class ListVeeamJobsParamsResponseSchema(ResourceResponseSchema):
 
 
 class ListVeeamJobsResponseSchema(PaginatedResponseSchema):
-    jobs = fields.Nested(ListVeeamJobsParamsResponseSchema, many=True, required=True, allow_none=True)
+    jobs = fields.Nested(
+        ListVeeamJobsParamsResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListVeeamJobs(VeeamJobView):
@@ -61,11 +70,20 @@ class ListVeeamJobs(VeeamJobView):
 
 
 class GetVeeamJobParamsResponseSchema(ResourceResponseSchema):
-    jobs = fields.Nested(ResourceSmallResponseSchema, required=True, many=True, allow_none=True)
+    jobs = fields.Nested(
+        ResourceSmallResponseSchema,
+        required=True,
+        many=True,
+        allow_none=True,
+    )
 
 
 class GetVeeamJobResponseSchema(Schema):
-    job = fields.Nested(GetVeeamJobParamsResponseSchema, required=True, allow_none=True)
+    job = fields.Nested(
+        GetVeeamJobParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetVeeamJob(VeeamJobView):
@@ -84,13 +102,27 @@ class GetVeeamJob(VeeamJobView):
 
 
 class CreateVeeamJobParamRequestSchema(CreateProviderResourceRequestSchema):
-    container = fields.String(required=True, example="12", description="Container id, uuid or name")
-    name = fields.String(required=True, example="test-name-job", default="", description="Job name")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'Container id, uuid or name',
+        },
+    )
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test-name-job',
+            "description": 'Job name',
+        },
+    )
     desc = fields.String(
         required=False,
         allow_none=True,
-        example="test-desc-job",
-        description="The resource description",
+        metadata={
+            "example": 'test-desc-job',
+            "description": 'The resource description',
+        },
     )
 
 
@@ -120,12 +152,19 @@ class CreateVeeamJob(VeeamJobView):
 
 
 class UpdateVeeamJobTemplateRequestSchema(Schema):
-    name = fields.String(required=True, example="Test job", default="", description="Job name")
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'Test job',
+            "description": 'Job name',
+        },
+    )
     desc = fields.String(
         required=False,
-        example="This is the test job",
-        default="",
-        description="Job description",
+        metadata={
+            "example": 'This is the test job',
+            "description": 'Job description',
+        },
     )
 
 
@@ -134,8 +173,10 @@ class UpdateVeeamJobParamRequestSchema(UpdateProviderResourceRequestSchema):
         UpdateVeeamJobTemplateRequestSchema,
         required=False,
         many=True,
-        description="list of orchestrator jobs to link",
         allow_none=True,
+        metadata={
+            "description": 'list of orchestrator jobs to link',
+        },
     )
 
 

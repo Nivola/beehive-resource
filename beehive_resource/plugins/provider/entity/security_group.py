@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 # from collections import Set
 from re import match
 from ipaddress import IPv4Address
-from six import ensure_text
+from beecell.util import ensure_text
 from beecell.network import InternetProtocol
 from beecell.simple import truncate
 from beecell.types.type_id import id_gen
@@ -250,7 +250,7 @@ class SecurityGroup(ComputeProviderResource):
                 break
         return res, find_rule
 
-    def create_rule(self, source, dest, service, sync=None, orchestrator_select_types=None):
+    def create_rule(self, source, dest, service, sync=None, rule_orchestrator_types=None):
         from .rule import ComputeRule
 
         name = "%s-rule-%s" % (self.name, id_gen())
@@ -263,7 +263,7 @@ class SecurityGroup(ComputeProviderResource):
             "source": source,
             "destination": dest,
             "service": service,
-            # "orchestrator_select_types": orchestrator_select_types,
+            "rule_orchestrator_types": rule_orchestrator_types,
         }
         if sync is not None:
             data["sync"] = sync
@@ -333,7 +333,7 @@ class SecurityGroup(ComputeProviderResource):
             if find is False:
                 # orchestrator_select_types = self.get_configs().get("orchestrator_select_types")
                 # res = self.create_rule(source, dest, service, orchestrator_select_types=orchestrator_select_types)
-                res = self.create_rule(source, dest, service)
+                res = self.create_rule(source, dest, service, rule_orchestrator_types=["openstack", "vsphere"])
                 self.logger.debug("create zabbix proxy rule for availability zone %s" % site_name)
             else:
                 raise ApiManagerError("zabbix proxy rule for availability zone %s already exists" % site_name)
@@ -438,9 +438,9 @@ class SecurityGroup(ComputeProviderResource):
         # convert string protocol in numeric protocol
         protocol, subprotocol = protocol.split(":")
 
-        if protocol != "*" and not match("^\d+$", protocol):
+        if protocol != "*" and not match(r"^\d+$", protocol):
             protocol = str(proto_check.get_number_from_name(protocol))
-        if subprotocol != "*" and not match("^\d+$", subprotocol):
+        if subprotocol != "*" and not match(r"^\d+$", subprotocol):
             subprotocol = str(proto_check.get_number_from_name(subprotocol))
 
         requested_ports = ports

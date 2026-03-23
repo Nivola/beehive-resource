@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from sys import version_info
 from setuptools import setup
@@ -56,7 +56,6 @@ if __name__ == "__main__":
             "beehive_resource.plugins.awx.task_v2",
             "beehive_resource.plugins.awx.views",
             "beehive_resource.plugins.dns",
-            # 'beehive_resource.plugins.dns.task.old',
             "beehive_resource.plugins.dns.views",
             "beehive_resource.plugins.dummy",
             "beehive_resource.plugins.dummy.task",

@@ -1,13 +1,14 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import logging
 from beehive.common.task_v2 import task_step
 from beehive_resource.plugins.elk.entity.elk_space import ElkSpace
 from beehive_resource.plugins.elk.controller import ElkContainer
-from beehive_resource.task_v2 import AbstractResourceTask, task_manager
+from beehive_resource.task_v2 import AbstractResourceTask
+from beehive.common.task_v2.manager import get_task_manager
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +136,7 @@ class ElkSpaceTask(AbstractResourceTask):
             container: ElkContainer
             container = task.get_container(cid)
             conn_kibana = container.conn_kibana
-            conn_kibana.space.add_dashboard(
+            success = conn_kibana.space.add_dashboard(
                 params["space_id_from"],
                 params["dashboard"],
                 params["space_id_to"],
@@ -157,6 +158,44 @@ class ElkSpaceTask(AbstractResourceTask):
         )
         return res, params
 
+    @staticmethod
+    @task_step()
+    def delete_dashboard_step(task: AbstractResourceTask, step_id, params, *args, **kvargs):
+        """Delete server dashboard
+
+        :param task: parent celery task
+        :param str step_id: step id
+        :param dict params: step params
+        :return: True, params
+        """
+
+        def delete_dashboard_action(conn, cid, oid, ext_id, params):
+            logger.debug("delete_dashboard_action - params={}".format(params))
+
+            container: ElkContainer
+            container = task.get_container(cid)
+            conn_kibana = container.conn_kibana
+
+            dashboard_to_search = params["dashboard_to_search"]
+            space_id = params["space_id"]
+
+            conn_kibana.space.delete_space_dashboard(
+                dashboard_to_search,
+                space_id,
+            )
+
+        logger.debug("delete_dashboard_step - params={}".format(params))
+        res = ElkSpaceTask.space_action(
+            task,
+            step_id,
+            delete_dashboard_action,
+            "Delete dashboard",
+            "Error deleting dashboard",
+            params,
+        )
+        logger.debug("+++++ delete_dashboard_step - res={}".format(res))
+        return res, params
+
     #
     # action
     #
@@ -172,7 +211,7 @@ class ElkSpaceTask(AbstractResourceTask):
         :return: ext_id
         :raise:
         """
-        logger.debug("space_action")
+        logger.debug("space_action %s" % action.__name__)
         task.progress(step_id, msg="start action %s" % action.__name__)
         cid = params.get("cid")
         oid = params.get("id")
@@ -183,9 +222,7 @@ class ElkSpaceTask(AbstractResourceTask):
         task.progress(step_id, msg="Get container %s" % cid)
 
         # execute action
-        vs_task = action(conn, cid, oid, ext_id, params)
-        if vs_task is not None:
-            container.query_remote_task(task, step_id, vs_task, error=error)
+        action(conn, cid, oid, ext_id, params)
 
         # update cache
         server_obj = task.get_resource(oid)
@@ -196,4 +233,4 @@ class ElkSpaceTask(AbstractResourceTask):
         return True
 
 
-task_manager.tasks.register(ElkSpaceTask())
+get_task_manager().register_task(ElkSpaceTask())

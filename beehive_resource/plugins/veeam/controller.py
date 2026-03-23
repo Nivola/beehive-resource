@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 import json
 from time import sleep
@@ -14,7 +14,7 @@ from beehive_resource.plugins.veeam.entity.veeam_job import VeeamJob
 
 
 def get_task(task_name):
-    return "%s.task.%s" % (__name__.rstrip(".controller"), task_name)
+    return f"{__name__.removesuffix('.controller')}.task.{task_name}"
 
 
 class VeeamContainer(Orchestrator):

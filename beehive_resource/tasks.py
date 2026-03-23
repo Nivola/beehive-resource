@@ -1,17 +1,26 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
+from typing import TYPE_CHECKING, Dict, List
 from celery.utils.log import get_task_logger
+from beehive.common.task_v2.manager import get_task_manager
 from beecell.simple import import_func
+from beehive.common.apimanager import ApiManagerError
+from beehive.common.data import operation
 from beehive.common.task.job import Job, JobTask, task_local, job_task, job
-from beehive_resource.container import *
-from beehive_resource.plugins.openstack.controller import *
 from beehive.common.task.util import end_task, start_task
 from beecell.simple import jsonDumps
+from beecell.types.type_string import truncate
+from beehive_resource.container import Orchestrator, Resource
+from beehive_resource.model import Resource as ModelResource, ResourceState
+from beedrones.openstack.client import OpenstackManager, OpenstackError
+if TYPE_CHECKING:
+    from beehive_resource.container import ResourceContainer
+    from beehive_resource.controller import ResourceController
 
 logger = get_task_logger(__name__)
-
+task_manager = get_task_manager()
 
 #
 # resource task
@@ -35,7 +44,7 @@ class AbstractResourceTask(object):
             return True
         return False
 
-    def __get_openstack_connection(self, container, projectid=None):
+    def __get_openstack_connection(self, container: 'ResourceContainer', projectid=None):
         try:
             # get connection params
             conn_params = container.conn_params["api"]
@@ -71,7 +80,7 @@ class AbstractResourceTask(object):
 
         return conn
 
-    def get_container(self, container_oid, projectid=None):
+    def get_container(self, container_oid, projectid=None) -> 'ResourceContainer':
         """Get resource container instance.
 
         :param container_oid: container oid
@@ -88,7 +97,7 @@ class AbstractResourceTask(object):
         self.logger.debug("Get container %s of type %s" % (local_container, local_container.objdef))
         return local_container
 
-    def get_resource(self, oid, details=False, run_customize=True):
+    def get_resource(self, oid, details=False, run_customize=True) -> Resource:
         """Get resource instance.
 
         :param oid: resource oid
@@ -438,7 +447,7 @@ def job_resource_action(self, objid, params):
 #
 @task_manager.task(bind=True, base=ResourceJobTask)
 @job_task()
-def create_resource_pre(self, options):
+def create_resource_pre(self: 'ResourceJobTask', options):
     """Create resource in beehive - PRE TASK
 
     :param tupla options: Task config params. (class_name, objid, job, job id, start time, time before new query, user)
@@ -934,7 +943,7 @@ def delete_resourcelink_list(self, options):
 #
 @task_manager.task(bind=True, base=ResourceJobTask)
 @job_task()
-def discover_new_entities(self, options, objdef):
+def discover_new_entities(self: 'ResourceJobTask', options, objdef):
     """Register new entity in remote platform.
 
     :param tupla options: Task config params. (class_name, objid, job, job id, start time, time before new query, user)
@@ -988,7 +997,7 @@ def discover_new_entities(self, options, objdef):
 
 @task_manager.task(bind=True, base=ResourceJobTask)
 @job_task()
-def discover_died_entities(self, options, objdef):
+def discover_died_entities(self: 'ResourceJobTask', options, objdef):
     """Discover died/changed entities
 
     :param tupla options: Task config params. (class_name, objid, job, job id, start time, time before new query, user)
@@ -1022,7 +1031,7 @@ def discover_died_entities(self, options, objdef):
     self.update("PROGRESS", msg="Get container %s" % container)
 
     # get resources
-    resources = container.discover_died_entities(objdef)
+    resources: Dict[str, List[Resource]] = container.discover_died_entities(objdef)
 
     # remove died resources
     if died is True:
@@ -1057,7 +1066,7 @@ def discover_died_entities(self, options, objdef):
 
 @task_manager.task(bind=True, base=ResourceJob)
 @job(entity_class=Orchestrator, name="discover.update", delta=2)
-def job_synchronize_container(self, objid, params):
+def job_synchronize_container(self: 'ResourceJob', objid, params: Dict):
     """Synchronize remote platform entities
 
     :param objid: objid of the resource. Ex. 110//2222//334//*
@@ -1079,7 +1088,7 @@ def job_synchronize_container(self, objid, params):
 
     # get container
     module = self.app.api_manager.modules["ResourceModule"]
-    controller = module.get_controller()
+    controller: 'ResourceController' = module.get_controller()
     container = controller.get_container(cid, cache=False)
     container.get_connection()
 

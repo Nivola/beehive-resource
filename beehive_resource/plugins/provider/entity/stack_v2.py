@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
+
+from __future__ import annotations
 from datetime import datetime
 from logging import getLogger
 from re import match
-from six import ensure_str
+from beecell.util import ensure_str
 from beecell.simple import import_class, format_date, random_password, id_gen
 from beehive.common.apimanager import ApiManagerError
 from beehive_resource.container import Resource
@@ -13,9 +15,19 @@ from beehive_resource.plugins.provider.entity.aggregate import ComputeProviderRe
 from beehive_resource.plugins.provider.entity.instance import ComputeInstance
 from beecell.simple import dict_set, dict_get
 from beecell.types.type_string import str2bool
+from typing import TYPE_CHECKING, List, TypedDict
+if TYPE_CHECKING:
+    from beehive_resource.controller import ResourceController
+    from beehive_resource.container import ResourceContainer
+    from .sql_stack_v2 import SqlComputeStackV2
 
 logger = getLogger(__name__)
 
+class StackEngineMetadata(TypedDict):
+    stack_type: str
+    engine: str
+    version: str
+    engine_configs: dict
 
 class ComputeStackV2(ComputeProviderResource):
     """Compute stack version 2
@@ -57,7 +69,9 @@ class ComputeStackV2(ComputeProviderResource):
     objuri = "%s/stacks/%s"
     objname = "stack"
     objdesc = "Provider ComputeStack V2"
+
     task_path = "beehive_resource.plugins.provider.task_v2.stack_v2.StackV2Task."
+    action_task = "beehive_resource.plugins.provider.task_v2.compute_provider_resource_action_task"
 
     RESOURCE_TYPE = {
         "ComputeInstance": "beehive_resource.plugins.provider.entity.instance.ComputeInstance",
@@ -78,13 +92,18 @@ class ComputeStackV2(ComputeProviderResource):
         """Return stack type. Example: app_stack, sql_stack"""
         return self.get_attribs("stack_type")
 
-    def get_stack_engine(self):
+    def get_stack_engine(self)->StackEngineMetadata:
         """Return stack engine info"""
         return {
-            "engine": self.get_attribs("engine"),
-            "version": self.get_attribs("version"),
-            "engine_configs": self.get_attribs("engine_configs"),
+            "stack_type":self.get_attribs("stack_type",""),
+            "engine": self.get_attribs("engine",""),
+            "version": self.get_attribs("version",""),
+            "engine_configs": self.get_attribs("engine_configs",{}),
         }
+    
+    def simple_info(self, data_info):
+        self.logger.debug(f"fv - simple_info - ComputeStackV2")
+        return super().simple_info(data_info)
 
     def info(self):
         """Get info
@@ -129,7 +148,7 @@ class ComputeStackV2(ComputeProviderResource):
 
         return info
 
-    def is_monitoring_enabled(self, cache=False, ttl=300):  # aaa
+    def is_monitoring_enabled(self, cache=False, ttl=300):
         # self.logger.debug("+++++ AAA is_monitoring_enabled")
         for resource in self.get_child_resources():
             if isinstance(resource, ComputeInstance):
@@ -162,6 +181,12 @@ class ComputeStackV2(ComputeProviderResource):
         :raise ApiManagerError:
         """
         parent_list = [e.oid for e in entities]
+        resource_idx = {}
+        resource_ids = []
+        for e in entities:
+            resource_idx[e.oid] = e
+            resource_ids.append(e.oid)
+
         actions, tot = controller.get_resources(
             parent_list=parent_list,
             run_customize=False,
@@ -177,17 +202,13 @@ class ComputeStackV2(ComputeProviderResource):
             except:
                 action_idx[str(a.parent_id)] = [a]
 
-        for entity in entities:
+        linked = controller.get_directed_linked_resources_internal(
+            resources=resource_ids, run_customize=True, link_type="resource%"
+        )
+        for resource, entities in linked.items():
+            entity = resource_idx[resource]
             entity.actions = action_idx.get(str(entity.oid))
-
-            linked_resources = entity.get_linked_resources_with_cache()
-            if len(linked_resources) > 0:
-                entity.resources = []
-                for linked_resource in linked_resources:
-                    end_resource = linked_resource
-                    link_type = end_resource.link_type
-                    if link_type.find("resource") == 0:
-                        entity.resources.append(linked_resource)
+            entity.resources = [e for e in entities]
 
         return entities
 
@@ -218,7 +239,7 @@ class ComputeStackV2(ComputeProviderResource):
             if isinstance(resource, ComputeInstance):
                 volumes = resource.get_volumes()
                 resource.post_get()
-                if resource.is_running() is True and resource.flavor is not None:
+                if resource.is_running(raise_error=False) is True and resource.flavor is not None:
                     cores = resource.get_attribs("quotas.database.cores")
                     ram = resource.get_attribs("quotas.database.ram")
 
@@ -276,34 +297,42 @@ class ComputeStackV2(ComputeProviderResource):
         """
         self.set_configs(key="outputs." + name, value=value)
 
-    def get_actions(self, name=None):
+    def get_actions(self)-> List[ComputeStackAction]:
         """Get actions
+        Return  chiled actions list
 
         :param name: action name
         :return: actions list
         :raise ApiManagerError:
         """
-        if name is None:
-            if self.actions is not None:
-                actions = self.actions
-            else:
-                actions, tot = self.controller.get_resources(
-                    parent=self.oid,
-                    run_customize=False,
-                    size=-1,
-                    objdef=ComputeStackAction.objdef,
-                )
-        else:
-            actions, tot = self.controller.get_resources(
-                parent=self.oid,
-                name=name,
-                run_customize=False,
-                size=-1,
-                objdef=ComputeStackAction.objdef,
-            )
-            actions = actions[0]
-
+        actions, tot = self.controller.get_resources(
+            parent=self.oid,
+            run_customize=False,
+            size=-1,
+            objdef=ComputeStackAction.objdef,
+        )
         return actions
+
+    def get_action_by_name(self, name)->ComputeStackAction:
+        """Get action by name
+        Return a child ComputeStackAction by his name
+
+
+        :param name: action name
+        :return: actions list
+        :raise ApiManagerError:
+        """
+        actions, tot = self.controller.get_resources(
+            parent=self.oid,
+            name=name,
+            run_customize=False,
+            size=-1,
+            objdef=ComputeStackAction.objdef,
+        )
+        if tot >0:
+            return actions[0]
+        else:
+            return None
 
     def get_child_resources(self, uuid=None):
         """Get child resources
@@ -312,6 +341,7 @@ class ComputeStackV2(ComputeProviderResource):
         :return: resources list
         :raise ApiManagerError:
         """
+        ### TODO restituisce non una lista ma il primo child
         if uuid is None:
             if self.resources is not None:
                 resources = self.resources
@@ -344,7 +374,7 @@ class ComputeStackV2(ComputeProviderResource):
         return resource_class
 
     @staticmethod
-    def pre_create(controller, container, *args, **kvargs):
+    def pre_create(controller: ResourceController, container: ResourceContainer, *args, **kvargs):
         """Check input params before resource creation. This function is used in container resource_factory method.
 
         :param controller: resource controller instance
@@ -472,7 +502,7 @@ class ComputeStackV2(ComputeProviderResource):
         if enabled_monitoring:
             steps.append(ComputeStackV2.task_path + "set_monitoring_step")
 
-        additional_steps = kvargs.pop("additional_steps")
+        additional_steps = kvargs.pop("additional_steps", [])
         if additional_steps:
             steps.extend(additional_steps)
 
@@ -753,21 +783,41 @@ class ComputeStackV2(ComputeProviderResource):
 
         }
         """
+        engine_metadata=self.get_stack_engine()
         prefix = ""
-        if self.get_stack_type() == "sql_stack":
-            if self.get_stack_engine().get("engine") == "mysql":
+
+        # if self.get_stack_type() == "sql_stack":
+        #     if self.get_stack_engine().get("engine") == "mysql":
+        #         prefix = "db_mysql_"
+        #     elif self.get_stack_engine().get("engine") == "mariadb":
+        #         prefix = "db_mariadb_"
+        #     elif self.get_stack_engine().get("engine") == "postgresql":
+        #         prefix = "db_pgsql_"
+        #     elif self.get_stack_engine().get("engine") == "oracle":
+        #         prefix = "db_ora_"
+        #     elif self.get_stack_engine().get("engine") == "sqlserver":
+        #         prefix = "db_mssql_"
+        # elif self.get_stack_type() == "app_stack":
+        #     if self.get_stack_engine().get("engine") == "apache-php":
+        #         prefix = "app_php_"
+
+
+        if engine_metadata["stack_type"] == "sql_stack":
+            if engine_metadata["engine"] == "mysql":
                 prefix = "db_mysql_"
-            elif self.get_stack_engine().get("engine") == "mariadb":
+            elif engine_metadata["engine"] == "mariadb":
                 prefix = "db_mariadb_"
-            elif self.get_stack_engine().get("engine") == "postgresql":
+            elif engine_metadata["engine"] == "postgresql":
                 prefix = "db_pgsql_"
-            elif self.get_stack_engine().get("engine") == "oracle":
+            elif engine_metadata["engine"]  == "oracle":
                 prefix = "db_ora_"
-            elif self.get_stack_engine().get("engine") == "sqlserver":
+            elif engine_metadata["engine"]  == "sqlserver":
                 prefix = "db_mssql_"
-        elif self.get_stack_type() == "app_stack":
-            if self.get_stack_engine().get("engine") == "apache-php":
+        elif engine_metadata["stack_type"] == "app_stack":
+            if engine_metadata["engine"] == "apache-php":
                 prefix = "app_php_"
+        prefix = self.get_attribs(key="metrics_prefix", default=prefix)
+        prefix = engine_metadata["engine_configs"].get("metrics_prefix", prefix)
 
         metrics = {
             "%spower_on" % prefix: 0,
@@ -779,6 +829,7 @@ class ComputeStackV2(ComputeProviderResource):
             "%sgbdisk_low" % prefix: 0,
             "%sgbdisk_hi" % prefix: 0,
             "%slic" % prefix: 0,
+            "%spublic_ip" % prefix: 0,
         }
 
         metric_units = {
@@ -791,10 +842,14 @@ class ComputeStackV2(ComputeProviderResource):
             "%sgbdisk_low" % prefix: "GB",
             "%sgbdisk_hi" % prefix: "GB",
             "%slic" % prefix: "#",
+            "%spublic_ip" % prefix: "#",
         }
 
         for resource in self.get_child_resources():
             if isinstance(resource, ComputeInstance):
+                if resource.is_internet():
+                    metrics["%spublic_ip" % prefix] += 1
+                    
                 volumes = resource.get_volumes()
                 resource.post_get()
 
@@ -807,6 +862,13 @@ class ComputeStackV2(ComputeProviderResource):
                 physical_server = resource.get_physical_server()
                 if physical_server is not None:
                     data = physical_server.info().get("details")
+
+                    # simple_info
+                    last_runstate = self.get_attribs(key="last_runstate")
+                    state = data.get("state")
+                    if last_runstate is None or last_runstate != state:
+                        self.set_configs("last_runstate", state)
+                        
                     memory = 0
                     cpu = 0
                     if data.get("state") == "poweredOn":
@@ -820,8 +882,14 @@ class ComputeStackV2(ComputeProviderResource):
                         cpu = data.get("cpu")
                         metrics["%svcpu" % prefix] += cpu
 
-                        resource.set_configs("quotas.database.cores", cpu)
-                        resource.set_configs("quotas.database.ram", memory)
+                        # update data if it has changed
+                        last_cores = resource.get_attribs(key="quotas.database.cores")
+                        if last_cores is None or last_cores != cpu:
+                            resource.set_configs("quotas.database.cores", cpu)
+                        
+                        last_ram = resource.get_attribs(key="quotas.database.ram")
+                        if last_ram is None or last_ram != memory:
+                            resource.set_configs("quotas.database.ram", memory)
 
                         if resource.flavor is not None:
                             flavor = resource.flavor.get_configs()
@@ -902,35 +970,6 @@ class ComputeStackV2(ComputeProviderResource):
 
         self.logger.debug("Get compute stack %s metrics: %s" % (self.uuid, res))
         return res
-
-    #
-    # actions
-    #
-    # @staticmethod
-    # def set_ansible_ssh_common_args(data, name, compute_zone, username='root'):
-    #     # ansible_ssh_common_args: '-o ProxyCommand="sshpass -p mypass ssh -o StrictHostKeyChecking=no -W %h:%p -q ' \
-    #     #                          'root@84.1.2.3 -p 1"'
-    #     bastion_host = compute_zone.get_bastion_host()
-    #     if bastion_host is None:
-    #         return data
-    #     params = {
-    #         'username': username,
-    #         'pwd':  bastion_host.get_credential(username=username).get('password'),
-    #         'host': bastion_host.public_host,
-    #         'port': bastion_host.public_port
-    #     }
-    #     ansible_ssh_common_args = '-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ' \
-    #                               '-o ProxyCommand="sshpass -p {pwd} ssh -o UserKnownHostsFile=/dev/null ' \
-    #                               '-o StrictHostKeyChecking=no -W %h:%p -q ' \
-    #                               '{username}@{host} -p {port}"'.format(**params)
-    #     compute_zone.logger.warn(ansible_ssh_common_args)
-    #     data['params']['extra_vars']['ansible_ssh_common_args'] = ansible_ssh_common_args
-    #     # data['params']['extra_vars']['ansible_host'] = \
-    #     #     '$$action_resource.%s-create_server1::vpcs.0.fixed_ip.ip$$' % name
-    #     data['params']['extra_vars']['ansible_connection'] = 'ssh'
-    #     data['params']['extra_vars']['ansible_python_interpreter'] = '/usr/bin/python'
-    #
-    #     return data
 
     @staticmethod
     def set_replica_args(

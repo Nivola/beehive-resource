@@ -1,23 +1,27 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_resource.plugins.provider.entity.vpc import Vpc
 from beehive_resource.plugins.provider.entity.zone import ComputeZone
+
 from beehive_resource.view import (
     ListResourcesRequestSchema,
     ResourceResponseSchema,
     ResourceSmallResponseSchema,
 )
+
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
     GetApiObjectRequestSchema,
     CrudApiObjectJobResponseSchema,
 )
+
 from beecell.swagger import SwaggerHelper
 from flasgger import fields, Schema
+
 from beehive_resource.plugins.provider.views import (
     ProviderAPI,
     LocalProviderApiView,
@@ -32,7 +36,12 @@ class ProviderVpc(LocalProviderApiView):
 
 
 class ListVpcsRequestSchema(ListResourcesRequestSchema):
-    super_zone = fields.String(context="query", description="super zone id, uuid")
+    super_zone = fields.String(
+        context="query",
+        metadata={
+            "description": 'super zone id, uuid',
+        },
+    )
 
 
 class ListVpcsParamsResponseSchema(ResourceResponseSchema):
@@ -40,7 +49,12 @@ class ListVpcsParamsResponseSchema(ResourceResponseSchema):
 
 
 class ListVpcsResponseSchema(PaginatedResponseSchema):
-    vpcs = fields.Nested(ListVpcsParamsResponseSchema, many=True, required=True, allow_none=True)
+    vpcs = fields.Nested(
+        ListVpcsParamsResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListVpcs(ProviderVpc):
@@ -53,7 +67,6 @@ class ListVpcs(ProviderVpc):
 
     def get(self, controller, data, *args, **kwargs):
         """
-        List vpcs
         List vpcs
 
         # - filter by: tags
@@ -70,11 +83,20 @@ class ListVpcs(ProviderVpc):
 
 
 class GetVpcParamsResponseSchema(ResourceResponseSchema):
-    networks = fields.Nested(ResourceSmallResponseSchema, required=True, many=True, allow_none=True)
+    networks = fields.Nested(
+        ResourceSmallResponseSchema,
+        required=True,
+        many=True,
+        allow_none=True,
+    )
 
 
 class GetVpcResponseSchema(Schema):
-    vpc = fields.Nested(GetVpcParamsResponseSchema, required=True, allow_none=True)
+    vpc = fields.Nested(
+        GetVpcParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetVpc(ProviderVpc):
@@ -97,17 +119,27 @@ class GetVpc(ProviderVpc):
 
 
 class CreateVpcParamRequestSchema(CreateProviderResourceRequestSchema):
-    compute_zone = fields.String(required=True, example="1", description="parent compute zone id or uuid")
+    compute_zone = fields.String(
+        required=True,
+        metadata={
+            "example": '1',
+            "description": 'parent compute zone id or uuid',
+        },
+    )
     multi_avz = fields.Boolean(
-        example=False,
-        missing=True,
+        load_default=True,
         required=False,
-        description="Define if instance must be deployed to work in all the availability zones",
+        metadata={
+            "example": False,
+            "description": 'Define if instance must be deployed to work in all the availability zones',
+        },
     )
     networks = fields.List(
-        fields.Str(example="2887"),
+        fields.Str(example='2887'),
         required=True,
-        description="list of site_network or private_network id or uuid",
+        metadata={
+            "description": 'list of site_network or private_network id or uuid',
+        },
     )
 
 

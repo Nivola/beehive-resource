@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
@@ -10,19 +10,23 @@ from beehive.common.apimanager import (
     CrudApiObjectJobResponseSchema,
     ApiView,
 )
+
 from beehive_resource.plugins.grafana.entity.grafana_alert_notification import (
     GrafanaAlertNotification,
 )
+
 from beehive_resource.plugins.provider.views import (
     ResourceApiView,
     CreateProviderResourceRequestSchema,
     UpdateProviderResourceRequestSchema,
 )
+
 from beehive_resource.view import (
     ListResourcesRequestSchema,
     ResourceResponseSchema,
     ResourceSmallResponseSchema,
 )
+
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
 from beehive_resource.plugins.grafana.views import GrafanaAPI, GrafanaApiView
@@ -54,11 +58,14 @@ class ListGrafanaAlertNotificationsResponseSchema(PaginatedResponseSchema):
 class ListGrafanaAlertNotifications(GrafanaAlertNotificationView):
     summary = "List alert_notifications"
     description = "List alert_notifications"
+
     definitions = {
         "ListGrafanaAlertNotificationsResponseSchema": ListGrafanaAlertNotificationsResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(ListGrafanaAlertNotificationsRequestSchema)
     parameters_schema = ListGrafanaAlertNotificationsRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {
             200: {
@@ -74,19 +81,30 @@ class ListGrafanaAlertNotifications(GrafanaAlertNotificationView):
 
 
 class GetGrafanaAlertNotificationParamsResponseSchema(ResourceResponseSchema):
-    alert_notifications = fields.Nested(ResourceSmallResponseSchema, required=True, many=True, allow_none=True)
+    alert_notifications = fields.Nested(
+        ResourceSmallResponseSchema,
+        required=True,
+        many=True,
+        allow_none=True,
+    )
 
 
 class GetGrafanaAlertNotificationResponseSchema(Schema):
-    alert_notification = fields.Nested(GetGrafanaAlertNotificationParamsResponseSchema, required=True, allow_none=True)
+    alert_notification = fields.Nested(
+        GetGrafanaAlertNotificationParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetGrafanaAlertNotification(GrafanaAlertNotificationView):
     summary = "Get alert_notification"
     description = "Get alert_notification"
+
     definitions = {
         "GetGrafanaAlertNotificationResponseSchema": GetGrafanaAlertNotificationResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses(
         {
@@ -103,37 +121,62 @@ class GetGrafanaAlertNotification(GrafanaAlertNotificationView):
 
 
 class CreateGrafanaAlertNotificationParamRequestSchema(CreateProviderResourceRequestSchema):
-    container = fields.String(required=True, example="12", description="Container id, uuid or name")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'Container id, uuid or name',
+        },
+    )
+
     name = fields.String(
         required=True,
-        example="test-name-alert_notification",
-        default="",
-        description="AlertNotification name",
+        metadata={
+            "example": 'test-name-alert_notification',
+            "description": 'AlertNotification name',
+        },
     )
+
     desc = fields.String(
         required=False,
         allow_none=True,
-        example="test-desc-alert_notification",
-        description="The resource description",
+        metadata={
+            "example": 'test-desc-alert_notification',
+            "description": 'The resource description',
+        },
     )
-    email = fields.String(required=True, example="test-email-alert_notification", description="The email")
+
+    email = fields.String(
+        required=True,
+        metadata={
+            "example": 'test-email-alert_notification',
+            "description": 'The email',
+        },
+    )
 
 
 class CreateGrafanaAlertNotificationRequestSchema(Schema):
-    alert_notification = fields.Nested(CreateGrafanaAlertNotificationParamRequestSchema)
+    alert_notification = fields.Nested(
+        CreateGrafanaAlertNotificationParamRequestSchema,
+    )
 
 
 class CreateGrafanaAlertNotificationBodyRequestSchema(Schema):
-    body = fields.Nested(CreateGrafanaAlertNotificationRequestSchema, context="body")
+    body = fields.Nested(
+        CreateGrafanaAlertNotificationRequestSchema,
+        context="body",
+    )
 
 
 class CreateGrafanaAlertNotification(GrafanaAlertNotificationView):
     summary = "Create alert_notification"
     description = "Create alert_notification"
+
     definitions = {
         "CreateGrafanaAlertNotificationRequestSchema": CreateGrafanaAlertNotificationRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateGrafanaAlertNotificationBodyRequestSchema)
     parameters_schema = CreateGrafanaAlertNotificationRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
@@ -146,15 +189,18 @@ class CreateGrafanaAlertNotification(GrafanaAlertNotificationView):
 class UpdateGrafanaAlertNotificationTemplateRequestSchema(Schema):
     name = fields.String(
         required=True,
-        example="Test alert_notification",
-        default="",
-        description="AlertNotification name",
+        metadata={
+            "example": 'Test alert_notification',
+            "description": 'AlertNotification name',
+        },
     )
+
     desc = fields.String(
         required=False,
-        example="This is the test alert_notification",
-        default="",
-        description="AlertNotification description",
+        metadata={
+            "example": 'This is the test alert_notification',
+            "description": 'AlertNotification description',
+        },
     )
 
 
@@ -163,29 +209,40 @@ class UpdateGrafanaAlertNotificationParamRequestSchema(UpdateProviderResourceReq
         UpdateGrafanaAlertNotificationTemplateRequestSchema,
         required=False,
         many=True,
-        description="list of orchestrator alert_notifications to link",
         allow_none=True,
+        metadata={
+            "description": 'list of orchestrator alert_notifications to link',
+        },
     )
 
 
 class UpdateGrafanaAlertNotificationRequestSchema(Schema):
-    alert_notification = fields.Nested(UpdateGrafanaAlertNotificationParamRequestSchema)
+    alert_notification = fields.Nested(
+        UpdateGrafanaAlertNotificationParamRequestSchema,
+    )
 
 
 class UpdateGrafanaAlertNotificationBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateGrafanaAlertNotificationRequestSchema, context="body")
+    body = fields.Nested(
+        UpdateGrafanaAlertNotificationRequestSchema,
+        context="body",
+    )
 
 
 class UpdateGrafanaAlertNotification(GrafanaAlertNotificationView):
     summary = "Update alert_notification"
     description = "Update alert_notification"
+
     definitions = {
         "UpdateGrafanaAlertNotificationRequestSchema": UpdateGrafanaAlertNotificationRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateGrafanaAlertNotificationBodyRequestSchema)
     parameters_schema = UpdateGrafanaAlertNotificationRequestSchema
-    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
+    responses = SwaggerApiView.setResponses({
+        202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}
+    })
 
     def put(self, controller, data, oid, *args, **kwargs):
         """Update Grafana alert_notification"""

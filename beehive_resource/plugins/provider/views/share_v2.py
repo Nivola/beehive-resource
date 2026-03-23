@@ -1,68 +1,147 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
-import re
+#import re
 
-# from ansible_collections.community.vmware.plugins.connection.vmware_tools import example
 from marshmallow import validate
-from marshmallow.validate import OneOf
+from marshmallow.validate import OneOf #,Length
 from marshmallow.decorators import validates_schema
-from marshmallow.exceptions import ValidationError
-from six import ensure_text
+from typing import TYPE_CHECKING
+
+from beecell.types.type_dict import dict_get
 from beehive_resource.plugins.provider.entity.share_v2 import ComputeFileShareV2
-from beehive_resource.plugins.provider.entity.vpc import Vpc
 from beehive_resource.plugins.provider.entity.zone import ComputeZone
+
 from beehive_resource.view import (
     ListResourcesRequestSchema,
     ResourceResponseSchema,
     ResourceSmallResponseSchema,
 )
+
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
     GetApiObjectRequestSchema,
     CrudApiObjectJobResponseSchema,
 )
+
 from beecell.swagger import SwaggerHelper
 from flasgger import fields, Schema
+
 from beehive_resource.plugins.provider.views import (
     ProviderAPI,
     LocalProviderApiView,
-    UpdateProviderResourceRequestSchema,
     CreateProviderResourceRequestSchema,
 )
-from ipaddress import IPv4Address, AddressValueError
 
+from beehive.common.apimanager import ApiManagerError
+from beehive_resource.plugins.provider.views import ProviderComplianceRequestParams
+
+if TYPE_CHECKING:
+    from beehive_resource.controller import ResourceController
 
 class ProviderShareV2(LocalProviderApiView):
     resclass = ComputeFileShareV2
     parentclass = ComputeZone
 
+class ShareV2BaseRequestParams(Schema):
+    """
+    :size: volume size, in GBs
+    :share_proto: share protocol (nfs,cifs)
+    """
+    size = fields.Integer(
+        required=True,
+        metadata={
+            "example": 10,
+            "description": 'share size, in GBs',
+        },
+    )
+
+    share_proto = fields.String(
+        required=True,
+        validate=OneOf(ComputeFileShareV2.protocols),
+        metadata={
+            "description": 'Share protocol; use one of %s' % ','.join(ComputeFileShareV2.protocols),
+        },
+    )
+
+class ShareV2CreateRequestParams(ShareV2BaseRequestParams):
+    """
+    :size: volume size, in GBs
+    :share_proto: share protocol (nfs,cifs)
+    :encrypted: if encrypted or not (False until supported)
+    :snapshot_policy: the snapshot policy to apply to the volume
+    """
+    encrypted = fields.Bool(
+        required=False,
+        validate=OneOf([True, False]),
+        load_default=False,
+    )
+
+    snapshot_policy = fields.String(
+        required=False,
+        allow_none=True,
+        metadata={
+            "example": 'staas_snap_8h_21d_14w_6m',
+        },
+    )
 
 class ListShareV2sRequestSchema(ListResourcesRequestSchema):
-    compute_zone = fields.String(context="query", description="super zone id or uuid")
-    vpc = fields.String(context="query", description="vpc id or uuid")
+    compute_zone = fields.String(
+        context="query",
+        metadata={
+            "description": 'super zone id or uuid',
+        },
+    )
+
+    vpc = fields.String(
+        context="query",
+        metadata={
+            "description": 'vpc id or uuid',
+        },
+    )
 
 
 class ShareV2VpcResponseSchema(Schema):
     uuid = fields.UUID(
         required=False,
         allow_none=True,
-        default="6d960236-d280-46d2-817d-f3ce8f0aeff7",
-        example="6d960236-d280-46d2-817d-f3ce8f0aeff7",
+        metadata={
+            "example": '6d960236-d280-46d2-817d-f3ce8f0aeff7',
+        },
     )
-    name = fields.String(required=False, default="test", example="test", allow_none=True)
+
+    name = fields.String(
+        required=False,
+        dump_default="test",
+        allow_none=True,
+        metadata={
+            "example": 'test',
+        },
+    )
 
 
 class ShareV2ResponseSchema(ResourceResponseSchema):
-    availability_zone = fields.Nested(ResourceSmallResponseSchema, required=True)
-    vpcs = fields.Nested(ShareV2VpcResponseSchema, required=True)
+    availability_zone = fields.Nested(
+        ResourceSmallResponseSchema,
+        required=True,
+    )
+
+    vpcs = fields.Nested(
+        ShareV2VpcResponseSchema,
+        required=True,
+    )
 
 
 class ListShareV2sResponseSchema(PaginatedResponseSchema):
-    shares = fields.Nested(ShareV2ResponseSchema, many=True, required=True, allow_none=True)
+    shares = fields.Nested(
+        ShareV2ResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListShareV2s(ProviderShareV2):
@@ -70,152 +149,93 @@ class ListShareV2s(ProviderShareV2):
         "ListShareV2sRequestSchema": ListShareV2sRequestSchema,
         "ListShareV2sResponseSchema": ListShareV2sResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(ListShareV2sRequestSchema)
     parameters_schema = ListShareV2sRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListShareV2sResponseSchema}})
 
-    def get(self, controller, data, *args, **kwargs):
+    def get(self, controller: 'ResourceController', data, *args, **kwargs):
         """
         List shares
-        List shares
         """
-        data["details"] = True
-
-        zone_id = data.get("compute_zone", None)
-        vpc_id = data.get("vpc", None)
-
-        if zone_id is not None:
+        data['details'] = False
+        zone_id = data.get("parent_list", None)
+        if zone_id and len(zone_id)==1:
             return self.get_resources_by_parent(controller, zone_id, **data)
-        elif vpc_id is not None:
-            return self.get_linked_resources(controller, vpc_id, Vpc, **data)
-
         return self.get_resources(controller, **data)
 
 
 class GetShareV2ResponseSchema(Schema):
-    share = fields.Nested(ShareV2ResponseSchema, required=True, allow_none=True)
+    share = fields.Nested(
+        ShareV2ResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetShareV2(ProviderShareV2):
-    definitions = {
-        "GetShareV2ResponseSchema": GetShareV2ResponseSchema,
-    }
+    definitions = {"GetShareV2ResponseSchema": GetShareV2ResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetShareV2ResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
         Get share
-        Get share
         """
         return self.get_resource(controller, oid)
 
 
-class ShareV2RequestParams(Schema):
+class CreateShareV2ParamRequestSchema(CreateProviderResourceRequestSchema,ProviderComplianceRequestParams):
     """
-    :size: volume size, in GBs
-    :share_proto: share protocol (nfs,cifs)
-    """
-
-    size = fields.Integer(required=True, example=10, description="share size, in GBs")
-    share_proto = fields.String(
-        required=True,
-        validate=OneOf(ComputeFileShareV2.protos),
-        description="Share protocol; use one of %s" % ",".join(ComputeFileShareV2.protos),
-    )
-    # share_proto_prefix = fields.String( # TODO probabilmente non serve
-    #    required=False,
-    #    example="",
-    #    missing=None,
-    #    allow_none=True,
-    #    description="share protocol prefix",
-    # )
-
-
-class ShareV2OntapRequestParams(ShareV2RequestParams):
-    """
-    inherits: size, share_proto
-
-    other params:
-
-    :cluster: destination cluster
-    :svm: destination svm in destination cluster
-    :snaplock cluster: snaplock cluster
-    :snaplock svm: svm in snaplock cluster
-    :snapshot policy: snapshot policy (snapshots created on dest. volume)
-    """
-
-    cluster = fields.String(
-        required=True, allow_none=False, description="The cluster where the share resides", example="faspod1"
-    )
-    svm = fields.String(
-        required=True, allow_none=False, description="The svm where the share resides", example="svmp1-provcuneo"
-    )
-    snaplock_cluster = fields.String(
-        required=False,
-        allow_none=True,
-        description="The cluster where the snaplock of the share resides",
-        example="faspod3",
-    )
-    snaplock_svm = fields.String(
-        required=False,
-        allow_none=True,
-        description="The svm where the snaplock of the share resides",
-        example="svmp3-provcuneo",
-    )
-    snapshot_policy = fields.String(
-        required=True,
-        allow_none=False,
-        validate=OneOf(ComputeFileShareV2.snapshot_policies),
-        description="Snapshot policy; use one of %s" % ",".join(ComputeFileShareV2.snapshot_policies),
-    )
-    clients = fields.List(fields.Integer(), required=True, validate=validate.Length(min=1))
-    # clients2 = fields.Int(
-    #    required=True,
-    #    allow_none = False,
-    #    description="list of ids of vms that should be able to access the share",
-    #    many=True
-    # )
-    # clients = fields.List(
-    #    fields.String(example=""),
-    #    required=True,
-    #    allow_none=False,
-    #    description="list of ids of vms that should be able to access the share",
-    #    collection_format="multi",
-    # )
-
-
-class CreateShareV2ParamRequestSchema(CreateProviderResourceRequestSchema):
-    """
-    inherits: name, container, tags, desc, orchestrator_tag
+    inherits: name, container, tags, desc, orchestrator_tag, compliance, compliance_site,
 
     other params:
 
     :compute_zone: compute zone id or uuid
     :orchestrator_type: orchestrator type (ontap,...)
     :awx_orchestrator_tag: awx orchestrator tag
-    :ontap_share_params: ontap share params
-
-    when adding support for more orchestrator types, add a nested schema
-    like for ontap_share_params, and extend validation checks.
+    :site: site where to create share
+    :share_params: provider share params
     """
 
-    compute_zone = fields.String(required=True, example="1", description="parent compute zone id or uuid")
+    compute_zone = fields.String(
+        required=True,
+        metadata={
+            "example": '1',
+            "description": 'parent compute zone id or uuid',
+        },
+    )
+
     orchestrator_type = fields.String(
         required=True,
-        example="ontap",
         allow_none=False,
-        description="orchestrator type",
+        metadata={
+            "example": 'ontap',
+            "description": 'orchestrator type',
+        },
     )
+
     awx_orchestrator_tag = fields.String(
-        required=True,
-        example="V2",
+        required=False,
         allow_none=False,
-        description="tag to distinguish old awx to new one",
+        metadata={
+            "example": 'V2',
+            "description": 'tag to distinguish old awx to new one',
+        },
     )
-    site = fields.String(required=True, example="SiteTorino01")
-    ontap_share_params = fields.Nested(ShareV2OntapRequestParams, allow_none=True)
-    # other_share_params = ...
+
+    site = fields.String(
+        required=True,
+        metadata={
+            "example": 'SiteTorino01',
+        },
+    )
+    share_params = fields.Nested(ShareV2CreateRequestParams, required=True)
+
+    @validates_schema
+    def validate_params(self, data, **kwargs):
+        super().validate_compliance_site(data,**kwargs)
+
 
 
 class CreateShareV2RequestSchema(Schema):
@@ -231,116 +251,424 @@ class CreateShareV2(ProviderShareV2):
         "CreateShareV2RequestSchema": CreateShareV2RequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateShareV2BodyRequestSchema)
     parameters_schema = CreateShareV2RequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
-    def post(self, controller, data, *args, **kwargs):
+    def post(self, controller: 'ResourceController', data, *args, **kwargs):
         """
         Create share
-        Create share
         """
-        if data.get("orchestrator_type") == "ontap" and data.get("ontap_share_params") is None:
-            raise ValidationError("Ontap orchestrator type specified but ontap parameters missing")
         return self.create_resource(controller, data)
 
 
-# TODO check all other APIS
-class UpdateShareV2GrantRequestSchema(Schema):
-    access_level = fields.String(
+class CreateShareV2ReplicaParamRequestSchema(CreateProviderResourceRequestSchema):
+    """
+    inherits: name, container, tags, desc, orchestrator_tag
+    name is optional as it's usually set by convention e.g. dr-<source name>
+    other params:
+
+    :compute_zone: compute zone id or uuid
+    :awx_orchestrator_tag: awx orchestrator tag
+    :site: site where to create replica
+    :rpo: rpo
+    """
+    # redefine name and desc to be optional
+    name = fields.String(
         required=False,
-        example="rw",
-        description="The access level to the share",
-        validate=OneOf(["RO", "ro", "RW", "rw"]),
+        metadata={
+            "example": 'dr-test',
+            "description": 'the share replica name',
+        },
     )
-    access_type = fields.String(
+
+    desc = fields.String(
         required=False,
-        example="ip",
-        description="The access rule type",
-        validate=OneOf(["IP", "ip", "cert", "CERT", "USER", "user"]),
+        load_default="replica",
+        metadata={
+            "example": 'test',
+            "description": 'The resource description',
+        },
     )
-    access_to = fields.String(
-        required=False,
-        example="10.102.186.0/24",
-        description="The value that defines the access. - ip. A valid format is XX.XX.XX.XX or "
-        "XX.XX.XX.XX/XX. For example 0.0.0.0/0. - cert. A valid value is any "
-        "string up to 64 characters long in the common name (CN) of the certificate."
-        " - user. A valid value is an alphanumeric string that can contain some "
-        "special characters and is from 4 to 32 characters long.",
+
+    compute_zone = fields.String(
+        required=True,
+        metadata={
+            "example": '1',
+            "description": 'parent compute zone id or uuid',
+        },
     )
-    access_id = fields.String(
+
+    awx_orchestrator_tag = fields.String(
         required=False,
-        example="52bea969-78a2-4f7e-ae84-fb4599dc06ca",
-        description="The UUID of the access rule to which access is granted.",
+        allow_none=False,
+        metadata={
+            "example": 'V2',
+            "description": 'tag to select awx orchestrator',
+        },
     )
-    action = fields.String(
+
+    site = fields.String(
+        required=True,
+        metadata={
+            "example": 'SiteTorino01',
+        },
+    )
+
+    rpo = fields.String(
+        required=True,
+        validate=OneOf(['30m', '1h', '3h', '6h', '12h', '24h']),
+        metadata={
+            "description": 'dr rpo',
+        },
+    )
+
+
+class CreateShareV2ReplicaRequestSchema(Schema):
+    share = fields.Nested(CreateShareV2ReplicaParamRequestSchema)
+
+
+class CreateShareV2ReplicaBodyRequestSchema(Schema):
+    body = fields.Nested(CreateShareV2ReplicaRequestSchema, context="body")
+
+class CreateShareV2Replica(ProviderShareV2):
+    definitions = {
+        "CreateShareV2ReplicaRequestSchema": CreateShareV2ReplicaRequestSchema,
+        "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
+    }
+
+    parameters = SwaggerHelper().get_parameters(CreateShareV2ReplicaBodyRequestSchema)
+    parameters_schema = CreateShareV2ReplicaRequestSchema
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
+
+    def post(self, controller: 'ResourceController', data, oid, *args, **kwargs):
+        """
+        Create share replica
+        """
+        data["share"]["from_id"] = oid
+        # check name false as name is optional. check later in pre_create
+        return self.create_resource(controller, data, check_name=False)
+
+
+class ImportShareV2ParamRequestSchema(CreateProviderResourceRequestSchema):
+    """
+    inherits: name, container, tags, desc, orchestrator_tag
+
+    other params:
+
+    :compute_zone: compute zone id or uuid
+    :orchestrator_type: orchestrator type (ontap,...)
+    :awx_orchestrator_tag: awx orchestrator tag
+    """
+    compute_zone = fields.String(
+        required=True,
+        metadata={
+            "example": '1',
+            "description": 'parent compute zone id or uuid',
+        },
+    )
+
+    orchestrator_type = fields.String(
+        required=True,
+        allow_none=False,
+        metadata={
+            "example": 'ontap',
+            "description": 'orchestrator type',
+        },
+    )
+
+    awx_orchestrator_tag = fields.String(
+        required=True,
+        allow_none=False,
+        metadata={
+            "example": 'V2',
+            "description": 'tag to distinguish old awx to new one',
+        },
+    )
+
+    site = fields.String(
+        required=True,
+        metadata={
+            "example": 'SiteTorino01',
+        },
+    )
+
+    remote_name = fields.String(
+        required=True,
+        allow_none=False,
+    )
+
+    force_import_as_main = fields.Boolean(
         required=False,
-        example="ip",
-        validate=OneOf(["add", "del"]),
-        description="Set grant action: add or del",
+        load_default=False,
+        metadata={
+            "description": (
+                'in case you know volume is not a replica, but it currently is for example because syncing for'
+                'migration'
+            ),
+        },
     )
 
     @validates_schema
-    def validate_grant_access_parameters(self, data, *args, **kvargs):
-        msg1 = "parameter is malformed. Range network prefix must be >= 0 and <= 32"
-        access_type = data.get("access_type", "").lower()
-        access_to = data.get("access_to", "")
-        if access_type == "ip":
-            try:
-                ip, prefix = access_to.split("/")
-                prefix = int(prefix)
-                if prefix < 0 or prefix > 32:
-                    raise ValidationError(msg1)
-                IPv4Address(ensure_text(ip))
-            except AddressValueError:
-                raise ValidationError("parameter access_to is malformed. Use xxx.xxx.xxx.xxx/xx syntax")
-            except ValueError:
-                raise ValidationError(msg1)
-        elif access_type == "user":
-            # '^[A-Za-z0-9]{4,32}$'
-            if re.match("^[A-Za-z0-9;_\`'\-\.\{\}\[\]]{4,32}$", access_to) is None:
-                raise ValidationError(
-                    "parameter access_to is malformed. A valid value is an alphanumeric string that "
-                    "can contain some special characters and is from 4 to 32 characters long"
-                )
-        elif access_type == "cert":
-            if re.match("^[A-Za-z0-9]{1,64}$", access_to) is None:
-                # raise ValidationError('parameter access_to is malformed. A valid value is any '
-                #         'string up to 64 characters long in the common name (CN) of the certificate')
-                raise ValidationError('parameter access_to "cert|CERT" value is not supported')
+    def validate_params(self, data, **kwargs):
+        name = data.get("name")
+        remote_name = data.get("remote_name")
+        orchestrator_type = data.get("orchestrator_type")
+        if orchestrator_type=="ontap" and ("snaplock" in name or "snaplock" in remote_name):
+            raise Exception("Don't import snaplock volume with this command. It will be imported when importing main volume.")
 
 
-class UpdateShareV2ParamRequestSchema(UpdateProviderResourceRequestSchema):
-    size = fields.Integer(required=False, description="share size, in GBs")
-    grant = fields.Nested(UpdateShareV2GrantRequestSchema, required=False, description="grant configuration")
+class ImportShareV2RequestSchema(Schema):
+    share = fields.Nested(ImportShareV2ParamRequestSchema)
 
 
-class UpdateShareV2RequestSchema(Schema):
-    share = fields.Nested(UpdateShareV2ParamRequestSchema)
+class ImportShareV2BodyRequestSchema(Schema):
+    body = fields.Nested(ImportShareV2RequestSchema, context="body")
 
-
-class UpdateShareV2BodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateShareV2RequestSchema, context="body")
-
-
-class UpdateShareV2(ProviderShareV2):
+class ImportShareV2(ProviderShareV2):
     definitions = {
-        "UpdateShareV2RequestSchema": UpdateShareV2RequestSchema,
+        "ImportShareV2RequestSchema": ImportShareV2RequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
-    parameters = SwaggerHelper().get_parameters(UpdateShareV2BodyRequestSchema)
-    parameters_schema = UpdateShareV2RequestSchema
+
+    parameters = SwaggerHelper().get_parameters(ImportShareV2BodyRequestSchema)
+    parameters_schema = ImportShareV2RequestSchema
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
+
+    def post(self, controller: 'ResourceController', data, *args, **kwargs):
+        """
+        Import share
+        """
+        return self.import_resource(controller, data)
+
+
+class ResizeShareV2ParamRequestSchema(Schema):
+    new_size = fields.Integer(
+        required=False,
+        metadata={
+            "description": 'share size, in GBs',
+        },
+    )
+
+    extend_shrink = fields.Str(
+        required=True,
+        validate=OneOf(['extend', 'shrink']),
+    )
+
+
+class ResizeShareV2RequestSchema(Schema):
+    share = fields.Nested(ResizeShareV2ParamRequestSchema)
+
+
+class ResizeShareV2BodyRequestSchema(GetApiObjectRequestSchema):
+    body = fields.Nested(ResizeShareV2RequestSchema, context="body")
+
+class ResizeShareV2(ProviderShareV2):
+    """
+    extend or shrink share
+    """
+    definitions = {
+        "ResizeShareV2RequestSchema": ResizeShareV2RequestSchema,
+        "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
+    }
+
+    parameters = SwaggerHelper().get_parameters(ResizeShareV2BodyRequestSchema)
+    parameters_schema = ResizeShareV2RequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def put(self, controller, data, oid, *args, **kwargs):
         """
-        Update share
-        Update share
-
-        To add a grant use action=add and set access_level, access_type and access_to.
-        To remove a grant use action=del and set access_id
+        extend or shrink share
         """
-        return self.update_resource(controller, oid, data)
+        share_params = data.get("share")
+        action = share_params.get("extend_shrink")
+        share: 'ComputeFileShareV2' = self.get_resource_reference(controller, oid)
+        if action in share.actions:
+            task = share.share_action("resize", action_params=share_params, keys_to_update=[("size","size")])
+        else:
+            raise ApiManagerError("Action %s not supported for share" % action)
+        return task
+
+
+class SetStateShareV2ParamRequestSchema(Schema):
+    state = fields.String(
+        required=True,
+        validate=OneOf(['online', 'offline']),
+        metadata={
+            "description": 'share state',
+        },
+    )
+
+
+class SetStateShareV2RequestSchema(Schema):
+    share = fields.Nested(SetStateShareV2ParamRequestSchema)
+
+
+class SetStateShareV2BodyRequestSchema(GetApiObjectRequestSchema):
+    body = fields.Nested(
+        SetStateShareV2RequestSchema,
+        context="body",
+    )
+
+
+class SetStateShareV2(ProviderShareV2):
+    """
+    set share state
+    """
+    definitions = {
+        "SetStateShareV2RequestSchema": SetStateShareV2RequestSchema,
+        "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
+    }
+
+    parameters = SwaggerHelper().get_parameters(SetStateShareV2BodyRequestSchema)
+    parameters_schema = SetStateShareV2RequestSchema
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
+
+    def put(self, controller, data, oid, *args, **kwargs):
+        """
+        put share mount target online or offline
+        """
+        share_params = data.get("share")
+        state = share_params.pop("state")
+        action_name = f"set_{state}"
+        share: 'ComputeFileShareV2' = self.get_resource_reference(controller, oid)
+        if action_name in share.actions:
+            share_params["wanted_state"] = state
+            task = share.share_action("set_volume_state", action_params=share_params)
+        else:
+            raise ApiManagerError("Action %s not supported for share" % action_name)
+        return task
+
+
+class UpdateSnapshotPolicyShareV2ParamRequestSchema(Schema):
+    snapshot_policy = fields.String(
+        required=True,
+        allow_none=False,
+    )
+
+
+class UpdateSnapshotPolicyShareV2RequestSchema(Schema):
+    share = fields.Nested(UpdateSnapshotPolicyShareV2ParamRequestSchema)
+
+
+class UpdateSnapshotPolicyShareV2BodyRequestSchema(GetApiObjectRequestSchema):
+    body = fields.Nested(
+        ResizeShareV2RequestSchema,
+        context="body",
+    )
+
+
+class UpdateSnapshotPolicyShareV2(ProviderShareV2):
+    """
+    update the snapshot policy of a share
+    """
+    definitions = {
+        "UpdateSnapshotPolicyShareV2RequestSchema": UpdateSnapshotPolicyShareV2RequestSchema,
+        "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
+    }
+
+    parameters = SwaggerHelper().get_parameters(UpdateSnapshotPolicyShareV2BodyRequestSchema)
+    parameters_schema = UpdateSnapshotPolicyShareV2RequestSchema
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
+
+    def put(self, controller, data, oid, *args, **kwargs):
+        """
+        extend or shrink share
+        """
+        share_params = data.get("share")
+        share_params["action"] = "update"
+        share: 'ComputeFileShareV2' = self.get_resource_reference(controller, oid)
+        task = share.share_action("manage_snapshot_policy", action_params=share_params)
+        return task
+
+
+class PolicyShareV2ParamRequestSchema(Schema):
+    access_ids = fields.List(
+        fields.Integer(example=2),
+        required=False,
+        metadata={
+            "example": '[2, 4, 5]',
+        },
+    )
+
+    su_access = fields.Boolean(
+        required=False,
+    )
+
+    rw_access = fields.Str(
+        required=False,
+        validate=OneOf(['rw', 'ro']),
+    )
+
+    client_type = fields.Str(
+        required=False,
+        validate=OneOf(['id', 'cidr', 'user']),
+    )
+
+    clients = fields.List(
+        fields.Str(),
+        required=False,
+        validate=validate.Length(min=1),
+    )
+
+    action = fields.Str(
+        required=True,
+        validate=OneOf(['grant_access', 'revoke_access']),
+    )
+
+    protocol = fields.String(
+        required=False,
+        validate=OneOf(['nfs', 'nfs3', 'cifs']),
+    )
+
+
+class PolicyShareV2Request1Schema(Schema):
+    policy = fields.Nested(
+        PolicyShareV2ParamRequestSchema,
+        required=True,
+        metadata={
+            "description": 'ACL policy configuration',
+        },
+    )
+
+
+class PolicyShareV2RequestSchema(Schema):
+    share = fields.Nested(PolicyShareV2Request1Schema)
+
+
+class PolicyShareV2BodyRequestSchema(GetApiObjectRequestSchema):
+    body = fields.Nested(
+        PolicyShareV2RequestSchema,
+        context="body",
+    )
+
+
+class PolicyShareV2(ProviderShareV2):
+    """
+    add or remove rule to/from export policy
+    """
+    definitions = {
+        "PolicyShareV2RequestSchema": PolicyShareV2RequestSchema,
+        "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
+    }
+
+    parameters = SwaggerHelper().get_parameters(PolicyShareV2BodyRequestSchema)
+    parameters_schema = PolicyShareV2RequestSchema
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
+
+    def put(self, controller, data, oid, *args, **kwargs):
+        """
+        add or remove rule to/from export policy
+        """
+        share_params = dict_get(data, "share.policy")
+        action = share_params.get("action")
+        share: 'ComputeFileShareV2' = self.get_resource_reference(controller, oid)
+        if action in share.actions:
+            task = share.share_action("manage_policy", action_params=share_params)
+        else:
+            raise ApiManagerError("Action %s not supported for share" % action)
+        return task
 
 
 class DeleteShareV2(ProviderShareV2):
@@ -351,9 +679,154 @@ class DeleteShareV2(ProviderShareV2):
     def delete(self, controller, data, oid, *args, **kwargs):
         """
         Delete share
-        Delete share
         """
         return self.expunge_resource(controller, oid)
+
+
+class ShareV2HandleReplicaParamRequestSchema(Schema):
+    subaction = fields.Str(
+        required=True,
+        validate=OneOf(['unlink', 'suspend', 'resume', 'mount', 'update']),
+    )
+
+    new_name = fields.Str(
+        required=False,
+        allow_none=True,
+    )
+
+    rpo = fields.Str(
+        required=False,
+        allow_none=True,
+    )
+
+    @validates_schema
+    def validate_unlink(self, data, **kwargs):
+        if data.get("subaction")=="unlink" and not data.get("new_name"):
+            raise Exception(
+                "When breaking a replica relationship, a new name must be given "
+                "in order for the volume to become independent."
+                "This isn't needed if you want to delete the replica instead, "
+                "in which case, this is the wrong endpoint."
+            )
+
+
+class ShareV2HandleReplicaRequestSchema(Schema):
+    share = fields.Nested(ShareV2HandleReplicaParamRequestSchema)
+
+class ShareV2HandleReplicaBodyRequestSchema(GetApiObjectRequestSchema):
+    body = fields.Nested(ShareV2HandleReplicaRequestSchema, context="body")
+
+class ShareV2HandleReplica(ProviderShareV2):
+    """
+    extend or shrink share
+    """
+    definitions = {
+        "ShareV2HandleReplicaRequestSchema": ShareV2HandleReplicaRequestSchema,
+        "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
+    }
+
+    parameters = SwaggerHelper().get_parameters(ShareV2HandleReplicaBodyRequestSchema)
+    parameters_schema = ShareV2HandleReplicaRequestSchema
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
+
+    def put(self, controller: 'ResourceController', data, oid, *args, **kwargs):
+        """
+        suspend replica process
+        """
+        share_params = data.get("share")
+        sub_action = share_params.pop("subaction")
+        action_name = f"replica_{sub_action}"
+        share: 'ComputeFileShareV2' = self.get_resource_reference(controller, oid)
+        if action_name in share.actions:
+            share_params["sub_action"] = action_name
+            if action_name=="replica_unlink":
+                task = share.share_action("replica_manage",
+                                          action_params=share_params,
+                                          keys_to_update=[
+                                              ("role","share_role"),
+                                              ("size","size")
+                                          ]
+                )
+            else:
+                task = share.share_action("replica_manage", action_params=share_params)
+        else:
+            raise ApiManagerError("Action %s not supported for share" % action_name)
+        return task
+
+
+class ManageShareV2Param1RequestSchema(Schema):
+    compliance = fields.Boolean(
+        required=False,
+        allow_none=False,
+    )
+
+    rpo = fields.Str(
+        required=False,
+        allow_none=False,
+    )
+
+class ManageShareV2ParamRequestSchema(Schema):
+    subaction = fields.Str(
+        required=True,
+        validate=OneOf(['mount', 'compliance_enable', 'compliance_disable']),
+    )
+
+    subaction_params = fields.Nested(
+        ManageShareV2Param1RequestSchema,
+        required=False,
+        allow_none=True,
+    )
+
+    metadata_only = fields.Boolean(
+        required=False,
+        allow_none=True,
+        load_default=False,
+    )
+
+
+class ManageShareV2RequestSchema(Schema):
+    share = fields.Nested(ManageShareV2ParamRequestSchema)
+
+
+class ManageShareV2BodyRequestSchema(GetApiObjectRequestSchema):
+    body = fields.Nested(
+        ManageShareV2RequestSchema,
+        context="body",
+    )
+
+
+class ManageShareV2(ProviderShareV2):
+    """
+    manage share (mount, ...)
+    """
+    definitions = {
+        "ManageShareV2RequestSchema": ManageShareV2RequestSchema,
+        "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
+    }
+
+    parameters = SwaggerHelper().get_parameters(ManageShareV2BodyRequestSchema)
+    parameters_schema = ManageShareV2RequestSchema
+    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
+
+    def put(self, controller: 'ResourceController', data, oid, *args, **kwargs):
+        """
+        manage share (mount, ...)
+        """
+        share_params = data.get("share")
+        sub_action_name = share_params.pop("subaction")
+        metadata_only = share_params.get("metadata_only")
+        share: 'ComputeFileShareV2' = self.get_resource_reference(controller, oid)
+        if sub_action_name not in share.actions:
+            raise ApiManagerError("Action %s not supported for share" % sub_action_name)
+        share_params["sub_action"] = sub_action_name
+        task = None
+        if sub_action_name == "mount":
+            task = share.share_action("manage", action_params=share_params)
+        elif sub_action_name == "compliance_enable":
+            task = share.compliance_action(sub_action_name, action_params=share_params, metadata_only=metadata_only)
+        elif sub_action_name == "compliance_disable":
+            task = share.compliance_action(sub_action_name, action_params=share_params, metadata_only=metadata_only)
+        return task
 
 
 class ShareV2ProviderAPI(ProviderAPI):
@@ -363,11 +836,18 @@ class ShareV2ProviderAPI(ProviderAPI):
     def register_api(module, **kwargs):
         base = ProviderAPI.base
         rules = [
-            ("%s/shares" % base, "GET", ListShareV2s, {}),
-            ("%s/shares" % base, "POST", CreateShareV2, {}),
-            ("%s/shares/<oid>" % base, "GET", GetShareV2, {}),
-            ("%s/shares/<oid>" % base, "PUT", UpdateShareV2, {}),
-            ("%s/shares/<oid>" % base, "DELETE", DeleteShareV2, {}),
+            (f"{base}/shares", "GET", ListShareV2s, {}),
+            (f"{base}/shares/<oid>", "GET", GetShareV2, {}),
+            (f"{base}/shares", "POST", CreateShareV2, {}),
+            (f"{base}/shares/<oid>", "DELETE", DeleteShareV2, {}),
+            (f"{base}/shares/<oid>", "PUT", ManageShareV2, {}),
+            (f"{base}/shares/<oid>/resize", "PUT", ResizeShareV2, {}),
+            (f"{base}/shares/<oid>/setstatus", "PUT", SetStateShareV2, {}),
+            (f"{base}/shares/<oid>/policy", "PUT", PolicyShareV2, {}),
+            (f"{base}/shares/<oid>/snapshotpolicy", "PUT", UpdateSnapshotPolicyShareV2, {}),
+            (f"{base}/shares/import", "POST", ImportShareV2, {}),
+            (f"{base}/shares/<oid>/replica", "POST", CreateShareV2Replica, {}),
+            (f"{base}/shares/<oid>/replication", "PUT", ShareV2HandleReplica, {}),
         ]
         kwargs["version"] = "v2.0"
         ProviderAPI.register_api(module, rules, **kwargs)

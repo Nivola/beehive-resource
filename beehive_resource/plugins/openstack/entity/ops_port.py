@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beecell.simple import id_gen
 from beehive.common.apimanager import ApiManagerError
@@ -44,7 +44,7 @@ class OpenstackPort(OpenstackResource):
         """
         # get from openstack
         if ext_id is not None:
-            items = container.conn.network.port.get(oid=ext_id)
+            items = [container.conn.network.port.get(oid=ext_id)]
         else:
             items = container.conn.network.port.list()
 

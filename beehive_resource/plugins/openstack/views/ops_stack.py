@@ -1,17 +1,19 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_resource.plugins.openstack.entity.ops_heat import OpenstackHeatStack
 from beehive_resource.plugins.openstack.views import OpenstackAPI, OpenstackApiView
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
+
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
     GetApiObjectRequestSchema,
     CrudApiObjectJobResponseSchema,
 )
+
 from beehive_resource.view import ResourceResponseSchema, ListResourcesRequestSchema
 from beehive_resource.plugins.openstack.entity.ops_project import OpenstackProject
 
@@ -31,14 +33,17 @@ class ListOpsStackParamsResponseSchema(ResourceResponseSchema):
 
 
 class ListOpsStackResponseSchema(PaginatedResponseSchema):
-    stacks = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
+    stacks = fields.Nested(
+        ResourceResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListOpsStack(OpenstackOpsStackApiView):
     tags = ["openstack"]
-    definitions = {
-        "ListOpsStackResponseSchema": ListOpsStackResponseSchema,
-    }
+    definitions = {"ListOpsStackResponseSchema": ListOpsStackResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListOpsStackRequestSchema)
     parameters_schema = ListOpsStackRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListOpsStackResponseSchema}})
@@ -46,26 +51,26 @@ class ListOpsStack(OpenstackOpsStackApiView):
     def get(self, controller, data, *args, **kwargs):
         """
         List Stack
-        List Stack
         """
         return self.get_resources(controller, **data)
 
 
 class GetOpsStackResponseSchema(Schema):
-    stack = fields.Nested(ResourceResponseSchema, required=True, allow_none=True)
+    stack = fields.Nested(
+        ResourceResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetOpsStack(OpenstackOpsStackApiView):
     tags = ["openstack"]
-    definitions = {
-        "GetOpsStackResponseSchema": GetOpsStackResponseSchema,
-    }
+    definitions = {"GetOpsStackResponseSchema": GetOpsStackResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetOpsStackResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
-        Get Stack
         Get Stack
         """
         return self.get_resource(controller, oid)
@@ -77,9 +82,7 @@ class GetOpsStackTemplateResponseSchema(Schema):
 
 class GetOpsStackTemplate(OpenstackOpsStackApiView):
     tags = ["openstack"]
-    definitions = {
-        "GetOpsStackTemplateResponseSchema": GetOpsStackTemplateResponseSchema,
-    }
+    definitions = {"GetOpsStackTemplateResponseSchema": GetOpsStackTemplateResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": GetOpsStackTemplateResponseSchema}}
@@ -87,7 +90,6 @@ class GetOpsStackTemplate(OpenstackOpsStackApiView):
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
-        Get Stack template
         Get Stack template
         """
         stack = self.get_resource_reference(controller, oid)
@@ -101,9 +103,7 @@ class GetOpsStackEnvironmentResponseSchema(Schema):
 
 class GetOpsStackEnvironment(OpenstackOpsStackApiView):
     tags = ["openstack"]
-    definitions = {
-        "GetOpsStackEnvironmentResponseSchema": GetOpsStackEnvironmentResponseSchema,
-    }
+    definitions = {"GetOpsStackEnvironmentResponseSchema": GetOpsStackEnvironmentResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses(
         {
@@ -117,7 +117,6 @@ class GetOpsStackEnvironment(OpenstackOpsStackApiView):
     def get(self, controller, data, oid, *args, **kwargs):
         """
         Get Stack environment
-        Get Stack environment
         """
         stack = self.get_resource_reference(controller, oid)
         res = stack.get_environment()
@@ -130,15 +129,14 @@ class GetOpsStackFilesResponseSchema(Schema):
 
 class GetOpsStackFiles(OpenstackOpsStackApiView):
     tags = ["openstack"]
-    definitions = {
-        "GetOpsStackFilesResponseSchema": GetOpsStackFilesResponseSchema,
-    }
+    definitions = {"GetOpsStackFilesResponseSchema": GetOpsStackFilesResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
-    responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetOpsStackFilesResponseSchema}})
+    responses = SwaggerApiView.setResponses({
+        200: {"description": "success", "schema": GetOpsStackFilesResponseSchema}
+    })
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
-        Get Stack files
         Get Stack files
         """
         stack = self.get_resource_reference(controller, oid)
@@ -152,9 +150,7 @@ class GetOpsStackOutputsResponseSchema(Schema):
 
 class GetOpsStackOutputs(OpenstackOpsStackApiView):
     tags = ["openstack"]
-    definitions = {
-        "GetOpsStackOutputsResponseSchema": GetOpsStackOutputsResponseSchema,
-    }
+    definitions = {"GetOpsStackOutputsResponseSchema": GetOpsStackOutputsResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": GetOpsStackOutputsResponseSchema}}
@@ -162,7 +158,6 @@ class GetOpsStackOutputs(OpenstackOpsStackApiView):
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
-        Get Stack outputs
         Get Stack outputs
         """
         stack = self.get_resource_reference(controller, oid)
@@ -176,9 +171,7 @@ class GetOpsStackResourcesResponseSchema(Schema):
 
 class GetOpsStackResources(OpenstackOpsStackApiView):
     tags = ["openstack"]
-    definitions = {
-        "GetOpsStackResourcesResponseSchema": GetOpsStackResourcesResponseSchema,
-    }
+    definitions = {"GetOpsStackResourcesResponseSchema": GetOpsStackResourcesResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": GetOpsStackResourcesResponseSchema}}
@@ -186,7 +179,6 @@ class GetOpsStackResources(OpenstackOpsStackApiView):
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
-        Get Stack resources
         Get Stack resources
         """
         stack = self.get_resource_reference(controller, oid)
@@ -201,9 +193,7 @@ class GetOpsStackInternalResourcesResponseSchema(Schema):
 
 class GetOpsStackInternalResources(OpenstackOpsStackApiView):
     tags = ["openstack"]
-    definitions = {
-        "GetOpsStackInternalResourcesResponseSchema": GetOpsStackInternalResourcesResponseSchema,
-    }
+    definitions = {"GetOpsStackInternalResourcesResponseSchema": GetOpsStackInternalResourcesResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses(
         {
@@ -217,7 +207,6 @@ class GetOpsStackInternalResources(OpenstackOpsStackApiView):
     def get(self, controller, data, oid, *args, **kwargs):
         """
         Get Stack resources
-        Get Stack resources
         """
         stack = self.get_resource_reference(controller, oid)
         res = stack.get_stack_internal_resources()
@@ -230,9 +219,7 @@ class GetOpsStackEventsResponseSchema(Schema):
 
 class GetOpsStackEvents(OpenstackOpsStackApiView):
     tags = ["openstack"]
-    definitions = {
-        "GetOpsStackEventsResponseSchema": GetOpsStackEventsResponseSchema,
-    }
+    definitions = {"GetOpsStackEventsResponseSchema": GetOpsStackEventsResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": GetOpsStackEventsResponseSchema}}
@@ -241,7 +228,6 @@ class GetOpsStackEvents(OpenstackOpsStackApiView):
     def get(self, controller, data, oid, *args, **kwargs):
         """
         Get Stack events
-        Get Stack events
         """
         stack = self.get_resource_reference(controller, oid)
         res = stack.get_events()
@@ -249,42 +235,88 @@ class GetOpsStackEvents(OpenstackOpsStackApiView):
 
 
 class CreateOpsStackParamRequestSchema(Schema):
-    container = fields.String(required=True, example="12", description="container id, uuid or name")
-    name = fields.String(required=True, example="test", description="name")
-    desc = fields.String(required=True, example="test", description="name")
-    project = fields.String(required=True, example="23", description="project id, uuid or name")
-    tags = fields.String(
-        example="test_api,tag_test_api",
-        default="",
-        description="comma separated list of tags",
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'container id, uuid or name',
+        },
     )
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'name',
+        },
+    )
+
+    desc = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+            "description": 'name',
+        },
+    )
+
+    project = fields.String(
+        required=True,
+        metadata={
+            "example": '23',
+            "description": 'project id, uuid or name',
+        },
+    )
+
+    tags = fields.String(
+        metadata={
+            "example": 'test_api,tag_test_api',
+            "description": 'comma separated list of tags',
+        },
+    )
+
     template_uri = fields.String(
         required=True,
-        example="",
-        default="",
-        description="A URI to the location containing the stack template on which to "
-        "perform the operation. See the description of the template parameter "
-        "for information about the expected template content located at the URI.",
+        metadata={
+            "example": '',
+            "description": (
+                'A URI to the location containing the stack template on which to perform the operation. See the'
+                'description of the template parameter for information about the expected template content located at'
+                'the URI.'
+            ),
+        },
     )
+
     environment = fields.Dict(
-        example={},
-        default={},
-        description="A JSON environment for the stack.",
         allow_none=True,
+        metadata={
+            "example": '{}',
+            "description": 'A JSON environment for the stack.',
+        },
     )
+
     parameters = fields.Dict(
-        example={"key_name": "opstkcsi"},
-        default={"key_name": "opstkcsi"},
         allow_none=True,
-        description="Supplies arguments for parameters defined in the stack template.",
+        metadata={
+            "example": "{'key_name': 'opstkcsi'}",
+            "description": 'Supplies arguments for parameters defined in the stack template.',
+        },
     )
+
     files = fields.Dict(
-        example={"myfile": '#!\/bin\/bash\necho "Hello world" > \/root\/testfile.txt'},
-        default={"myfile": '#!\/bin\/bash\necho "Hello world" > \/root\/testfile.txt'},
-        description="Supplies the contents of files referenced in the template or the environment.",
         allow_none=True,
+        metadata={
+            "example": '{\'myfile\': \'#!/bin/bash\\necho "Hello world" > /root/testfile.txt\'}',
+            "description": 'Supplies the contents of files referenced in the template or the environment.',
+        },
     )
-    owner = fields.String(required=True, example="admin", default="admin", description="stack owner name")
+
+    owner = fields.String(
+        required=True,
+        metadata={
+            "example": 'admin',
+            "description": 'stack owner name',
+        },
+    )
 
 
 class CreateOpsStackRequestSchema(Schema):
@@ -297,10 +329,12 @@ class CreateOpsStackBodyRequestSchema(Schema):
 
 class CreateOpsStack(OpenstackOpsStackApiView):
     tags = ["openstack"]
+
     definitions = {
         "CreateOpsStackRequestSchema": CreateOpsStackRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateOpsStackBodyRequestSchema)
     parameters_schema = CreateOpsStackRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
@@ -308,14 +342,13 @@ class CreateOpsStack(OpenstackOpsStackApiView):
     def post(self, controller, data, *args, **kwargs):
         """
         Create Stack
-        Create Stack
         """
         return self.create_resource(controller, data)
 
 
 class UpdateOpsStackParamRequestSchema(Schema):
-    name = fields.String(default="test")
-    desc = fields.String(default="test")
+    name = fields.String(load_default="test")
+    desc = fields.String(load_default="test")
 
 
 class UpdateOpsStackRequestSchema(Schema):
@@ -328,17 +361,20 @@ class UpdateOpsStackBodyRequestSchema(GetApiObjectRequestSchema):
 
 class UpdateOpsStack(OpenstackOpsStackApiView):
     tags = ["openstack"]
+
     definitions = {
         "UpdateOpsStackRequestSchema": UpdateOpsStackRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateOpsStackBodyRequestSchema)
     parameters_schema = UpdateOpsStackRequestSchema
-    responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
+    responses = SwaggerApiView.setResponses({
+        202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}
+    })
 
     def put(self, controller, data, oid, *args, **kwargs):
         """
-        Update Stack
         Update Stack
         """
         return self.update_resource(controller, oid, data)

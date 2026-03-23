@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beecell.simple import truncate, get_value, id_gen
 from beehive.common.apimanager import ApiManagerError
@@ -136,10 +136,14 @@ class OpenstackShare(OpenstackResource):
         # get container
         container = controller.get_container(container_id)
 
-        remote_entities = container.conn.manila.share.list()
+        ext_ids = []
+        try:
+            remote_entities = container.conn.manila.share.list()
 
-        # create index of remote objs
-        ext_ids = [i["id"] for i in remote_entities]
+            # create index of remote objs
+            ext_ids = [i["id"] for i in remote_entities]
+        except Exception as ex:
+            controller.logger.warning("Manila error %s" % ex)
 
         return ext_ids
 

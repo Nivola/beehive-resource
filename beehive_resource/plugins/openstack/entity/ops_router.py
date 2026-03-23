@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beecell.simple import truncate, id_gen
 from beecell.db import QueryError
@@ -355,7 +355,7 @@ class OpenstackRouter(OpenstackResource):
                         # get parent project
                         desc = "Openstack %s network %s" % (self.container.name, name)
                         objid = "%s//none//none//%s" % (self.container.objid, id_gen())
-                        model = self.add_resource(
+                        model = self.container.add_resource(
                             objid=objid,
                             name=name,
                             resource_class=OpenstackNetwork,

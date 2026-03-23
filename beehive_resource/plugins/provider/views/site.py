@@ -1,15 +1,16 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_resource.plugins.provider.entity.region import Region
 from beehive_resource.plugins.provider.entity.site import Site
+
 from beehive_resource.view import (
     ListResourcesRequestSchema,
-    ResourceResponseSchema,
-    DeleteResourceRequestSchema,
+    ResourceResponseSchema
 )
+
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
@@ -17,14 +18,17 @@ from beehive.common.apimanager import (
     CrudApiTaskResponseSchema,
     CrudApiObjectTaskResponseSchema,
 )
+
 from beecell.swagger import SwaggerHelper
 from flasgger import fields, Schema
+
 from beehive_resource.plugins.provider.views import (
     ProviderAPI,
     LocalProviderApiView,
     CreateProviderResourceRequestSchema,
     UpdateProviderResourceRequestSchema,
 )
+
 from marshmallow.validate import OneOf
 
 
@@ -42,15 +46,18 @@ class ListSitesParamsResponseSchema(ResourceResponseSchema):
 
 
 class ListSitesResponseSchema(PaginatedResponseSchema):
-    sites = fields.Nested(ListSitesParamsResponseSchema, many=True, required=True, allow_none=True)
+    sites = fields.Nested(
+        ListSitesParamsResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListSites(ProviderSite):
     summary = "List sites"
     description = "List sites"
-    definitions = {
-        "ListSitesResponseSchema": ListSitesResponseSchema,
-    }
+    definitions = {"ListSitesResponseSchema": ListSitesResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListSitesRequestSchema)
     parameters_schema = ListSitesRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListSitesResponseSchema}})
@@ -73,9 +80,7 @@ class GetSiteResponseSchema(Schema):
 class GetSite(ProviderSite):
     summary = "Get site"
     description = "Get site"
-    definitions = {
-        "GetSiteResponseSchema": GetSiteResponseSchema,
-    }
+    definitions = {"GetSiteResponseSchema": GetSiteResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetSiteResponseSchema}})
 
@@ -84,20 +89,53 @@ class GetSite(ProviderSite):
 
 
 class CreateSiteParamRequestSchema(CreateProviderResourceRequestSchema):
-    region = fields.String(required=True, example="region1", description="parent region")
-    geo_area = fields.String(required=True, example="Italy", description="geographic area: Italy, Europe")
+    region = fields.String(
+        required=True,
+        metadata={
+            "example": 'region1',
+            "description": 'parent region',
+        },
+    )
+
+    geo_area = fields.String(
+        required=True,
+        metadata={
+            "example": 'Italy',
+            "description": 'geographic area: Italy, Europe',
+        },
+    )
+
     coords = fields.String(
         required=True,
-        example="45.514046, 13.007813",
-        description="geographic coordinates",
+        metadata={
+            "example": '45.514046, 13.007813',
+            "description": 'geographic coordinates',
+        },
     )
+
     limits = fields.Dict(
         required=True,
-        example={},
-        description="max limits. Use to set up infrastructure limits",
+        metadata={
+            "example": {},
+            "description": 'max limits. Use to set up infrastructure limits',
+        },
     )
-    repo = fields.String(required=True, example="10.138.208.15", description="rpm repo ip address")
-    zone = fields.String(required=True, example="localhost.localdomain", description="dns zone")
+
+    repo = fields.String(
+        required=True,
+        metadata={
+            "example": '10.138.208.15',
+            "description": 'rpm repo ip address',
+        },
+    )
+
+    zone = fields.String(
+        required=True,
+        metadata={
+            "example": 'localhost.localdomain',
+            "description": 'dns zone',
+        },
+    )
 
 
 class CreateSiteRequestSchema(Schema):
@@ -105,18 +143,24 @@ class CreateSiteRequestSchema(Schema):
 
 
 class CreateSiteBodyRequestSchema(Schema):
-    body = fields.Nested(CreateSiteRequestSchema, context="body")
+    body = fields.Nested(
+        CreateSiteRequestSchema,
+        context="body",
+    )
 
 
 class CreateSite(ProviderSite):
     summary = "Create site"
     description = "Create site"
+
     definitions = {
         "CreateSiteRequestSchema": CreateSiteRequestSchema,
         "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateSiteBodyRequestSchema)
     parameters_schema = CreateSiteRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
@@ -126,8 +170,19 @@ class CreateSite(ProviderSite):
 
 
 class UpdateSiteParamRequestSchema(UpdateProviderResourceRequestSchema):
-    geo_area = fields.String(example="Italy", description="geographic area: Italy, Europe")
-    coords = fields.String(example="45.514046, 13.007813", description="geographic coordinates")
+    geo_area = fields.String(
+        metadata={
+            "example": 'Italy',
+            "description": 'geographic area: Italy, Europe',
+        },
+    )
+
+    coords = fields.String(
+        metadata={
+            "example": '45.514046, 13.007813',
+            "description": 'geographic coordinates',
+        },
+    )
 
 
 class UpdateSiteRequestSchema(Schema):
@@ -141,12 +196,15 @@ class UpdateSiteBodyRequestSchema(GetApiObjectRequestSchema):
 class UpdateSite(ProviderSite):
     summary = "Update site"
     description = "Update site"
+
     definitions = {
         "UpdateSiteRequestSchema": UpdateSiteRequestSchema,
         "CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateSiteBodyRequestSchema)
     parameters_schema = UpdateSiteRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
@@ -160,6 +218,7 @@ class DeleteSite(ProviderSite):
     description = "Delete site"
     definitions = {"CrudApiObjectTaskResponseSchema": CrudApiObjectTaskResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
+
     responses = SwaggerApiView.setResponses(
         {202: {"description": "success", "schema": CrudApiObjectTaskResponseSchema}}
     )
@@ -171,24 +230,35 @@ class DeleteSite(ProviderSite):
 class AddSiteOrchestratorParamRequestSchema(UpdateProviderResourceRequestSchema):
     type = fields.String(
         required=True,
-        example="openstack",
-        description="Orchestrator type. Ex. vsphere, openstack",
-        validate=OneOf(
-            [
-                "vsphere",
-                "openstack",
-                "awx",
-                "zabbix",
-                "elk",
-                "ontap",
-                "grafana",
-                "veeam",
-            ]
-        ),
+        validate=OneOf(['vsphere', 'openstack', 'awx', 'zabbix', 'elk', 'ontap', 'grafana', 'veeam']),
+        metadata={
+            "example": 'openstack',
+            "description": 'Orchestrator type. Ex. vsphere, openstack',
+        },
     )
-    id = fields.String(required=True, example="12", description="Orchestrator id, uuid or name")
-    tag = fields.String(example="default", default="default", description="Orchestrator tag")
-    config = fields.Dict(required=True, example={}, description="Orchestrator configuration")
+
+    id = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'Orchestrator id, uuid or name',
+        },
+    )
+
+    tag = fields.String(
+        metadata={
+            "example": 'default',
+            "description": 'Orchestrator tag',
+        },
+    )
+
+    config = fields.Dict(
+        required=True,
+        metadata={
+            "example": '{}',
+            "description": 'Orchestrator configuration',
+        },
+    )
 
 
 class AddSiteOrchestratorRequestSchema(Schema):
@@ -196,16 +266,21 @@ class AddSiteOrchestratorRequestSchema(Schema):
 
 
 class AddSiteOrchestratorBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(AddSiteOrchestratorRequestSchema, context="body")
+    body = fields.Nested(
+        AddSiteOrchestratorRequestSchema,
+        context="body",
+    )
 
 
 class AddSiteOrchestrator(ProviderSite):
     summary = "Add site orchestrator"
     description = "Add site orchestrator"
+
     definitions = {
         "AddSiteOrchestratorRequestSchema": AddSiteOrchestratorRequestSchema,
         "CrudApiTaskResponseSchema": CrudApiTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(AddSiteOrchestratorBodyRequestSchema)
     parameters_schema = AddSiteOrchestratorRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiTaskResponseSchema}})
@@ -244,7 +319,13 @@ class AddSiteOrchestrator(ProviderSite):
 
 
 class DeleteSiteOrchestratorParamRequestSchema(Schema):
-    id = fields.String(required=True, example="12", description="Orchestrator id, uuid or name")
+    id = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'Orchestrator id, uuid or name',
+        },
+    )
 
 
 class DeleteSiteOrchestratorRequestSchema(Schema):
@@ -252,16 +333,21 @@ class DeleteSiteOrchestratorRequestSchema(Schema):
 
 
 class DeleteSiteOrchestratorBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(DeleteSiteOrchestratorRequestSchema, context="body")
+    body = fields.Nested(
+        DeleteSiteOrchestratorRequestSchema,
+        context="body",
+    )
 
 
 class DeleteSiteOrchestrator(ProviderSite):
     summary = "Delete site orchestrator"
     description = "Delete site orchestrator"
+
     definitions = {
         "DeleteSiteOrchestratorRequestSchema": DeleteSiteOrchestratorRequestSchema,
         "CrudApiTaskResponseSchema": CrudApiTaskResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(DeleteSiteOrchestratorBodyRequestSchema)
     parameters_schema = DeleteSiteOrchestratorRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiTaskResponseSchema}})

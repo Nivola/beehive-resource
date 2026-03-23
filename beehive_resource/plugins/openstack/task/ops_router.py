@@ -1,10 +1,9 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
+from time import sleep
 from celery.utils.log import get_task_logger
-from celery import chain, chord, group, signature
-from beecell.simple import get_value, import_class
 from beehive_resource.tasks import (
     ResourceJobTask,
     ResourceJob,
@@ -15,16 +14,17 @@ from beehive_resource.tasks import (
     update_resource_post,
     update_resource_pre,
 )
-from beehive.common.task.manager import task_manager
+from beehive.common.task.manager import get_task_manager
 from beehive.common.task.job import job_task, job, task_local, Job
 from beehive.common.task.util import end_task, start_task
-from beehive_resource.plugins.openstack.controller import *
-from beehive.common.data import operation
-from beedrones.openstack.client import OpenstackNotFound
+from beehive_resource.plugins.openstack.entity.ops_port import OpenstackPort
+from beehive_resource.plugins.openstack.entity.ops_network import OpenstackNetwork
+from beehive_resource.plugins.openstack.entity.ops_router import OpenstackRouter
 from beehive_resource.model import ResourceState
+from beecell.types.type_id import id_gen
 
 logger = get_task_logger(__name__)
-
+task_manager = get_task_manager()
 
 #
 # entity management
@@ -82,7 +82,7 @@ def router_create_entity(self, options):
         self.update("PROGRESS")
 
         # sleep a little
-        gevent.sleep(task_local.delta)
+        sleep(task_local.delta)
     self.update("PROGRESS", msg="Create router %s - Completed" % inst_id)
 
     # save current data in shared area

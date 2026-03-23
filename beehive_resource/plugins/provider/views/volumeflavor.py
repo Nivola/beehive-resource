@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
@@ -9,19 +9,23 @@ from beehive.common.apimanager import (
     GetApiObjectRequestSchema,
     CrudApiObjectJobResponseSchema,
 )
+
 from beehive_resource.plugins.provider.entity.volumeflavor import ComputeVolumeFlavor
 from beehive_resource.plugins.provider.entity.zone import ComputeZone
+
 from beehive_resource.plugins.provider.views import (
     ProviderAPI,
     LocalProviderApiView,
     CreateProviderResourceRequestSchema,
     UpdateProviderResourceRequestSchema,
 )
+
 from beehive_resource.view import (
     ListResourcesRequestSchema,
     ResourceResponseSchema,
     ResourceSmallResponseSchema,
 )
+
 from flasgger import fields, Schema
 from marshmallow.validate import OneOf
 from beecell.swagger import SwaggerHelper
@@ -37,27 +41,41 @@ class ListVolumeFlavorsRequestSchema(ListResourcesRequestSchema):
 
 
 class ListVolumeFlavorsParamsResponseSchema(ResourceResponseSchema):
-    compute_zone = fields.String(context="query", description="compute zone id or name")
-    volume_id = fields.String(context="query", description="volume id or name")
+    compute_zone = fields.String(
+        context="query",
+        metadata={
+            "description": 'compute zone id or name',
+        },
+    )
+
+    volume_id = fields.String(
+        context="query",
+        metadata={
+            "description": 'volume id or name',
+        },
+    )
 
 
 class ListVolumeFlavorsResponseSchema(PaginatedResponseSchema):
-    volumeflavors = fields.Nested(ListVolumeFlavorsParamsResponseSchema, many=True, required=True, allow_none=True)
+    volumeflavors = fields.Nested(
+        ListVolumeFlavorsParamsResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListVolumeFlavors(ProviderVolumeFlavor):
-    definitions = {
-        "ListVolumeFlavorsResponseSchema": ListVolumeFlavorsResponseSchema,
-    }
+    definitions = {"ListVolumeFlavorsResponseSchema": ListVolumeFlavorsResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListVolumeFlavorsRequestSchema)
     parameters_schema = ListVolumeFlavorsRequestSchema
+
     responses = SwaggerApiView.setResponses(
         {200: {"description": "success", "schema": ListVolumeFlavorsResponseSchema}}
     )
 
     def get(self, controller, data, *args, **kwargs):
         """
-        List volumeflavors
         List volumeflavors
         """
         zone_id = data.get("compute_zone", None)
@@ -70,36 +88,58 @@ class ListVolumeFlavors(ProviderVolumeFlavor):
 
 
 class GetVolumeFlavorParamsResponseSchema(ResourceResponseSchema):
-    volumeflavors = fields.Nested(ResourceSmallResponseSchema, required=True, many=True, allow_none=True)
+    volumeflavors = fields.Nested(
+        ResourceSmallResponseSchema,
+        required=True,
+        many=True,
+        allow_none=True,
+    )
 
 
 class GetVolumeFlavorResponseSchema(Schema):
-    volumeflavor = fields.Nested(GetVolumeFlavorParamsResponseSchema, required=True, allow_none=True)
+    volumeflavor = fields.Nested(
+        GetVolumeFlavorParamsResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetVolumeFlavor(ProviderVolumeFlavor):
-    definitions = {
-        "GetVolumeFlavorResponseSchema": GetVolumeFlavorResponseSchema,
-    }
+    definitions = {"GetVolumeFlavorResponseSchema": GetVolumeFlavorResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetVolumeFlavorResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
         Get volumeflavor
-        Get volumeflavor
         """
         return self.get_resource(controller, oid)
 
 
 class CreateVolumeFlavorParamRequestSchema(CreateProviderResourceRequestSchema):
-    compute_zone = fields.String(required=True, example="1", description="parent compute zone id or uuid")
-    disk_iops = fields.Integer(required=True, example=100, description="root disk max iops")
+    compute_zone = fields.String(
+        required=True,
+        metadata={
+            "example": '1',
+            "description": 'parent compute zone id or uuid',
+        },
+    )
+
+    disk_iops = fields.Integer(
+        required=True,
+        metadata={
+            "example": 100,
+            "description": 'root disk max iops',
+        },
+    )
+
     multi_avz = fields.Boolean(
-        example=False,
-        missing=True,
+        load_default=True,
         required=False,
-        description="Define if volumeflavor must be deployed to work in all the " "availability zones",
+        metadata={
+            "example": False,
+            "description": 'Define if volumeflavor must be deployed to work in all the availability zones',
+        },
     )
 
 
@@ -108,7 +148,10 @@ class CreateVolumeFlavorRequestSchema(Schema):
 
 
 class CreateVolumeFlavorBodyRequestSchema(Schema):
-    body = fields.Nested(CreateVolumeFlavorRequestSchema, context="body")
+    body = fields.Nested(
+        CreateVolumeFlavorRequestSchema,
+        context="body",
+    )
 
 
 class CreateVolumeFlavor(ProviderVolumeFlavor):
@@ -116,13 +159,13 @@ class CreateVolumeFlavor(ProviderVolumeFlavor):
         "CreateVolumeFlavorRequestSchema": CreateVolumeFlavorRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateVolumeFlavorBodyRequestSchema)
     parameters_schema = CreateVolumeFlavorRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def post(self, controller, data, *args, **kwargs):
         """
-        Create volumeflavor
         Create volumeflavor
         """
         return self.create_resource(controller, data)
@@ -131,28 +174,64 @@ class CreateVolumeFlavor(ProviderVolumeFlavor):
 class ImportVolumeFlavorTemplateRequestSchema(Schema):
     availability_zone = fields.String(
         required=True,
-        example="2995",
-        description="id, uuid or name of the site where is located the orchestrator",
+        metadata={
+            "example": '2995',
+            "description": 'id, uuid or name of the site where is located the orchestrator',
+        },
     )
-    orchestrator = fields.String(required=True, example="16", description="id, uuid of the orchestrator")
+
+    orchestrator = fields.String(
+        required=True,
+        metadata={
+            "example": '16',
+            "description": 'id, uuid of the orchestrator',
+        },
+    )
+
     orchestrator_type = fields.String(
         required=True,
-        example="openstack",
-        validate=OneOf(["openstack", "vsphere"]),
-        description="Orchestrator type. Can be openstack or vsphere",
+        validate=OneOf(['openstack', 'vsphere']),
+        metadata={
+            "example": 'openstack',
+            "description": 'Orchestrator type. Can be openstack or vsphere',
+        },
     )
-    volume_type_id = fields.String(required=False, example="3328", description="id of the volume type")
+
+    volume_type_id = fields.String(
+        required=False,
+        metadata={
+            "example": '3328',
+            "description": 'id of the volume type',
+        },
+    )
 
 
 class ImportVolumeFlavorParamRequestSchema(CreateProviderResourceRequestSchema):
-    compute_zone = fields.String(required=True, example="1", description="parent compute zone id or uuid")
-    disk_iops = fields.Integer(required=False, example=100, missing=0, description="disk max iops")
+    compute_zone = fields.String(
+        required=True,
+        metadata={
+            "example": '1',
+            "description": 'parent compute zone id or uuid',
+        },
+    )
+
+    disk_iops = fields.Integer(
+        required=False,
+        load_default=0,
+        metadata={
+            "example": 100,
+            "description": 'disk max iops',
+        },
+    )
+
     volume_types = fields.Nested(
         ImportVolumeFlavorTemplateRequestSchema,
         required=True,
         many=True,
-        description="list of orchestrator volume types to link",
         allow_none=True,
+        metadata={
+            "description": 'list of orchestrator volume types to link',
+        },
     )
 
 
@@ -169,13 +248,13 @@ class ImportVolumeFlavor(ProviderVolumeFlavor):
         "ImportVolumeFlavorRequestSchema": ImportVolumeFlavorRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(ImportVolumeFlavorBodyRequestSchema)
     parameters_schema = ImportVolumeFlavorRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def post(self, controller, data, *args, **kwargs):
         """
-        Import volumeflavor
         Import volumeflavor
         """
         return self.create_resource(controller, data)
@@ -184,17 +263,36 @@ class ImportVolumeFlavor(ProviderVolumeFlavor):
 class UpdateVolumeFlavorTemplateRequestSchema(Schema):
     availability_zone = fields.String(
         required=True,
-        example="2995",
-        description="id, uuid or name of the site where is located the orchestrator",
+        metadata={
+            "example": '2995',
+            "description": 'id, uuid or name of the site where is located the orchestrator',
+        },
     )
-    orchestrator = fields.String(required=True, example="16", description="id, uuid of the orchestrator")
+
+    orchestrator = fields.String(
+        required=True,
+        metadata={
+            "example": '16',
+            "description": 'id, uuid of the orchestrator',
+        },
+    )
+
     orchestrator_type = fields.String(
         required=True,
-        example="openstack",
-        description="Orchestrator type. Can be openstack or vsphere",
-        validate=OneOf(["openstack", "vsphere"]),
+        validate=OneOf(['openstack', 'vsphere']),
+        metadata={
+            "example": 'openstack',
+            "description": 'Orchestrator type. Can be openstack or vsphere',
+        },
     )
-    volume_type_id = fields.String(required=False, example="3328", description="id of the volume type")
+
+    volume_type_id = fields.String(
+        required=False,
+        metadata={
+            "example": '3328',
+            "description": 'id of the volume type',
+        },
+    )
 
 
 class UpdateVolumeFlavorParamRequestSchema(UpdateProviderResourceRequestSchema):
@@ -202,8 +300,10 @@ class UpdateVolumeFlavorParamRequestSchema(UpdateProviderResourceRequestSchema):
         ImportVolumeFlavorTemplateRequestSchema,
         required=False,
         many=True,
-        description="list of orchestrator volume types to link",
         allow_none=True,
+        metadata={
+            "description": 'list of orchestrator volume types to link',
+        },
     )
 
 
@@ -220,13 +320,13 @@ class UpdateVolumeFlavor(ProviderVolumeFlavor):
         "UpdateVolumeFlavorRequestSchema": UpdateVolumeFlavorRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateVolumeFlavorBodyRequestSchema)
     parameters_schema = UpdateVolumeFlavorRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
 
     def put(self, controller, data, oid, *args, **kwargs):
         """
-        Update volumeflavor
         Update volumeflavor
         """
         return self.update_resource(controller, oid, data)
@@ -239,7 +339,6 @@ class DeleteVolumeFlavor(ProviderVolumeFlavor):
 
     def delete(self, controller, data, oid, *args, **kwargs):
         """
-        Delete volumeflavor
         Delete volumeflavor
         """
         return self.expunge_resource(controller, oid)

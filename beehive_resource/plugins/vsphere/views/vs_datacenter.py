@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_resource.plugins.vsphere.entity.vs_datacenter import VsphereDatacenter
 from beehive_resource.plugins.vsphere.views import VsphereAPI, VsphereApiView
@@ -29,7 +29,12 @@ class ListDatacentersParamsResponseSchema(ResourceResponseSchema):
 
 
 class ListDatacentersResponseSchema(PaginatedResponseSchema):
-    datacenters = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
+    datacenters = fields.Nested(
+        ResourceResponseSchema,
+        many=True,
+        required=True,
+        allow_none=True,
+    )
 
 
 class ListDatacenters(VsphereDatacenterApiView):
@@ -49,7 +54,11 @@ class ListDatacenters(VsphereDatacenterApiView):
 
 
 class GetDatacenterResponseSchema(Schema):
-    datacenter = fields.Nested(ResourceResponseSchema, required=True, allow_none=True)
+    datacenter = fields.Nested(
+        ResourceResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetDatacenter(VsphereDatacenterApiView):

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beecell.simple import truncate, id_gen
 from beehive.common.task_v2 import prepare_or_run_task
@@ -8,10 +8,6 @@ from beehive_resource.plugins.vsphere.entity import NsxResource
 from beehive.common.apimanager import ApiManagerError
 from beedrones.vsphere.client import VsphereError
 from beehive.common.data import trace
-from beehive.common.task.canvas import signature
-from beehive.common.task.manager import task_manager
-from beehive_resource.plugins.vsphere.entity import get_task
-
 
 class NsxDfw(NsxResource):
     objdef = "Vsphere.Nsx.Dfw"

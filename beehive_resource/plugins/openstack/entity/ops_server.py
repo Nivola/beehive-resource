@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 from datetime import datetime
 
 from time import sleep
 
 from beecell.simple import truncate, get_value, id_gen, dict_get
-from beedrones.openstack.client import OpenstackError
+from beedrones.openstack.client import OpenstackError, OpenstackManager
 from beehive.common.apimanager import ApiManagerError
 from beehive.common.data import trace, cache, operation
 from beehive_resource.plugins.openstack.entity import OpenstackResource, get_task
@@ -241,12 +241,12 @@ class OpenstackServer(OpenstackResource):
 
     def __patch_missing_volume(self, physical_volume, exist=False, resource_volume=None):
         name_index = self.__name_index(physical_volume)
-        if name_index is None:
-            self.logger.warn("Volume %s is not attached to server %s" % (volume_id, server_name))
-            return
-
         volume_id = physical_volume.get("id")
         server_name = self.name
+        if name_index is None:
+            self.logger.warning("Volume %s is not attached to server %s" % (volume_id, server_name))
+            return
+
         server_ext_id = self.ext_id
         volume_name = "%s-%s" % (server_name.replace("-server", "-volume"), name_index)
         volume_bootable = physical_volume.get("bootable")
@@ -959,7 +959,14 @@ class OpenstackServer(OpenstackResource):
         """Get server ports"""
         ports = []
         if self.ext_id is not None and self.ext_id != "":
-            ports = self.container.conn.server.get_port_interfaces(self.ext_id)
+            openstackManager: OpenstackManager = self.container.conn
+
+            try:
+                ports = openstackManager.server.get_port_interfaces(self.ext_id)
+            except OpenstackError as ose:
+                self.logger.error(ose, exc_info=True)
+                if ose.code != 404:
+                    raise ose
 
             for item in ports:
                 obj = self.container.get_resource_by_extid(item["port_id"])
@@ -1662,6 +1669,11 @@ class OpenstackServer(OpenstackResource):
                 kvargs["security_group"], entity_class=OpenstackSecurityGroup
             )
             if self.has_security_group(security_group.oid) is True:
+                # check to avoid let server without security group
+                sgs = self.get_security_groups()
+                if len(sgs) == 1:
+                    raise ApiManagerError("Can't delete security group. Openstack server %s must have al least one security group" % (self.oid))
+                
                 kvargs["security_group"] = security_group.oid
                 return kvargs
             else:

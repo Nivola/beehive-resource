@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2018-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
@@ -32,7 +32,9 @@ class ListHostgroupsParamsResponseSchema(ResourceResponseSchema):
 
 class ListHostgroupsResponseSchema(PaginatedResponseSchema):
     # hostgroups = fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True)
-    hostgroups = fields.List(fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True))
+    hostgroups = fields.List(
+        fields.Nested(ResourceResponseSchema, many=True, required=True, allow_none=True),
+    )
 
 
 class ListHostgroups(ZabbixHostgroupApiView):
@@ -49,7 +51,11 @@ class ListHostgroups(ZabbixHostgroupApiView):
 
 
 class GetHostgroupResponseSchema(Schema):
-    hostgroup = fields.Nested(ResourceResponseSchema, required=True, allow_none=True)
+    hostgroup = fields.Nested(
+        ResourceResponseSchema,
+        required=True,
+        allow_none=True,
+    )
 
 
 class GetHostgroup(ZabbixHostgroupApiView):
@@ -65,17 +71,32 @@ class GetHostgroup(ZabbixHostgroupApiView):
 
 
 class CreateHostgroupParamRequestSchema(Schema):
-    container = fields.String(required=True, example="1234", description="container id, uuid or name")
-    name = fields.String(required=True, default="linux servers")
-    desc = fields.String(required=True, default="linux servers")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '1234',
+            "description": 'container id, uuid or name',
+        },
+    )
+    name = fields.String(
+        required=True,
+    )
+    desc = fields.String(
+        required=True,
+    )
 
 
 class CreateHostgroupRequestSchema(Schema):
-    hostgroup = fields.Nested(CreateHostgroupParamRequestSchema)
+    hostgroup = fields.Nested(
+        CreateHostgroupParamRequestSchema,
+    )
 
 
 class CreateHostgroupBodyRequestSchema(Schema):
-    body = fields.Nested(CreateHostgroupRequestSchema, context="body")
+    body = fields.Nested(
+        CreateHostgroupRequestSchema,
+        context="body",
+    )
 
 
 class CreateHostgroup(ZabbixHostgroupApiView):
@@ -93,16 +114,25 @@ class CreateHostgroup(ZabbixHostgroupApiView):
 
 
 class UpdateHostgroupParamRequestSchema(Schema):
-    name = fields.String(default="")
-    desc = fields.String(default="")
+    name = fields.String(
+        load_default="",
+    )
+    desc = fields.String(
+        load_default="",
+    )
 
 
 class UpdateHostgroupRequestSchema(Schema):
-    hostgroup = fields.Nested(UpdateHostgroupParamRequestSchema)
+    hostgroup = fields.Nested(
+        UpdateHostgroupParamRequestSchema,
+    )
 
 
 class UpdateHostgroupBodyRequestSchema(GetApiObjectRequestSchema):
-    body = fields.Nested(UpdateHostgroupRequestSchema, context="body")
+    body = fields.Nested(
+        UpdateHostgroupRequestSchema,
+        context="body",
+    )
 
 
 class UpdateHostgroup(ZabbixHostgroupApiView):

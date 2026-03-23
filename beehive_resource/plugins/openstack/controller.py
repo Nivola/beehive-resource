@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from datetime import datetime, timedelta
 from beecell.simple import truncate
@@ -58,6 +58,7 @@ class OpenstackContainer(Orchestrator):
     objdef = "Openstack"
     objdesc = "Openstack container"
     version = "v1.0"
+    conn: 'OpenstackManager'
 
     def __init__(self, *args, **kvargs):
         Orchestrator.__init__(self, *args, **kvargs)
@@ -86,7 +87,7 @@ class OpenstackContainer(Orchestrator):
 
         # set to use a specific project during connection
         # active_container.group = None
-        self.conn = None
+        self.conn: 'OpenstackManager' = None
 
         self.lock = RLock()
 
@@ -232,7 +233,7 @@ class OpenstackContainer(Orchestrator):
         self.logger.debug("+++++ Use project %s for connection" % project_name)
         return project_name
 
-    def __new_connection(self, project, timeout=None):
+    def __new_connection(self, project, timeout=None) -> 'OpenstackManager':
         """Get openstack connection with new token"""
         try:
             # per evitare che in tokens ci siano token relativi a project sbagliati
@@ -271,7 +272,7 @@ class OpenstackContainer(Orchestrator):
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex, code=400, prefix="Openstack")
 
-    def __get_connection(self, token, project):
+    def __get_connection(self, token, project) -> 'OpenstackManager':
         """Get openstack connection with existing token"""
         try:
             conn_params = self.conn_params["api"]
@@ -291,7 +292,7 @@ class OpenstackContainer(Orchestrator):
             self.logger.error(ex, exc_info=True)
             raise ApiManagerError(ex, code=400, prefix="Openstack")
 
-    def get_connection(self, projectid=None):
+    def get_connection(self, projectid=None) -> 'OpenstackManager':
         """Get openstack connection
 
         :param projectid: id of the project to use during connection
@@ -366,7 +367,7 @@ class OpenstackContainer(Orchestrator):
                 self.logger.error(ex, exc_info=True)
                 raise ApiManagerError(ex, code=400, prefix="Openstack")
 
-    def get_trilio_connection(self, openstackManager=None):
+    def get_trilio_connection(self, openstackManager=None) -> 'TrilioManager':
         """Get trilio connection
 
         :param projectid: id of the project to use during connection

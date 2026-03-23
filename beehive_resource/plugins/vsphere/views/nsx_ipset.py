@@ -1,16 +1,18 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from beehive_resource.plugins.vsphere.views import VsphereAPI, VsphereApiView
 from flasgger import fields, Schema
 from beecell.swagger import SwaggerHelper
+
 from beehive.common.apimanager import (
     PaginatedResponseSchema,
     SwaggerApiView,
     GetApiObjectRequestSchema,
     CrudApiObjectJobResponseSchema,
 )
+
 from beehive_resource.view import ResourceResponseSchema, ListResourcesRequestSchema
 from beehive_resource.plugins.vsphere.entity.nsx_manager import NsxManager
 from beehive_resource.plugins.vsphere.entity.nsx_ipset import NsxIpSet
@@ -35,16 +37,13 @@ class ListNsxIpSetsResponseSchema(PaginatedResponseSchema):
 
 
 class ListNsxIpSets(VsphereNsxIpSetApiView):
-    definitions = {
-        "ListNsxIpSetsResponseSchema": ListNsxIpSetsResponseSchema,
-    }
+    definitions = {"ListNsxIpSetsResponseSchema": ListNsxIpSetsResponseSchema}
     parameters = SwaggerHelper().get_parameters(ListNsxIpSetsRequestSchema)
     parameters_schema = ListNsxIpSetsRequestSchema
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": ListNsxIpSetsResponseSchema}})
 
     def get(self, controller, data, *args, **kwargs):
         """
-        List nsx_ipset
         List nsx_ipset
         """
         return self.get_resources(controller, **data)
@@ -56,25 +55,47 @@ class GetNsxIpSetResponseSchema(Schema):
 
 
 class GetNsxIpSet(VsphereNsxIpSetApiView):
-    definitions = {
-        "GetNsxIpSetResponseSchema": GetNsxIpSetResponseSchema,
-    }
+    definitions = {"GetNsxIpSetResponseSchema": GetNsxIpSetResponseSchema}
     parameters = SwaggerHelper().get_parameters(GetApiObjectRequestSchema)
     responses = SwaggerApiView.setResponses({200: {"description": "success", "schema": GetNsxIpSetResponseSchema}})
 
     def get(self, controller, data, oid, *args, **kwargs):
         """
         Get nsx_ipset
-        Get nsx_ipset
         """
         return self.get_resource(controller, oid)
 
 
 class CreateNsxIpSetParamRequestSchema(Schema):
-    container = fields.String(required=True, example="12", description="container id, uuid or name")
-    name = fields.String(required=True, example="test")
-    desc = fields.String(required=True, example="test")
-    cidr = fields.String(required=True, example="10.102.34.90/32", description="ip set cidr")
+    container = fields.String(
+        required=True,
+        metadata={
+            "example": '12',
+            "description": 'container id, uuid or name',
+        },
+    )
+
+    name = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+        },
+    )
+
+    desc = fields.String(
+        required=True,
+        metadata={
+            "example": 'test',
+        },
+    )
+
+    cidr = fields.String(
+        required=True,
+        metadata={
+            "example": '10.102.34.90/32',
+            "description": 'ip set cidr',
+        },
+    )
 
 
 class CreateNsxIpSetRequestSchema(Schema):
@@ -90,6 +111,7 @@ class CreateNsxIpSet(VsphereNsxIpSetApiView):
         "CreateNsxIpSetRequestSchema": CreateNsxIpSetRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(CreateNsxIpSetBodyRequestSchema)
     parameters_schema = CreateNsxIpSetRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
@@ -97,15 +119,14 @@ class CreateNsxIpSet(VsphereNsxIpSetApiView):
     def post(self, controller, data, *args, **kwargs):
         """
         Create nsx_ipset
-        Create nsx_ipset
         """
         return self.create_resource(controller, data)
 
 
 class UpdateNsxIpSetParamRequestSchema(Schema):
-    name = fields.String(default="test")
-    desc = fields.String(default="test")
-    enabled = fields.Boolean(default=True)
+    name = fields.String(load_default="test")
+    desc = fields.String(load_default="test")
+    enabled = fields.Boolean(load_default=True)
 
 
 class UpdateNsxIpSetRequestSchema(Schema):
@@ -121,6 +142,7 @@ class UpdateNsxIpSet(VsphereNsxIpSetApiView):
         "UpdateNsxIpSetRequestSchema": UpdateNsxIpSetRequestSchema,
         "CrudApiObjectJobResponseSchema": CrudApiObjectJobResponseSchema,
     }
+
     parameters = SwaggerHelper().get_parameters(UpdateNsxIpSetBodyRequestSchema)
     parameters_schema = UpdateNsxIpSetRequestSchema
     responses = SwaggerApiView.setResponses({202: {"description": "success", "schema": CrudApiObjectJobResponseSchema}})
@@ -128,9 +150,8 @@ class UpdateNsxIpSet(VsphereNsxIpSetApiView):
     def put(self, controller, data, oid, *args, **kwargs):
         """
         Update nsx_ipset
-        Update nsx_ipset
         """
-        return self.update_resource(controller, data)
+        return self.update_resource(controller, oid, data)
 
 
 ## delete
@@ -141,7 +162,6 @@ class DeleteNsxIpSet(VsphereNsxIpSetApiView):
 
     def delete(self, controller, data, oid, *args, **kwargs):
         """
-        Delete nsx_ipset
         Delete nsx_ipset
         """
         return self.expunge_resource(controller, oid)

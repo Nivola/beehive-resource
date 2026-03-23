@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from re import match
 from ipaddress import IPv4Address
 import ujson as json
-from six import ensure_text
+from beecell.util import ensure_text
 from beehive.common.apimanager import ApiManagerError
 from beehive_resource.container import Resource
 from beehive_resource.plugins.provider.entity.aggregate import ComputeProviderResource
@@ -125,11 +125,11 @@ class SecurityGroupAcl(ComputeProviderResource):
         proto_check = InternetProtocol()
 
         # check if proto is set as a string
-        if proto != "*" and not match("^\d+$", proto):
+        if proto != "*" and not match(r"^\d+$", proto):
             proto = str(proto_check.get_number_from_name(proto))
 
         # check if proto is set as a string
-        if subproto != "*" and not match("^\d+$", subproto):
+        if subproto != "*" and not match(r"^\d+$", subproto):
             subproto = str(proto_check.get_number_from_name(subproto))
 
         if proto in ["6", "17"]:
@@ -215,7 +215,7 @@ class SecurityGroupAcl(ComputeProviderResource):
 
         return kvargs
 
-    def pre_update(*args, **kvargs):
+    def pre_update(self, *args, **kvargs):
         """
         :param kvargs.args: custom params
         :param kvargs.kvargs: custom params
@@ -250,16 +250,16 @@ class SecurityGroupAcl(ComputeProviderResource):
         proto_check = InternetProtocol()
 
         # check if proto is set as a string
-        if not match("^\d+$", proto) and proto != "*":
+        if not match(r"^\d+$", proto) and proto != "*":
             proto = proto_check.get_number_from_name(proto)
 
         # check if proto is set as a string
-        if not match("^\d+$", subproto) and subproto != "*":
+        if not match(r"^\d+$", subproto) and subproto != "*":
             subproto = proto_check.get_number_from_name(subproto)
 
         # check source
         if source_type == "SecurityGroup":
-            source_value = container.get_resource(
+            source_value = self.container.get_resource(
                 source_value,
                 entity_class=SecurityGroup,
                 details=False,

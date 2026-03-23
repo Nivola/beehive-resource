@@ -1,20 +1,26 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
+# (C) Copyright 2018-2026 CSI-Piemonte
 
 from ipaddress import ip_network
+from typing import Literal, List, TYPE_CHECKING, Optional, TypedDict
 from beecell.types.type_string import truncate
+from beecell.types.type_ip import subnet_is_internet
 from beehive.common.apimanager import ApiManagerError
 from beehive.common.data import trace
+from beehive_resource.model import Resource as ModelResource
 from beehive_resource.container import Resource
 from beehive_resource.plugins.provider.entity.aggregate import ComputeProviderResource
 from beehive_resource.plugins.provider.entity.site import SiteChildResource
 from beehive_resource.plugins.provider.entity.zone import AvailabilityZoneChildResource
 from beehive_resource.plugins.openstack.entity.ops_network import OpenstackNetwork
+from beehive_resource.plugins.openstack.entity.ops_subnet import OpenstackSubnet
 from beehive_resource.plugins.vsphere.entity.nsx_logical_switch import NsxLogicalSwitch
 from beehive_resource.plugins.vsphere.entity.vs_dvpg import VsphereDvpg
-
+if TYPE_CHECKING:
+    from beehive_resource.plugins.provider.entity.site import Site
+    from beehive_resource.plugins.vsphere.controller import VsphereContainer
 
 class Vpc(ComputeProviderResource):
     """Vpc"""
@@ -34,80 +40,211 @@ class Vpc(ComputeProviderResource):
         from beehive_resource.plugins.provider.entity.vpc_endpoint import VpcEndpoint
 
         self.child_classes = [SecurityGroup, VpcEndpoint]
+    
+    def is_internet(self)->bool:
+        """
+        Returns:
+            bool:True if internet cidr
+        """
+        return subnet_is_internet(self.get_cidr())
+        
 
     def get_cidr(self):
+        """ Get vpc cidr """
         return self.get_attribs("configs.cidr", "")
 
     def get_type(self):
+        """ Get vpc type """
         return self.get_attribs("configs.type", "shared")
 
     def is_private(self):
+        """ Is the vpc private? """
         if self.get_type() == "private":
             return True
         return False
 
     def is_shared(self):
+        """ Is the vpc shared? """
         if self.get_type() == "shared":
             return True
         return False
 
     def __render_pool(self, pool):
         if pool is not None:
-            return ",".join(["%s-%s" % (p.get("start", ""), p.get("end", "")) for p in pool])
+            return ",".join([f"{p.get('start', '')}-{p.get('end', '')}" for p in pool])
         return ""
 
-    def get_subnets(self):
-        nets, total = self.get_linked_resources(link_type_filter="relation%")
+    class SubnetFilter(TypedDict):
+        site_name: str
+        orchestrator_type: Literal["vsphere", "openstack"]
+
+    def get_subnets(
+            self,
+            filters: Optional[List[SubnetFilter]] = None,
+            allocable_only: bool = False,
+            allocation_pools_details=False
+    ):
+        """
+        Get vpc subnets.
+        """
+        nets, _ = self.get_linked_resources(link_type_filter="relation%")
         res = []
+
+        def matches_filters(site_name: str, orch_type: str) -> bool:
+            """Check if the given site/orchestrator matches at least one filter."""
+            if filters is None:
+                return True
+            for f in filters:
+                if f["site_name"] == site_name and f["orchestrator_type"] == orch_type:
+                    return True
+            return False
+
         for net in nets:
             info = net.info()
+            site = info["availabilty_zone"]["name"]
+
             if isinstance(net, PrivateNetwork):
                 subnet = {"cidr": net.get_cidr(), "hypervisor": [], "allocable": True}
-                physical_nets, total = net.get_linked_resources(link_type_filter="relation")
+                physical_nets, _ = net.get_linked_resources(link_type_filter="relation")
                 for physical_net in physical_nets:
+                    hypervisor = None
                     if isinstance(physical_net, OpenstackNetwork):
                         hypervisor = "openstack"
                     elif isinstance(physical_net, NsxLogicalSwitch):
                         hypervisor = "vsphere"
-                    subnet["hypervisor"].append(
-                        {
+
+                    if hypervisor and matches_filters(site, hypervisor):
+                        item = {
                             "type": hypervisor,
                             "vxlan": physical_net.get_vlan(),
                             "cidr": physical_net.get_private_subnet(),
                             "gateway": physical_net.get_gateway(),
                             "pool": self.__render_pool(physical_net.get_allocation_pool()),
                         }
-                    )
+                        if allocation_pools_details:
+                            item[ "available_ips"] = physical_net.get_available_pool_counter()
+                        subnet["hypervisor"].append(item)
+
                 info["attributes"]["configs"]["subnets"] = [subnet]
+                res.append(info)
 
             elif isinstance(net, SiteNetwork):
+                # net is the SiteNetwork
                 subnets = []
+                vsphere_pool_ids = []
+                openstack_subnet_id_to_allocation_pools = {}
+
                 for net_subnet in info["attributes"]["configs"]["subnets"]:
+                    allocable = net_subnet.get("allocable", True)
+                    if allocable_only and not allocable:
+                        continue
                     pool = net_subnet.get("allocation_pools")
+                    cidr = net_subnet.get("cidr")
+                    gateway = net_subnet.get("gateway")
+                    hypervisors = []
+                    if matches_filters(site, "vsphere"):
+                        hypervisor_d = {
+                            "type": "vsphere",
+                            "vxlan": None,
+                            "cidr": cidr,
+                            "gateway": gateway,
+                            "pool": self.__render_pool(pool.get("vsphere")),
+                        }
+                        if allocation_pools_details and allocable:
+                            vsphere_id = net_subnet.get("vsphere_id")
+                            if vsphere_id is not None and matches_filters(site, "vsphere"):
+                                # vsphere_id contains pool platform id
+                                vsphere_pool_ids.append(vsphere_id)
+                                hypervisor_d["ext_id"] = vsphere_id
+                        hypervisors.append(hypervisor_d)
+                    if matches_filters(site, "openstack"):
+                        ops_allocation_pools = pool.get("openstack")
+                        hypervisor_d = {
+                            "type": "openstack",
+                            "vxlan": None,
+                            "cidr": cidr,
+                            "gateway": gateway,
+                            "pool": self.__render_pool(ops_allocation_pools),
+                        }
+                        if allocation_pools_details and allocable:
+                            openstack_id = net_subnet.get("openstack_id")
+                            if openstack_id is not None and matches_filters(site, "openstack"):
+                                subnet_res = self.controller.get_simple_resource(
+                                    oid=openstack_id,
+                                    entity_class=OpenstackSubnet
+                                )
+                                openstack_subnet_id = subnet_res.ext_id
+                                openstack_subnet_id_to_allocation_pools[openstack_subnet_id] = ops_allocation_pools
+                                hypervisor_d["ext_id"] = openstack_subnet_id
+                        hypervisors.append(hypervisor_d)
+
                     subnet = {
-                        "cidr": net_subnet.get("cidr"),
-                        "allocable": net_subnet.get("allocable", True),
-                        "hypervisor": [
-                            {
-                                "type": "openstack",
-                                "vxlan": None,
-                                "cidr": None,
-                                "gateway": net_subnet.get("gateway"),
-                                "pool": self.__render_pool(pool.get("openstack", None)),
-                            },
-                            {
-                                "type": "vsphere",
-                                "vxlan": None,
-                                "cidr": None,
-                                "gateway": net_subnet.get("gateway"),
-                                "pool": self.__render_pool(pool.get("vsphere", None)),
-                            },
-                        ],
+                        "cidr": cidr,
+                        "allocable": allocable,
+                        "hypervisor": hypervisors,
                     }
                     subnets.append(subnet)
                 info["attributes"]["configs"]["subnets"] = subnets
-            res.append(info)
+                if allocation_pools_details:
+                    available_ips_openstack = net.get_openstack_number_of_available_ip_addresses(
+                        openstack_subnet_id_to_allocation_pools
+                    )
+                    available_ips_vsphere = net.get_vsphere_number_of_available_ip_addresses(
+                        vsphere_pool_ids
+                    )
+
+                    for subnet in subnets:
+                        allocable = subnet.get("allocable", True)
+                        hypervisors = subnet.get("hypervisor")
+                        if not allocable:
+                            continue
+                        for hypervisor_d in hypervisors:
+                            hypervisor_type = hypervisor_d.get("type")
+                            ext_id = hypervisor_d.pop("ext_id", None)
+                            available_ips = None
+                            if ext_id is not None:
+                                if hypervisor_type == "vsphere":
+                                    available_ips = available_ips_vsphere.get(ext_id)
+                                elif hypervisor_type == "openstack":
+                                    available_ips = available_ips_openstack.get(ext_id)
+                            hypervisor_d["available_ips"] = available_ips
+
+                res.append(info)
+
         return res
+
+    def get_subnets_ip_availability(self,  filters: Optional[List[SubnetFilter]] = None):
+        """
+        Returns available IPs per site and per VPC for both vsphere and openstack.
+        filters: list of dicts with keys 'site_name' and 'orchestrator_type'
+        """
+        result = {"available_ips": {}}
+
+        subnets_info = self.get_subnets(filters=filters, allocable_only=True, allocation_pools_details=True)
+
+        for subnet_info in subnets_info:
+            site_name = subnet_info["availabilty_zone"]["name"]
+            if site_name not in result["available_ips"]:
+                result["available_ips"][site_name] = {}
+            subnets = subnet_info["attributes"]["configs"]["subnets"]
+            for subnet in subnets:
+                for hyp_subnet in subnet.get("hypervisor"):
+                    available_ips = hyp_subnet.get("available_ips")
+                    orchestrator_type = hyp_subnet.get("type")
+                    result["available_ips"][site_name][orchestrator_type] = available_ips
+        return result
+
+    def get_subnet_ip_availability(
+            self,
+            site_name: str,
+            orchestrator_type: Literal["vsphere", "openstack"]
+    ):
+        """
+        Get subnet ip avalilability
+        """
+        filters = [{"site_name": site_name, "orchestrator_type": orchestrator_type}]
+        result = self.get_subnets_ip_availability(filters)
+        return {"available_ips": result.get("available_ips", {}).get(site_name, {}).get("orchestrator_type")}
 
     def get_proxies(self, site_id):
         """Get all proxies from vpc instance
@@ -119,8 +256,8 @@ class Vpc(ComputeProviderResource):
 
         if self.is_shared() is True:
             # get vpc zone network
-            vpc_nets, total = self.get_linked_resources(
-                link_type="relation.%s" % site_id,
+            vpc_nets, _ = self.get_linked_resources(
+                link_type=f"relation.{site_id}",
                 objdef=SiteNetwork.objdef,
                 authorize=False,
                 run_customize=False,
@@ -143,7 +280,7 @@ class Vpc(ComputeProviderResource):
                 )
                 # res['socks'] = 'socks5://admin:admin3proxy@%s:1080' % (bastion_host.get_ip_address())
 
-        self.logger.debug("Get all proxies for vpc %s: %s" % (self.oid, res))
+        self.logger.debug("Get all proxies for vpc %s: %s", self.oid, res)
         return res
 
     def info(self):
@@ -157,6 +294,7 @@ class Vpc(ComputeProviderResource):
         info = Resource.info(self)
         info["cidr"] = self.get_cidr()
         info["type"] = self.get_type()
+        #info["networks"] = self.get_subnets()
         return info
 
     def detail(self):
@@ -171,6 +309,11 @@ class Vpc(ComputeProviderResource):
         info["type"] = self.get_type()
         info["networks"] = self.get_subnets()
         return info
+
+    @staticmethod
+    def add_allocation_pools_details(controller, resource):
+        vpc = controller.get_entity_v2(ModelResource, resource['id'], entity_class=Vpc)
+        resource["networks"] = vpc.get_subnets(allocation_pools_details=True)
 
     @staticmethod
     def pre_create(controller, container, *args, **kvargs):
@@ -196,9 +339,8 @@ class Vpc(ComputeProviderResource):
         :raise ApiManagerError:
         """
         # get compute zone
-        compute_zone_id = kvargs.get("parent")
-        compute_zone = container.get_resource(compute_zone_id)
-
+        # compute_zone_id = kvargs.get("parent")
+        # compute_zone = container.get_resource(compute_zone_id)
         # check quotas are not exceed
         # new_quotas = {
         #     'compute.networks': 1,
@@ -258,14 +400,14 @@ class Vpc(ComputeProviderResource):
         :raise ApiManagerError:
         """
         # check related objects
-        sgs, total = self.get_linked_resources(link_type="sg")
+        sgs, _ = self.get_linked_resources(link_type="sg")
         if len(sgs) > 0:
             raise ApiManagerError("Vpc has security groups associated")
 
         # get networks
         networks = self.get_networks()
         if len(networks) > 0:
-            raise ApiManagerError("vpc %s has active networks and can not be deleted" % self.oid)
+            raise ApiManagerError(f"vpc {self.oid} has active networks and can not be deleted")
 
         steps = [
             Vpc.task_path + "expunge_resource_pre_step",
@@ -395,11 +537,12 @@ class Vpc(ComputeProviderResource):
                 network_cidr = ip_network(cidr)
                 net_prefixlen = int(vpc_network_cidr.prefixlen) + 2
                 if network_cidr.subnet_of(vpc_network_cidr) is False:
-                    raise ApiManagerError("network cidr %s is not a subnet of vpc cidr %s" % (cidr, self.get_cidr()))
+                    raise ApiManagerError(f"network cidr {cidr} is not a subnet of vpc cidr {self.get_cidr()}")
                 if int(network_cidr.prefixlen) != net_prefixlen:
-                    raise ApiManagerError("network cidr prefixlen must be vpc cidr prefixlen -2: %s" % net_prefixlen)
+                    raise ApiManagerError(f"network cidr prefixlen must be vpc cidr prefixlen -2: {net_prefixlen}")
                 if network_cidr.is_private is False:
-                    raise ApiManagerError("network cidr %s is not private" % cidr)
+                    raise ApiManagerError(f"network cidr {cidr} is not private")
+
 
                 kvargs["vpc_cidr"] = self.get_cidr()
 
@@ -447,7 +590,7 @@ class Vpc(ComputeProviderResource):
                 cidr = data.get("cidr")
                 network = self.get_private_network_by_cidr(cidr)
                 if network is None:
-                    raise ApiManagerError("vpc %s does not have a network with cidr %s" % (self.oid, cidr))
+                    raise ApiManagerError(f"vpc {self.oid} does not have a network with cidr {cidr}")
                 steps.append(
                     {
                         "step": self.task_path + "vpc_del_network_step",
@@ -457,6 +600,21 @@ class Vpc(ComputeProviderResource):
 
         res = self.action("del_network", steps, log="Delete network from vpc", check=None, **kvargs)
         return res
+
+    def get_quotas(self):
+        quotas = {
+            "compute.networks": 1
+        }
+        from beehive_resource.plugins.provider.entity.security_group import SecurityGroup
+        sgs, total = self.controller.get_resources(
+            parent_id=self.oid,
+            authorize=False,
+            size=-1,
+            run_customize=False,
+            type=SecurityGroup.objdef,
+        )
+        quotas["compute.security_groups"] = total
+        return quotas
 
 
 class SiteNetwork(SiteChildResource):
@@ -470,7 +628,14 @@ class SiteNetwork(SiteChildResource):
 
     def __init__(self, *args, **kvargs):
         SiteChildResource.__init__(self, *args, **kvargs)
-
+    
+    def is_internet(self)->bool:
+        """
+        Returns:
+            bool: True if is internet
+        """
+        return  subnet_is_internet(self.get_cidr())
+    
     def info(self):
         """Get infos.
 
@@ -482,6 +647,90 @@ class SiteNetwork(SiteChildResource):
         info = Resource.info(self)
         info["availabilty_zone"] = self.get_parent().small_info()
         return info
+
+    def get_vsphere_number_of_available_ip_addresses(
+        self,
+        vsphere_pool_ids: [],
+        orchestrator_tag: str="default",
+        **kwargs
+    ) -> {}:
+        """
+        Return the number of available IP addresses for multiple vSphere IP pools.
+
+        :param vsphere_pool_ids: List of vSphere IP pool IDs to check.
+                E.g.
+                    [
+                        "pool-12345",
+                        "pool-67890"
+                    ]
+        :param orchestrator_tag: Orchestrator tag to filter resources (default: "default").
+        :param kwargs: Additional parameters for customization.
+
+        :return: Dict mapping vSphere pool IDs to the number of free/available IP addresses.
+                E.g.
+                    {
+                        "pool-12345": 45,
+                        "pool-67890": 128
+                    }
+        :raises VsphereError: If pool data cannot be retrieved or processed.
+        """
+        res = {}
+        if len(vsphere_pool_ids) == 0:
+            return res
+        site: 'Site' = self.get_parent()
+        vsphere_container: 'VsphereContainer'
+        _, vsphere_container = site.get_orchestrator_and_container("vsphere", orchestrator_tag)
+        for vsphere_pool_id in vsphere_pool_ids:
+            try:
+                vsphere_pool = vsphere_container.conn.network.nsx.ippool.get(vsphere_pool_id)
+                free_address_count = vsphere_pool.get("freeAddressCount")
+                if free_address_count is not None:
+                    res[vsphere_pool_id] =  int(free_address_count)
+            except:
+                self.logger.warning(f"Unable to get number of ip available on vsphere pool {vsphere_pool_id}")
+        return res
+
+    def get_openstack_number_of_available_ip_addresses(
+        self,
+        openstack_subnet_id_to_allocation_pools: {},
+        orchestrator_tag: str="default",
+        **kwargs
+    ) -> {}:
+        """
+        Return the number of available IP addresses for multiple OpenStack subnets.
+
+        :param openstack_subnet_id_to_allocation_pools: Dict mapping each subnet ID to its allocation pools.
+                E.g.
+                    {
+                        "cb5000b8-cf67-4c63-abad-363b002531ac": [
+                            {"start": "10.138.129.2", "end": "10.138.129.254"}
+                        ],
+                        "de2001a1-1a52-4c73-a7f9-0a5a9c2e823a": [
+                            {"start": "192.168.1.10", "end": "192.168.1.50"},
+                            {"start": "192.168.1.100", "end": "192.168.1.150"}
+                        ]
+                    }
+        :param orchestrator_tag: Orchestrator tag to filter resources (default: "default").
+        :param kwargs: Additional parameters for customization.
+
+        :return: Dict mapping subnet IDs to the number of free/available IP addresses.
+                E.g.
+                    {
+                        "cb5000b8-cf67-4c63-abad-363b002531ac": 236,
+                        "de2001a1-1a52-4c73-a7f9-0a5a9c2e823a": 82
+                    }
+        :raises OpenstackError: If subnet data cannot be retrieved or processed.
+        """
+        res = {}
+        if len(openstack_subnet_id_to_allocation_pools) == 0:
+            return res
+        site: 'Site' = self.get_parent()
+        openstack_container: 'OpenstackContainer'
+        _, openstack_container = site.get_orchestrator_and_container("openstack", orchestrator_tag)
+        ops_subnets_d = openstack_container.conn.network.subnet.get_subnets_ip_usage_detail(
+            openstack_subnet_id_to_allocation_pools
+        )
+        return  {o:ops_subnets_d[o]['pool_available'] for o in ops_subnets_d}
 
     def get_allocable_subnet(self, cidr=None, orchestrator_type=None):
         """Get network allocable subnet
@@ -495,31 +744,36 @@ class SiteNetwork(SiteChildResource):
         if cidr is not None:
             for item in subnets:
                 self.logger.debug(
-                    "Get network %s allocable subnet - cidr: %s - subnet cidr: %s" % (self.oid, cidr, item.get("cidr"))
+                    "Get network %s allocable subnet - cidr: %s - subnet cidr: %s", self.oid, cidr, item.get("cidr")
                 )
                 if item.get("cidr") == cidr:
-                    if item.get("allocable", True) is True:
+                    if item.get("allocable", True):
                         allocable_subnet = item
                         break
-                    else:
-                        self.logger.debug(
-                            "Get network %s allocable subnet - subnet cidr: %s not allocable"
-                            % (self.oid, item.get("cidr"))
-                        )
-
+                    self.logger.debug(
+                        "Get network %s allocable subnet - subnet cidr: %s not allocable",
+                        self.oid, item.get("cidr")
+                    )
             if allocable_subnet is None:
-                raise ApiManagerError("No available subnet found in network %s for cidr %s" % (self.oid, cidr))
+                raise ApiManagerError(f"No available subnet found in network {self.oid} for cidr {cidr}")
 
-            self.logger.debug("Get network %s allocable subnet for cidr %s: %s" % (self.oid, cidr, allocable_subnet))
-
+            self.logger.debug(
+                "Get network %s allocable subnet for cidr %s: %s",
+                self.oid,
+                cidr,
+                allocable_subnet
+            )
         else:
             for item in subnets:
-                if item.get("allocable", True) is True:
+                if item.get("allocable", True):
                     allocable_subnet = item
             if allocable_subnet is None:
-                raise ApiManagerError("No available subnet found in network %s " % self.oid)
-
-            self.logger.debug("Get network %s allocable subnet: %s" % (self.oid, allocable_subnet))
+                raise ApiManagerError(f"No available subnet found in network {self.oid}")
+            self.logger.debug(
+                "Get network %s allocable subnet: %s",
+                self.oid,
+                allocable_subnet
+            )
 
         return allocable_subnet
 
@@ -531,13 +785,13 @@ class SiteNetwork(SiteChildResource):
             if item.get("allocable", False) is False:
                 not_allocable_subnets.append(item)
 
-        self.logger.debug("Get network %s not allocable subnets: %s" % (self.uuid, not_allocable_subnets))
+        self.logger.debug("Get network %s not allocable subnets: %s", self.uuid, not_allocable_subnets)
         return not_allocable_subnets
 
     def get_subnets(self):
         """Get network subnets"""
         subnets = self.get_attribs(key="configs.subnets")
-        self.logger.debug("Get network %s subnets: %s" % (self.uuid, truncate(subnets)))
+        self.logger.debug("Get network %s subnets: %s", self.uuid, truncate(subnets))
         return subnets
 
     def add_subnet_in_configs(self, subnet):
@@ -551,10 +805,10 @@ class SiteNetwork(SiteChildResource):
         subnets_idx = {s.get("cidr") for s in subnets}
         cidr = subnet.get("cidr")
         if cidr in subnets_idx:
-            raise ApiManagerError("Subnet %s already exist" % cidr)
+            raise ApiManagerError(f"Subnet {cidr} already exist")
         subnets.append(subnet)
         self.set_configs(key="configs.subnets", value=subnets)
-        self.logger.debug("Add subnet %s in config" % subnet)
+        self.logger.debug("Add subnet %s in config", subnet)
         return True
 
     def update_subnet_in_configs(self, subnet):
@@ -573,7 +827,7 @@ class SiteNetwork(SiteChildResource):
             subnets_idx[cidr] = subnet
             subnets = list(subnets_idx.values())
         self.set_configs(key="configs.subnets", value=subnets)
-        self.logger.debug("Add/Update subnet %s in config" % subnet)
+        self.logger.debug("Add/Update subnet %s in config", subnet)
         return True
 
     def delete_subnet_in_configs(self, subnet):
@@ -589,7 +843,7 @@ class SiteNetwork(SiteChildResource):
         subnets_idx.pop(cidr)
         subnets = list(subnets_idx.values())
         self.set_configs(key="configs.subnets", value=subnets)
-        self.logger.debug("Delete subnet %s in config" % subnet)
+        self.logger.debug("Delete subnet %s in config", subnet)
         return True
 
     @staticmethod
@@ -677,7 +931,7 @@ class SiteNetwork(SiteChildResource):
         """
         # check if network has active subnet
         if len(self.get_subnets()) > 0:
-            raise ApiManagerError("Network %s has active subnets. it can not be deleted" % self.uuid)
+            raise ApiManagerError(f"Network {self.uuid} has active subnets. it can not be deleted")
 
         # select remote orchestrators
         orchestrator_idx = self.get_orchestrators()
@@ -694,7 +948,7 @@ class SiteNetwork(SiteChildResource):
         for subnet in subnets:
             if subnet.get("allocable", False) is True:
                 cidr = subnet.get("cidr", None)
-        self.logger.debug("Get network %s cidr: %s" % (self.uuid, cidr))
+        self.logger.debug("Get network %s cidr: %s", self.uuid, cidr)
         return cidr
 
     def get_proxy(self):
@@ -718,26 +972,26 @@ class SiteNetwork(SiteChildResource):
             #     "No zabbix proxy available in attributes of network %s" % self.uuid,
             #     code=404,
             # )
-            self.logger.info("No zabbix proxy available in attributes of network %s" % self.uuid)
+            self.logger.info("No zabbix proxy available in attributes of network %s", self.uuid)
             return "", ""
         l = zbx_proxy.split(",", maxsplit=1)
         zbx_proxy_ip = l[0].strip()
         zbx_proxy_name = None
         if len(l) == 2:
             zbx_proxy_name = l[1].strip()
-        self.logger.debug("Get network %s zabbix proxy: %s, %s" % (self.uuid, zbx_proxy_ip, zbx_proxy_name))
+        self.logger.debug("Get network %s zabbix proxy: %s, %s", self.uuid, zbx_proxy_ip, zbx_proxy_name)
         return zbx_proxy_ip, zbx_proxy_name
 
     def get_dns_search(self):
         """Get network dns_search"""
         dns_search = self.get_attribs(key="configs.dns_search")
-        self.logger.debug("Get network %s dns search: %s" % (self.uuid, dns_search))
+        self.logger.debug("Get network %s dns search: %s", self.uuid, dns_search)
         return dns_search
 
     def get_dns_nameservers(self):
         """Get network dns_nameservers"""
         dns_nameservers = self.get_attribs(key="configs.dns_nameservers")
-        self.logger.debug("Get network %s dns nameservers: %s" % (self.uuid, dns_nameservers))
+        self.logger.debug("Get network %s dns nameservers: %s", self.uuid, dns_nameservers)
         return dns_nameservers
 
     def get_vsphere_network(self, dvs=None):
@@ -799,7 +1053,7 @@ class SiteNetwork(SiteChildResource):
                 new_subnets.append(s)
 
         if len(new_subnets) == 0:
-            raise ApiManagerError("There are no subnet to add to network %s" % self.uuid)
+            raise ApiManagerError(f"There are no subnet to add to network {self.uuid}")
 
         # create task workflow
         # steps = [SiteNetwork.task_path + 'update_resource_pre_step']
@@ -816,7 +1070,7 @@ class SiteNetwork(SiteChildResource):
             self,
             "add_subnet",
             steps,
-            log="Add subnets to site network %s" % self.uuid,
+            log=f"Add subnets to site network {self.uuid}",
             **params,
         )
         return res
@@ -847,7 +1101,7 @@ class SiteNetwork(SiteChildResource):
                 del_subnets.append(subnet)
 
         if len(del_subnets) == 0:
-            raise ApiManagerError("There are no subnet to delete from the network %s" % self.uuid)
+            raise ApiManagerError(f"There are no subnet to delete from the network {self.uuid}")
 
         # create task workflow
         # steps = [SiteNetwork.task_path + 'update_resource_pre_step']
@@ -866,10 +1120,73 @@ class SiteNetwork(SiteChildResource):
             self,
             "del_subnet",
             steps,
-            log="del subnets from site network %s" % self.uuid,
+            log=f"del subnets from site network {self.uuid}",
             **params,
         )
         return res
+
+    @staticmethod
+    def enrich_site_network_subnets_with_available_ips(controller, site_network):
+        # get the full SiteNetwork entity from controller
+        site_net_entity = controller.get_entity_v2(ModelResource, site_network["id"], entity_class=SiteNetwork)
+
+        subnets = site_network.get("attributes", {}).get("configs", {}).get("subnets", [])
+
+        vsphere_pool_ids = []
+        openstack_subnet_id_to_allocation_pools = {}
+
+        for s in subnets:
+            if not s.get("allocable"):
+                continue
+
+            vs_id = s.get("vsphere_id")
+            if vs_id and vs_id != "None":
+                vsphere_pool_ids.append(vs_id)
+
+            ops_id = s.get("openstack_id")
+            if ops_id and ops_id != "None":
+                ap = s.get("allocation_pools", {})
+                if isinstance(ap, dict):
+                    ap = ap.get("openstack", [])
+                openstack_subnet_id_to_allocation_pools[ops_id] = ap
+
+        available_ips_openstack = {}
+        if openstack_subnet_id_to_allocation_pools:
+            available_ips_openstack = site_net_entity.get_openstack_number_of_available_ip_addresses(
+                openstack_subnet_id_to_allocation_pools
+            )
+
+        available_ips_vsphere = {}
+        if vsphere_pool_ids:
+            available_ips_vsphere = site_net_entity.get_vsphere_number_of_available_ip_addresses(vsphere_pool_ids)
+
+        for s in subnets:
+            ops_id = s.get("openstack_id")
+            vs_id = s.get("vsphere_id")
+
+            if ops_id and ops_id != "None":
+                val = available_ips_openstack.get(ops_id)
+            elif vs_id and vs_id != "None":
+                val = available_ips_vsphere.get(vs_id)
+            else:
+                val = "None"
+
+            s["available_ips"] = val
+
+
+
+    @staticmethod
+    def enrich_site_networks_subnets_with_available_ips(controller, site_networks_info):
+        """
+        For each SiteNetwork:
+          - collect allocable subnets
+          - query available IPs (openstack, vsphere)
+          - enrich subnets with 'available_ips'
+        """
+        site_networks = site_networks_info['site_networks']
+        for site_network in site_networks:
+            SiteNetwork.enrich_site_network_subnets_with_available_ips(controller, site_network)
+        return site_networks_info
 
 
 class PrivateNetwork(AvailabilityZoneChildResource):
@@ -970,8 +1287,9 @@ class PrivateNetwork(AvailabilityZoneChildResource):
         index = 0
         for orchestrator in orchestrator_idx.values():
             if index >= len(available_network_subnets):
+                orchestrator_id = orchestrator["id"]
                 raise ApiManagerError(
-                    "no available sub cidr found for orchestrator %s in base cidr %s" % (orchestrator["id"], base_cidr)
+                    f"no available sub cidr found for orchestrator {orchestrator_id} in base cidr {base_cidr}"
                 )
 
             # main cidr
@@ -1033,7 +1351,7 @@ class PrivateNetwork(AvailabilityZoneChildResource):
     def get_cidr(self):
         """Get network cidr"""
         cidr = self.get_attribs(key="configs.cidr")
-        self.logger.debug("Get network %s cidr: %s" % (self.uuid, cidr))
+        self.logger.debug("Get network %s cidr: %s", self.uuid, cidr)
         return cidr
 
     def get_zabbix_proxy(self):
@@ -1044,7 +1362,7 @@ class PrivateNetwork(AvailabilityZoneChildResource):
         zbx_proxy = self.get_attribs(key="configs.zabbix_proxy")
         if zbx_proxy is None:
             raise ApiManagerError(
-                "No zabbix proxy available in attributes of network %s" % self.uuid,
+                f"No zabbix proxy available in attributes of network {self.uuid}",
                 code=404,
             )
         l = zbx_proxy.split(",", maxsplit=1)
@@ -1052,19 +1370,19 @@ class PrivateNetwork(AvailabilityZoneChildResource):
         zbx_proxy_name = None
         if len(l) == 2:
             zbx_proxy_name = l[1].strip()
-        self.logger.debug("Get network %s zabbix proxy: %s, %s" % (self.uuid, zbx_proxy_ip, zbx_proxy_name))
+        self.logger.debug("Get network %s zabbix proxy: %s, %s", self.uuid, zbx_proxy_ip, zbx_proxy_name)
         return zbx_proxy_ip, zbx_proxy_name
 
     def get_dns_search(self):
         """Get network dns_search"""
         dns_search = self.get_attribs(key="configs.dns_search")
-        self.logger.debug("Get network %s dns search: %s" % (self.uuid, dns_search))
+        self.logger.debug("Get network %s dns search: %s", self.uuid, dns_search)
         return dns_search
 
     def get_dns_nameservers(self):
         """Get network dns_nameservers"""
         dns_nameservers = self.get_attribs(key="configs.dns_nameservers")
-        self.logger.debug("Get network %s dns nameservers: %s" % (self.uuid, dns_nameservers))
+        self.logger.debug("Get network %s dns nameservers: %s", self.uuid, dns_nameservers)
         return dns_nameservers
 
     def get_allocable_subnet(self, cidr, orchestrator_type=None):
@@ -1081,7 +1399,7 @@ class PrivateNetwork(AvailabilityZoneChildResource):
             "cidr": None,
         }
 
-        physical_nets, total = self.get_linked_resources(link_type_filter="relation")
+        physical_nets, _ = self.get_linked_resources(link_type_filter="relation")
         for physical_net in physical_nets:
             if isinstance(physical_net, OpenstackNetwork):
                 allocable_subnet["openstack_id"] = physical_net.get_attribs(key="subnet")
@@ -1094,7 +1412,7 @@ class PrivateNetwork(AvailabilityZoneChildResource):
                     allocable_subnet["gateway"] = physical_net.get_gateway()
                     allocable_subnet["cidr"] = physical_net.get_private_subnet()
 
-        self.logger.debug("Get network %s allocable subnet for cidr %s: %s" % (self.uuid, cidr, allocable_subnet))
+        self.logger.debug("Get network %s allocable subnet for cidr %s: %s", self.uuid, cidr, allocable_subnet)
         return allocable_subnet
 
     def get_vsphere_network(self):

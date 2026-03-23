@@ -1,14 +1,18 @@
 # SPDX-License-Identifier: EUPL-1.2
 #
 # (C) Copyright 2020-2022 Regione Piemonte
-# (C) Copyright 2018-2024 CSI-Piemonte
-
+# (C) Copyright 2018-2026 CSI-Piemonte
+from __future__ import annotations
 from beehive_resource.container import Resource
 from beehive_resource.plugins.provider.entity.aggregate import ComputeProviderResource
 from beehive_resource.plugins.provider.entity.instance import ComputeInstance
 from beehive_resource.plugins.provider.entity.zone import AvailabilityZoneChildResource
 
 from logging import getLogger
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from beehive_resource.controller import ResourceController
+    from beehive_resource.container import ResourceContainer
 
 logger = getLogger(__name__)
 
@@ -94,7 +98,7 @@ class AppliedComputeCustomization(ComputeProviderResource):
                 self.physical_job_template.post_get()
 
     @staticmethod
-    def pre_create(controller, container, *args, **kvargs):
+    def pre_create(controller: ResourceController, container: ResourceContainer, *args, **kvargs):
         """Check input params before resource creation. This function is used in container resource_factory method.
         Use create when you want to create new awx project and connect to customization.
 
